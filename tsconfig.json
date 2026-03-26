@@ -2,9 +2,10 @@
   "extends": "@electron-toolkit/tsconfig/tsconfig.json",
   "include": ["src/**/*", "electron.vite.config.*"],
   "compilerOptions": {
+    "baseUrl": ".",
     "paths": {
       "@shared/*": ["src/shared/*"],
-      "@renderer/*": ["src/renderer/*"]
+      "@renderer/*": ["src/renderer/src/*"]
     }
   }
 }
