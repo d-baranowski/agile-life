@@ -40,6 +40,11 @@ app.whenReady().then(() => {
   // Set app user model id for Windows
   electronApp.setAppUserModelId('com.agilelife.app')
 
+  // On macOS, BrowserWindow.icon does not change the Dock icon — set it explicitly
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setIcon(icon)
+  }
+
   // Register IPC handlers
   registerBoardHandlers()
 
