@@ -65,10 +65,11 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
   // Aggregate weekly stats by user (sum across weeks)
   const userTotals = weeklyStats.reduce<Record<string, { userName: string; count: number }>>(
     (acc, row) => {
-      if (!acc[row.userId]) {
-        acc[row.userId] = { userName: row.userName, count: 0 }
+      const key = row.userId ?? 'unassigned'
+      if (!acc[key]) {
+        acc[key] = { userName: row.userName, count: 0 }
       }
-      acc[row.userId].count += row.closedCount
+      acc[key].count += row.closedCount
       return acc
     },
     {}
@@ -78,7 +79,10 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
 
   // Group label stats by label for the drill-down table
   const labelGroups = labelStats.reduce<
-    Record<string, { color: string; users: { userId: string; userName: string; count: number }[] }>
+    Record<
+      string,
+      { color: string; users: { userId: string | null; userName: string; count: number }[] }
+    >
   >((acc, row) => {
     if (!acc[row.labelName]) {
       acc[row.labelName] = { color: row.labelColor, users: [] }
@@ -187,7 +191,7 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
                       </thead>
                       <tbody>
                         {users.map((u) => (
-                          <tr key={u.userId}>
+                          <tr key={u.userId ?? 'unassigned'}>
                             <td>{u.userName}</td>
                             <td style={{ textAlign: 'right' }}>{u.count}</td>
                           </tr>
