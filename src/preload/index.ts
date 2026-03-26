@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { IPC_CHANNELS } from '@shared/types'
+import type { IPC_CHANNELS } from '@shared/ipc.types'
 
 type Channel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]
 
@@ -19,8 +19,8 @@ if (process.contextIsolated) {
     console.error(error)
   }
 } else {
-  // @ts-ignore (define in dts)
+  // @ts-expect-error (define in dts)
   window.electron = electronAPI
-  // @ts-ignore (define in dts)
+  // @ts-expect-error (define in dts)
   window.api = api
 }

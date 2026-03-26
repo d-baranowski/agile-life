@@ -1,5 +1,4 @@
-import React from 'react'
-import type { BoardConfig } from '@shared/types'
+import type { BoardConfig } from '@shared/board.types'
 import styles from './BoardSwitcher.module.css'
 
 interface Props {

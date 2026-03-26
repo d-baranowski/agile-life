@@ -58,7 +58,9 @@
   border-radius: var(--radius-sm);
   font-size: 13px;
   white-space: nowrap;
-  transition: background var(--transition), color var(--transition);
+  transition:
+    background var(--transition),
+    color var(--transition);
 }
 
 .navBtn:hover {

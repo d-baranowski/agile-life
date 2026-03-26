@@ -1,7 +1,7 @@
 /**
  * Tests for shared IPC channel definitions.
  */
-import { IPC_CHANNELS } from '../shared/types'
+import { IPC_CHANNELS } from '../shared/ipc.types'
 
 describe('IPC_CHANNELS', () => {
   it('all channel names are unique strings', () => {

@@ -11,4 +11,3 @@
 //   @shared/ipc.types       – IPC_CHANNELS, IpcChannel, IpcResult
 
 export {}
-

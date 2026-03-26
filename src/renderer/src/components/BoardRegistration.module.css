@@ -149,7 +149,9 @@
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   cursor: pointer;
-  transition: border-color var(--transition), background var(--transition);
+  transition:
+    border-color var(--transition),
+    background var(--transition);
   color: var(--color-text);
 }
 

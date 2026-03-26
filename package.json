@@ -8,11 +8,20 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.tsx",
+    "lint": "eslint src --ext .ts,.tsx --max-warnings 0",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "jest",
     "postinstall": "electron-builder install-app-deps"
   },
-  "keywords": ["electron", "trello", "analytics", "sqlite", "react"],
+  "keywords": [
+    "electron",
+    "trello",
+    "analytics",
+    "sqlite",
+    "react"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -64,7 +73,11 @@
       "executableName": "agile-life"
     },
     "linux": {
-      "target": ["AppImage", "snap", "deb"],
+      "target": [
+        "AppImage",
+        "snap",
+        "deb"
+      ],
       "maintainer": "electronjs.org",
       "category": "Utility"
     }

@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import type { BoardConfig } from '@shared/types'
+import { useState, useEffect, useCallback } from 'react'
+import type { BoardConfig } from '@shared/board.types'
 import { api } from './hooks/useApi'
 import BoardSwitcher from './components/BoardSwitcher'
 import BoardRegistration from './components/BoardRegistration'
 import Dashboard from './pages/Dashboard'
-import AnalyticsPage from './pages/AnalyticsPage'
-import TicketNumberingPage from './pages/TicketNumberingPage'
 import SettingsPage from './pages/SettingsPage'
 import styles from './App.module.css'
 
-type Tab = 'dashboard' | 'analytics' | 'tickets' | 'settings'
+type Tab = 'dashboard' | 'settings'
 
 export default function App(): JSX.Element {
   const [boards, setBoards] = useState<BoardConfig[]>([])
@@ -71,15 +69,13 @@ export default function App(): JSX.Element {
           />
         </div>
         <nav className={styles.nav}>
-          {(['dashboard', 'analytics', 'tickets', 'settings'] as Tab[]).map((tab) => (
+          {(['dashboard', 'settings'] as Tab[]).map((tab) => (
             <button
               key={tab}
               className={`${styles.navBtn} ${activeTab === tab ? styles.navBtnActive : ''}`}
               onClick={() => setActiveTab(tab)}
             >
               {tab === 'dashboard' && '📊 '}
-              {tab === 'analytics' && '📈 '}
-              {tab === 'tickets' && '🎫 '}
               {tab === 'settings' && '⚙️ '}
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
@@ -97,29 +93,21 @@ export default function App(): JSX.Element {
         ) : !selectedBoard ? (
           <div className={styles.emptyState}>
             <h2>No boards registered</h2>
-            <p className="text-muted">
-              Get started by registering a Trello board.
-            </p>
+            <p className="text-muted">Get started by registering a Trello board.</p>
             <button className="btn-primary" onClick={() => setShowRegistration(true)}>
               + Register a Board
             </button>
           </div>
         ) : (
           <>
-            {activeTab === 'dashboard' && (
-              <Dashboard board={selectedBoard} />
-            )}
-            {activeTab === 'analytics' && (
-              <AnalyticsPage board={selectedBoard} />
-            )}
-            {activeTab === 'tickets' && (
-              <TicketNumberingPage board={selectedBoard} />
-            )}
+            {activeTab === 'dashboard' && <Dashboard board={selectedBoard} />}
             {activeTab === 'settings' && (
               <SettingsPage
                 board={selectedBoard}
                 onBoardUpdated={(updated) =>
-                  setBoards((prev) => prev.map((b) => (b.boardId === updated.boardId ? updated : b)))
+                  setBoards((prev) =>
+                    prev.map((b) => (b.boardId === updated.boardId ? updated : b))
+                  )
                 }
                 onBoardDeleted={handleBoardDeleted}
               />

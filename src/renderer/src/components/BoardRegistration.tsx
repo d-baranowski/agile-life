@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
-import type { BoardConfig, TrelloBoard } from '@shared/types'
+import { useState } from 'react'
+import type { BoardConfig } from '@shared/board.types'
+import type { TrelloBoard } from '@shared/trello.types'
 import { api } from '../hooks/useApi'
 import styles from './BoardRegistration.module.css'
 
@@ -135,11 +136,7 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
           <div className={styles.form}>
             <p className={styles.hint}>
               You can find your API Key and Token at{' '}
-              <a
-                href="https://trello.com/app-key"
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a href="https://trello.com/app-key" target="_blank" rel="noreferrer">
                 trello.com/app-key
               </a>
               .
@@ -165,11 +162,7 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
               />
             </label>
             <div className={styles.actions}>
-              <button
-                className="btn-primary"
-                onClick={handleFetchBoards}
-                disabled={loading}
-              >
+              <button className="btn-primary" onClick={handleFetchBoards} disabled={loading}>
                 {loading ? 'Connecting…' : 'Connect to Trello →'}
               </button>
             </div>
@@ -230,7 +223,7 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
               />
             </label>
             <label className={styles.label}>
-              "Done" List Names{' '}
+              &quot;Done&quot; List Names{' '}
               <span className={styles.optional}>(comma-separated, e.g. Done, Shipped)</span>
               <input
                 type="text"

@@ -3,292 +3,223 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { CREATE_TABLES_SQL } from './schema'
-import type {
-  BoardConfig,
-  BoardConfigInput,
-  TrelloCard,
-  TrelloList,
-  TrelloMember,
-  TrelloAction
-} from '@shared/types'
+import type { BoardConfig, BoardConfigInput } from '@shared/board.types'
+import type { TrelloList, TrelloCard } from '@shared/trello.types'
 
 let _db: Database.Database | null = null
 
+// ─── Connection ────────────────────────────────────────────────────────────────
+
 /**
- * Returns the singleton SQLite database instance.
- * The database file is stored in Electron's userData directory.
+ * Returns the singleton SQLite database, creating and migrating it on first
+ * call.  The file lives in Electron's per-user data directory.
  */
 export function getDb(): Database.Database {
   if (_db) return _db
 
-  const userDataPath = app.getPath('userData')
-  if (!fs.existsSync(userDataPath)) {
-    fs.mkdirSync(userDataPath, { recursive: true })
-  }
+  const dir = app.getPath('userData')
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
-  const dbPath = path.join(userDataPath, 'agile-life.db')
-  _db = new Database(dbPath)
-
-  // Apply schema (idempotent CREATE TABLE IF NOT EXISTS statements)
+  _db = new Database(path.join(dir, 'agile-life.db'))
   _db.exec(CREATE_TABLES_SQL)
-
   return _db
 }
 
-// ─── Board Config Queries ──────────────────────────────────────────────────────
+// ─── Board Config ──────────────────────────────────────────────────────────────
 
 export function getAllBoards(): BoardConfig[] {
-  const db = getDb()
-  const rows = db
+  return getDb()
     .prepare(
       `SELECT id, board_id, board_name, api_key, api_token, project_code,
-              next_ticket_number, done_list_names, created_at, updated_at
-       FROM board_configs
-       ORDER BY created_at ASC`
+              next_ticket_number, done_list_names, last_synced_at, created_at, updated_at
+       FROM board_configs ORDER BY created_at ASC`
     )
-    .all() as Record<string, unknown>[]
-
-  return rows.map(rowToBoardConfig)
+    .all()
+    .map(rowToBoardConfig)
 }
 
 export function getBoardById(boardId: string): BoardConfig | undefined {
-  const db = getDb()
-  const row = db
-    .prepare(`SELECT * FROM board_configs WHERE board_id = ?`)
-    .get(boardId) as Record<string, unknown> | undefined
-
-  return row ? rowToBoardConfig(row) : undefined
+  const row = getDb().prepare(`SELECT * FROM board_configs WHERE board_id = ?`).get(boardId)
+  return row ? rowToBoardConfig(row as Row) : undefined
 }
 
 export function addBoard(input: BoardConfigInput): BoardConfig {
   const db = getDb()
-  const stmt = db.prepare(`
-    INSERT INTO board_configs
-      (board_id, board_name, api_key, api_token, project_code, next_ticket_number, done_list_names)
-    VALUES
-      (@boardId, @boardName, @apiKey, @apiToken, @projectCode, @nextTicketNumber, @doneListNames)
-  `)
+  const result = db
+    .prepare(
+      `INSERT INTO board_configs
+         (board_id, board_name, api_key, api_token, project_code, next_ticket_number, done_list_names)
+       VALUES
+         (@boardId, @boardName, @apiKey, @apiToken, @projectCode, @nextTicketNumber, @doneListNames)`
+    )
+    .run({
+      boardId: input.boardId,
+      boardName: input.boardName,
+      apiKey: input.apiKey,
+      apiToken: input.apiToken,
+      projectCode: input.projectCode.toUpperCase(),
+      nextTicketNumber: input.nextTicketNumber,
+      doneListNames: JSON.stringify(input.doneListNames)
+    })
 
-  const result = stmt.run({
-    boardId: input.boardId,
-    boardName: input.boardName,
-    apiKey: input.apiKey,
-    apiToken: input.apiToken,
-    projectCode: input.projectCode.toUpperCase(),
-    nextTicketNumber: input.nextTicketNumber,
-    doneListNames: JSON.stringify(input.doneListNames)
-  })
-
-  const row = db
-    .prepare(`SELECT * FROM board_configs WHERE id = ?`)
-    .get(result.lastInsertRowid) as Record<string, unknown>
-
-  return rowToBoardConfig(row)
+  return rowToBoardConfig(
+    db.prepare(`SELECT * FROM board_configs WHERE id = ?`).get(result.lastInsertRowid) as Row
+  )
 }
 
 export function updateBoard(boardId: string, updates: Partial<BoardConfigInput>): BoardConfig {
-  const db = getDb()
   const existing = getBoardById(boardId)
-  if (!existing) throw new Error(`Board ${boardId} not found`)
+  if (!existing) throw new Error(`Board not found: ${boardId}`)
 
-  const merged = {
+  const next = {
     boardName: updates.boardName ?? existing.boardName,
     apiKey: updates.apiKey ?? existing.apiKey,
     apiToken: updates.apiToken ?? existing.apiToken,
     projectCode: (updates.projectCode ?? existing.projectCode).toUpperCase(),
     nextTicketNumber: updates.nextTicketNumber ?? existing.nextTicketNumber,
-    doneListNames: updates.doneListNames ?? existing.doneListNames,
-    boardId
+    doneListNames: JSON.stringify(updates.doneListNames ?? existing.doneListNames)
   }
 
-  db.prepare(`
-    UPDATE board_configs
-    SET board_name = @boardName,
-        api_key = @apiKey,
-        api_token = @apiToken,
-        project_code = @projectCode,
-        next_ticket_number = @nextTicketNumber,
-        done_list_names = @doneListNames,
-        updated_at = datetime('now')
-    WHERE board_id = @boardId
-  `).run({ ...merged, doneListNames: JSON.stringify(merged.doneListNames) })
+  getDb()
+    .prepare(
+      `UPDATE board_configs
+       SET board_name = @boardName, api_key = @apiKey, api_token = @apiToken,
+           project_code = @projectCode, next_ticket_number = @nextTicketNumber,
+           done_list_names = @doneListNames, updated_at = datetime('now')
+       WHERE board_id = @boardId`
+    )
+    .run({ ...next, boardId })
 
   return getBoardById(boardId)!
 }
 
 export function deleteBoard(boardId: string): void {
-  const db = getDb()
-  db.prepare(`DELETE FROM board_configs WHERE board_id = ?`).run(boardId)
+  getDb().prepare(`DELETE FROM board_configs WHERE board_id = ?`).run(boardId)
 }
 
-// ─── Trello Data Upsert Queries ────────────────────────────────────────────────
+// ─── Lists ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Upsert a batch of lists fetched from Trello.
+ * ON CONFLICT updates name/pos so renames are reflected on re-sync.
+ */
 export function upsertLists(boardId: string, lists: TrelloList[]): void {
   const db = getDb()
-  const stmt = db.prepare(`
-    INSERT INTO trello_lists (id, board_id, name, closed, pos)
-    VALUES (@id, @boardId, @name, @closed, @pos)
-    ON CONFLICT(id) DO UPDATE SET
-      name = excluded.name,
-      closed = excluded.closed,
-      pos = excluded.pos,
-      synced_at = datetime('now')
-  `)
+  const stmt = db.prepare(
+    `INSERT INTO trello_lists (id, board_id, name, pos, closed)
+     VALUES (@id, @boardId, @name, @pos, @closed)
+     ON CONFLICT(id) DO UPDATE SET
+       name      = excluded.name,
+       pos       = excluded.pos,
+       closed    = excluded.closed,
+       synced_at = datetime('now')`
+  )
 
-  const upsertMany = db.transaction((items: TrelloList[]) => {
-    for (const l of items) {
-      stmt.run({ id: l.id, boardId, name: l.name, closed: l.closed ? 1 : 0, pos: l.pos })
+  db.transaction((rows: TrelloList[]) => {
+    for (const l of rows) {
+      stmt.run({ id: l.id, boardId, name: l.name, pos: l.pos, closed: l.closed ? 1 : 0 })
     }
-  })
-
-  upsertMany(lists)
+  })(lists)
 }
 
-export function getLists(boardId: string): TrelloList[] {
+/**
+ * After upserting the fresh list from Trello, mark any list that was NOT
+ * returned as closed (it was archived or deleted on the Trello board).
+ */
+export function markRemovedLists(boardId: string, freshListIds: string[]): void {
   const db = getDb()
-  return db
-    .prepare(
-      `SELECT id, board_id as idBoard, name, closed, pos FROM trello_lists
-       WHERE board_id = ? ORDER BY pos ASC`
-    )
-    .all(boardId) as TrelloList[]
+  if (freshListIds.length === 0) {
+    db.prepare(
+      `UPDATE trello_lists SET closed = 1, synced_at = datetime('now')
+       WHERE board_id = ? AND closed = 0`
+    ).run(boardId)
+    return
+  }
+  db.prepare(
+    `UPDATE trello_lists SET closed = 1, synced_at = datetime('now')
+     WHERE board_id = ? AND closed = 0
+       AND id NOT IN (SELECT value FROM json_each(?))`
+  ).run(boardId, JSON.stringify(freshListIds))
 }
 
-export function upsertMembers(boardId: string, members: TrelloMember[]): void {
-  const db = getDb()
-  const stmt = db.prepare(`
-    INSERT INTO trello_members (id, board_id, full_name, username, avatar_url)
-    VALUES (@id, @boardId, @fullName, @username, @avatarUrl)
-    ON CONFLICT(id) DO UPDATE SET
-      full_name = excluded.full_name,
-      username = excluded.username,
-      avatar_url = excluded.avatar_url,
-      synced_at = datetime('now')
-  `)
+// ─── Cards ─────────────────────────────────────────────────────────────────────
 
-  const upsertMany = db.transaction((items: TrelloMember[]) => {
-    for (const m of items) {
-      stmt.run({ id: m.id, boardId, fullName: m.fullName, username: m.username, avatarUrl: m.avatarUrl ?? null })
-    }
-  })
-
-  upsertMany(members)
-}
-
-export function getMembers(boardId: string): TrelloMember[] {
-  const db = getDb()
-  return db
-    .prepare(
-      `SELECT id, board_id as idBoard, full_name as fullName, username, avatar_url as avatarUrl
-       FROM trello_members WHERE board_id = ?`
-    )
-    .all(boardId) as TrelloMember[]
-}
-
+/**
+ * Upsert a batch of cards fetched from Trello.
+ *
+ * The PRIMARY KEY is Trello's card `id` — guaranteed globally unique.
+ * ON CONFLICT updates every mutable field, including `list_id`, which
+ * is how a card moving between columns is reflected after re-sync.
+ */
 export function upsertCards(boardId: string, cards: TrelloCard[]): void {
   const db = getDb()
-  const stmt = db.prepare(`
-    INSERT INTO trello_cards
-      (id, board_id, list_id, name, desc, closed, due, due_complete,
-       date_last_activity, labels_json, members_json, short_url, url)
-    VALUES
-      (@id, @boardId, @listId, @name, @desc, @closed, @due, @dueComplete,
-       @dateLastActivity, @labelsJson, @membersJson, @shortUrl, @url)
-    ON CONFLICT(id) DO UPDATE SET
-      list_id = excluded.list_id,
-      name = excluded.name,
-      desc = excluded.desc,
-      closed = excluded.closed,
-      due = excluded.due,
-      due_complete = excluded.due_complete,
-      date_last_activity = excluded.date_last_activity,
-      labels_json = excluded.labels_json,
-      members_json = excluded.members_json,
-      short_url = excluded.short_url,
-      url = excluded.url,
-      synced_at = datetime('now')
-  `)
+  const stmt = db.prepare(
+    `INSERT INTO trello_cards
+       (id, board_id, list_id, name, closed, date_last_activity, labels_json, members_json)
+     VALUES
+       (@id, @boardId, @listId, @name, @closed, @dateLastActivity, @labelsJson, @membersJson)
+     ON CONFLICT(id) DO UPDATE SET
+       list_id            = excluded.list_id,
+       name               = excluded.name,
+       closed             = excluded.closed,
+       date_last_activity = excluded.date_last_activity,
+       labels_json        = excluded.labels_json,
+       members_json       = excluded.members_json,
+       synced_at          = datetime('now')`
+  )
 
-  const upsertMany = db.transaction((items: TrelloCard[]) => {
-    for (const c of items) {
+  db.transaction((rows: TrelloCard[]) => {
+    for (const c of rows) {
       stmt.run({
         id: c.id,
         boardId,
         listId: c.idList,
         name: c.name,
-        desc: c.desc,
         closed: c.closed ? 1 : 0,
-        due: c.due ?? null,
-        dueComplete: c.dueComplete ? 1 : 0,
         dateLastActivity: c.dateLastActivity,
         labelsJson: JSON.stringify(c.labels),
-        membersJson: JSON.stringify(c.members),
-        shortUrl: c.shortUrl,
-        url: c.url
+        membersJson: JSON.stringify(c.members)
       })
     }
-  })
-
-  upsertMany(cards)
+  })(cards)
 }
 
-export function getCards(boardId: string, includeArchived = false): TrelloCard[] {
+/**
+ * After upserting the fresh card list from Trello, mark any card that was NOT
+ * returned as closed = 1 (it was archived or deleted on the Trello board).
+ */
+export function markRemovedCards(boardId: string, freshCardIds: string[]): void {
   const db = getDb()
-  const rows = db
+  if (freshCardIds.length === 0) {
+    db.prepare(
+      `UPDATE trello_cards SET closed = 1, synced_at = datetime('now')
+       WHERE board_id = ? AND closed = 0`
+    ).run(boardId)
+    return
+  }
+  db.prepare(
+    `UPDATE trello_cards SET closed = 1, synced_at = datetime('now')
+     WHERE board_id = ? AND closed = 0
+       AND id NOT IN (SELECT value FROM json_each(?))`
+  ).run(boardId, JSON.stringify(freshCardIds))
+}
+
+/** Stamp the board row with the current UTC time after a successful sync. */
+export function updateBoardSyncTime(boardId: string): void {
+  getDb()
     .prepare(
-      `SELECT id, board_id as idBoard, list_id as idList, name, desc, closed, due, due_complete as dueComplete,
-              date_last_activity as dateLastActivity, labels_json, members_json, short_url as shortUrl, url
-       FROM trello_cards
-       WHERE board_id = ? ${includeArchived ? '' : 'AND closed = 0'}
-       ORDER BY name ASC`
+      `UPDATE board_configs
+       SET last_synced_at = datetime('now'), updated_at = datetime('now')
+       WHERE board_id = ?`
     )
-    .all(boardId) as Record<string, unknown>[]
-
-  return rows.map((r) => ({
-    ...(r as unknown as TrelloCard),
-    labels: JSON.parse(r.labels_json as string),
-    members: JSON.parse(r.members_json as string),
-    idLabels: (JSON.parse(r.labels_json as string) as { id: string }[]).map((l) => l.id),
-    idMembers: (JSON.parse(r.members_json as string) as { id: string }[]).map((m) => m.id),
-    closed: r.closed === 1
-  }))
+    .run(boardId)
 }
 
-export function upsertActions(boardId: string, actions: TrelloAction[]): void {
-  const db = getDb()
-  const stmt = db.prepare(`
-    INSERT OR IGNORE INTO trello_actions
-      (id, board_id, card_id, action_type, action_date, member_id, member_name,
-       list_before_id, list_before_name, list_after_id, list_after_name)
-    VALUES
-      (@id, @boardId, @cardId, @actionType, @actionDate, @memberId, @memberName,
-       @listBeforeId, @listBeforeName, @listAfterId, @listAfterName)
-  `)
+// ─── Row Mapper ────────────────────────────────────────────────────────────────
 
-  const insertMany = db.transaction((items: TrelloAction[]) => {
-    for (const a of items) {
-      stmt.run({
-        id: a.id,
-        boardId,
-        cardId: a.data.card?.id ?? null,
-        actionType: a.type,
-        actionDate: a.date,
-        memberId: a.memberCreator?.id ?? null,
-        memberName: a.memberCreator?.fullName ?? null,
-        listBeforeId: a.data.listBefore?.id ?? null,
-        listBeforeName: a.data.listBefore?.name ?? null,
-        listAfterId: a.data.listAfter?.id ?? null,
-        listAfterName: a.data.listAfter?.name ?? null
-      })
-    }
-  })
+type Row = Record<string, unknown>
 
-  insertMany(actions)
-}
-
-// ─── Row Mappers ───────────────────────────────────────────────────────────────
-
-function rowToBoardConfig(row: Record<string, unknown>): BoardConfig {
+function rowToBoardConfig(row: Row): BoardConfig {
   return {
     id: row.id as number,
     boardId: row.board_id as string,
@@ -298,6 +229,7 @@ function rowToBoardConfig(row: Record<string, unknown>): BoardConfig {
     projectCode: row.project_code as string,
     nextTicketNumber: row.next_ticket_number as number,
     doneListNames: JSON.parse(row.done_list_names as string),
+    lastSyncedAt: (row.last_synced_at as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   }

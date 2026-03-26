@@ -1,5 +1,11 @@
 import axios, { AxiosInstance } from 'axios'
-import type { TrelloBoard, TrelloList, TrelloCard, TrelloMember, TrelloAction } from '@shared/trello.types'
+import type {
+  TrelloBoard,
+  TrelloList,
+  TrelloCard,
+  TrelloMember,
+  TrelloAction
+} from '@shared/trello.types'
 
 const TRELLO_BASE_URL = 'https://api.trello.com/1'
 
@@ -51,7 +57,8 @@ export class TrelloClient {
     const { data } = await this.http.get<TrelloCard[]>(`/boards/${boardId}/cards`, {
       params: {
         filter: 'open',
-        fields: 'id,name,desc,idBoard,idList,idLabels,idMembers,labels,closed,dateLastActivity,due,dueComplete,pos,shortUrl,url',
+        fields:
+          'id,name,desc,idBoard,idList,idLabels,idMembers,labels,closed,dateLastActivity,due,dueComplete,pos,shortUrl,url',
         members: 'true',
         member_fields: 'id,fullName,username,avatarUrl'
       }
@@ -66,7 +73,8 @@ export class TrelloClient {
     const { data } = await this.http.get<TrelloCard[]>(`/boards/${boardId}/cards`, {
       params: {
         filter: 'all',
-        fields: 'id,name,desc,idBoard,idList,idLabels,idMembers,labels,closed,dateLastActivity,due,dueComplete,pos,shortUrl,url',
+        fields:
+          'id,name,desc,idBoard,idList,idLabels,idMembers,labels,closed,dateLastActivity,due,dueComplete,pos,shortUrl,url',
         members: 'true',
         member_fields: 'id,fullName,username,avatarUrl'
       }

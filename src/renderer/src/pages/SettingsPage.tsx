@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import type { BoardConfig } from '@shared/types'
+import { useState } from 'react'
+import type { BoardConfig } from '@shared/board.types'
 import { api } from '../hooks/useApi'
 import styles from './SettingsPage.module.css'
 
@@ -9,7 +9,11 @@ interface Props {
   onBoardDeleted: (boardId: string) => void
 }
 
-export default function SettingsPage({ board, onBoardUpdated, onBoardDeleted }: Props): JSX.Element {
+export default function SettingsPage({
+  board,
+  onBoardUpdated,
+  onBoardDeleted
+}: Props): JSX.Element {
   const [boardName, setBoardName] = useState(board.boardName)
   const [doneListNames, setDoneListNames] = useState(board.doneListNames.join(', '))
   const [saving, setSaving] = useState(false)
@@ -68,15 +72,10 @@ export default function SettingsPage({ board, onBoardUpdated, onBoardDeleted }: 
         <div className={styles.form}>
           <label className={styles.label}>
             Board Display Name
-            <input
-              type="text"
-              value={boardName}
-              onChange={(e) => setBoardName(e.target.value)}
-            />
+            <input type="text" value={boardName} onChange={(e) => setBoardName(e.target.value)} />
           </label>
           <label className={styles.label}>
-            "Done" List Names{' '}
-            <span className={styles.hint}>(comma-separated)</span>
+            &quot;Done&quot; List Names <span className={styles.hint}>(comma-separated)</span>
             <input
               type="text"
               value={doneListNames}
@@ -122,11 +121,7 @@ export default function SettingsPage({ board, onBoardUpdated, onBoardDeleted }: 
             <tr>
               <th>Trello URL</th>
               <td>
-                <a
-                  href={`https://trello.com/b/${board.boardId}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <a href={`https://trello.com/b/${board.boardId}`} target="_blank" rel="noreferrer">
                   Open on Trello ↗
                 </a>
               </td>

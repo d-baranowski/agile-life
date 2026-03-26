@@ -1,35 +1,12 @@
 /**
- * Typed wrapper around `window.api.invoke` for the renderer process.
- * Provides type-safe helpers for each IPC channel.
+ * Typed wrapper around window.api.invoke for the renderer process.
+ * Only exposes IPC channels that have a registered handler in the main process.
  */
-import { IPC_CHANNELS } from '@shared/types'
-import type {
-  BoardConfig,
-  BoardConfigInput,
-  TrelloBoard,
-  TrelloList,
-  TrelloCard,
-  TrelloMember,
-  ColumnCount,
-  WeeklyUserStats,
-  LabelUserStats,
-  CardAgeStats,
-  IpcResult
-} from '@shared/types'
-// These types are defined in the main process but we re-declare them here
-// so the renderer doesn't need to import from the main process bundle.
-export interface UnnumberedCard {
-  cardId: string
-  cardName: string
-  listName: string
-  proposedName: string
-}
-
-export interface TicketNumberingConfig {
-  projectCode: string
-  nextTicketNumber: number
-  unnumberedCount: number
-}
+import { IPC_CHANNELS } from '@shared/ipc.types'
+import type { IpcResult } from '@shared/ipc.types'
+import type { BoardConfig, BoardConfigInput, SyncResult } from '@shared/board.types'
+import type { TrelloBoard } from '@shared/trello.types'
+import type { ColumnCount } from '@shared/analytics.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return window.api.invoke(channel as Parameters<typeof window.api.invoke>[0], ...args) as Promise<
@@ -37,7 +14,6 @@ function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   >
 }
 
-// ─── Boards ───────────────────────────────────────────────────────────────────
 export const api = {
   boards: {
     getAll: () => invoke<BoardConfig[]>(IPC_CHANNELS.BOARDS_GET_ALL),
@@ -50,35 +26,13 @@ export const api = {
   },
 
   trello: {
-    sync: (boardId: string) => invoke<void>(IPC_CHANNELS.TRELLO_SYNC, boardId),
-    getLists: (boardId: string) => invoke<TrelloList[]>(IPC_CHANNELS.TRELLO_GET_LISTS, boardId),
-    getCards: (boardId: string) => invoke<TrelloCard[]>(IPC_CHANNELS.TRELLO_GET_CARDS, boardId),
-    getMembers: (boardId: string) =>
-      invoke<TrelloMember[]>(IPC_CHANNELS.TRELLO_GET_MEMBERS, boardId)
+    /** Syncs lists + cards for the board and returns a summary. */
+    sync: (boardId: string) => invoke<SyncResult>(IPC_CHANNELS.TRELLO_SYNC, boardId)
   },
 
   analytics: {
+    /** Returns card counts per open column, read from local cache. */
     columnCounts: (boardId: string) =>
-      invoke<ColumnCount[]>(IPC_CHANNELS.ANALYTICS_COLUMN_COUNTS, boardId),
-    weeklyUserStats: (boardId: string) =>
-      invoke<WeeklyUserStats[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_USER_STATS, boardId),
-    labelUserStats: (boardId: string) =>
-      invoke<LabelUserStats[]>(IPC_CHANNELS.ANALYTICS_LABEL_USER_STATS, boardId),
-    cardAge: (boardId: string) =>
-      invoke<CardAgeStats[]>(IPC_CHANNELS.ANALYTICS_CARD_AGE, boardId)
-  },
-
-  tickets: {
-    getConfig: (boardId: string) =>
-      invoke<TicketNumberingConfig>(IPC_CHANNELS.TICKETS_GET_CONFIG, boardId),
-    previewUnnumbered: (boardId: string) =>
-      invoke<UnnumberedCard[]>(IPC_CHANNELS.TICKETS_PREVIEW_UNNUMBERED, boardId),
-    applyNumbering: (boardId: string) =>
-      invoke<{ updated: number; failed: number; errors: string[] }>(
-        IPC_CHANNELS.TICKETS_APPLY_NUMBERING,
-        boardId
-      ),
-    updateConfig: (boardId: string, updates: { projectCode?: string; nextTicketNumber?: number }) =>
-      invoke<void>(IPC_CHANNELS.TICKETS_UPDATE_CONFIG, boardId, updates)
+      invoke<ColumnCount[]>(IPC_CHANNELS.ANALYTICS_COLUMN_COUNTS, boardId)
   }
 }
