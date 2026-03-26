@@ -15,6 +15,9 @@ import {
   upsertCards,
   markRemovedCards,
   updateBoardSyncTime,
+  updateCardMovedToDone,
+  clearMovedToDoneForNonDone,
+  setMovedToDoneFallback,
   getDoneCardsOlderThan,
   getDb
 } from '../database/db'

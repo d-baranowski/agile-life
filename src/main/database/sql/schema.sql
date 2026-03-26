@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS trello_lists (
 -- list_id is updated on every sync, so moving a card between columns
 -- is automatically reflected in subsequent column-count queries.
 -- closed = 1 when the card is no longer returned by the Trello API.
+-- moved_to_done_at records when the card last entered a "done" list.
 CREATE TABLE IF NOT EXISTS trello_cards (
   id                 TEXT PRIMARY KEY,
   board_id           TEXT NOT NULL,
@@ -46,6 +47,7 @@ CREATE TABLE IF NOT EXISTS trello_cards (
   date_last_activity TEXT NOT NULL,
   labels_json        TEXT NOT NULL DEFAULT '[]',
   members_json       TEXT NOT NULL DEFAULT '[]',
+  moved_to_done_at   TEXT,
   synced_at          TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (board_id) REFERENCES board_configs(board_id) ON DELETE CASCADE
 );
