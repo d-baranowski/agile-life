@@ -198,3 +198,11 @@
   font-size: 12px;
   color: var(--color-text-muted);
 }
+
+.chartWrap {
+  height: 320px;
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}

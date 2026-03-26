@@ -21,6 +21,5 @@ if (process.contextIsolated) {
 } else {
   // @ts-expect-error defined on the window in preload typings
   window.electron = electronAPI
-  // @ts-expect-error defined on the window in preload typings
   window.api = api
 }

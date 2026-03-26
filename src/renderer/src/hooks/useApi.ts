@@ -10,7 +10,8 @@ import type {
   ColumnCount,
   WeeklyUserStats,
   LabelUserStats,
-  CardAgeStats
+  CardAgeStats,
+  WeeklyHistory
 } from '@shared/analytics.types'
 import type {
   TicketNumberingConfig,
@@ -52,7 +53,10 @@ export const api = {
     labelUserStats: (boardId: string) =>
       invoke<LabelUserStats[]>(IPC_CHANNELS.ANALYTICS_LABEL_USER_STATS, boardId),
     /** Returns age in days for every open card. */
-    cardAge: (boardId: string) => invoke<CardAgeStats[]>(IPC_CHANNELS.ANALYTICS_CARD_AGE, boardId)
+    cardAge: (boardId: string) => invoke<CardAgeStats[]>(IPC_CHANNELS.ANALYTICS_CARD_AGE, boardId),
+    /** Returns tickets completed per user per week for the past 12 months. */
+    weeklyHistory: (boardId: string) =>
+      invoke<WeeklyHistory[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_HISTORY, boardId)
   },
 
   tickets: {

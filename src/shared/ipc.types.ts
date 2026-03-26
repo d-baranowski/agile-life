@@ -18,6 +18,7 @@ export const IPC_CHANNELS = {
   ANALYTICS_WEEKLY_USER_STATS: 'analytics:weeklyUserStats',
   ANALYTICS_LABEL_USER_STATS: 'analytics:labelUserStats',
   ANALYTICS_CARD_AGE: 'analytics:cardAge',
+  ANALYTICS_WEEKLY_HISTORY: 'analytics:weeklyHistory',
 
   // Ticket numbering
   TICKETS_GET_CONFIG: 'tickets:getConfig',

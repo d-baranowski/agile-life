@@ -1,12 +1,39 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { BoardConfig } from '@shared/board.types'
-import type { WeeklyUserStats, LabelUserStats } from '@shared/analytics.types'
+import type { WeeklyUserStats, LabelUserStats, WeeklyHistory } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
 import styles from './AnalyticsPage.module.css'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Filler,
+  Tooltip,
+  Legend
+} from 'chart.js'
+import { Line } from 'react-chartjs-2'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend)
 
 interface Props {
   board: BoardConfig
 }
+
+// Palette for line chart — cycle through these colours per user
+const USER_PALETTE = [
+  '#0079bf',
+  '#61bd4f',
+  '#eb5a46',
+  '#c377e0',
+  '#ff9f1a',
+  '#00c2e0',
+  '#51e898',
+  '#ff78cb',
+  '#344563',
+  '#f2d600'
+]
 
 // Map Trello label colours to CSS colour values
 const LABEL_COLORS: Record<string, string> = {
@@ -29,6 +56,7 @@ function resolveLabelColor(color: string): string {
 export default function AnalyticsPage({ board }: Props): JSX.Element {
   const [weeklyStats, setWeeklyStats] = useState<WeeklyUserStats[]>([])
   const [labelStats, setLabelStats] = useState<LabelUserStats[]>([])
+  const [historyStats, setHistoryStats] = useState<WeeklyHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -36,9 +64,10 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
     setLoading(true)
     setError(null)
 
-    const [weeklyResult, labelResult] = await Promise.all([
+    const [weeklyResult, labelResult, historyResult] = await Promise.all([
       api.analytics.weeklyUserStats(board.boardId),
-      api.analytics.labelUserStats(board.boardId)
+      api.analytics.labelUserStats(board.boardId),
+      api.analytics.weeklyHistory(board.boardId)
     ])
 
     if (!weeklyResult.success) {
@@ -51,6 +80,10 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
       setError((prev) => prev ?? labelResult.error ?? 'Failed to load label stats.')
     } else {
       setLabelStats(labelResult.data ?? [])
+    }
+
+    if (historyResult.success) {
+      setHistoryStats(historyResult.data ?? [])
     }
 
     setLoading(false)
@@ -96,6 +129,55 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
   }, {})
 
   const totalCompleted = sortedUsers.reduce((s, [, u]) => s + u.count, 0)
+
+  // ── 12-month history chart data ─────────────────────────────────────────────
+
+  // Collect all unique weeks (sorted) and all unique users from history
+  const allHistoryWeeks = [...new Set(historyStats.map((r) => r.week))].sort()
+  const historyUserMap = new Map<string, { userName: string; idx: number }>()
+  historyStats.forEach((r) => {
+    const key = r.userId ?? 'unassigned'
+    if (!historyUserMap.has(key)) {
+      historyUserMap.set(key, { userName: r.userName, idx: historyUserMap.size })
+    }
+  })
+
+  // Build a lookup: week → userId → count
+  const historyLookup = new Map<string, Map<string, number>>()
+  historyStats.forEach((r) => {
+    const key = r.userId ?? 'unassigned'
+    if (!historyLookup.has(r.week)) historyLookup.set(r.week, new Map())
+    historyLookup.get(r.week)!.set(key, r.closedCount)
+  })
+
+  const historyChartData = {
+    labels: allHistoryWeeks,
+    datasets: [...historyUserMap.entries()].map(([userId, { userName, idx }]) => {
+      const color = USER_PALETTE[idx % USER_PALETTE.length]
+      return {
+        label: userName,
+        data: allHistoryWeeks.map((w) => historyLookup.get(w)?.get(userId) ?? 0),
+        borderColor: color,
+        backgroundColor: color + '33',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 2
+      }
+    })
+  }
+
+  const historyChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom' as const },
+      tooltip: { mode: 'index' as const, intersect: false }
+    },
+    scales: {
+      x: { ticks: { maxTicksLimit: 13 } },
+      y: { beginAtZero: true, ticks: { precision: 0 } }
+    }
+  }
 
   return (
     <div className={styles.container}>
@@ -203,6 +285,16 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
               </div>
             )}
           </section>
+
+          {/* ── 12-month history chart ── */}
+          {allHistoryWeeks.length > 0 && (
+            <section>
+              <h2 className={styles.sectionTitle}>Completion Trend — Past 12 Months</h2>
+              <div className={styles.chartWrap}>
+                <Line data={historyChartData} options={historyChartOptions} />
+              </div>
+            </section>
+          )}
         </>
       )}
     </div>

@@ -26,3 +26,11 @@ export interface CardAgeStats {
   ageInDays: number
   assignees: string[]
 }
+
+/** One data-point in the 12-month completion history: one row per (week, user). */
+export interface WeeklyHistory {
+  week: string
+  userId: string | null
+  userName: string
+  closedCount: number
+}

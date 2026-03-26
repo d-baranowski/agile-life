@@ -11,12 +11,18 @@
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '@shared/ipc.types'
 import type { IpcResult } from '@shared/ipc.types'
-import type { WeeklyUserStats, LabelUserStats, CardAgeStats } from '@shared/analytics.types'
+import type {
+  WeeklyUserStats,
+  LabelUserStats,
+  CardAgeStats,
+  WeeklyHistory
+} from '@shared/analytics.types'
 import type { TrelloMember } from '@shared/trello.types'
 import { getDb } from '../database/db'
 import sqlWeeklyUserStats from '../database/sql/analytics/weekly-user-stats.sql?raw'
 import sqlLabelUserStats from '../database/sql/analytics/label-user-stats.sql?raw'
 import sqlCardAge from '../database/sql/analytics/card-age.sql?raw'
+import sqlWeeklyHistory from '../database/sql/analytics/weekly-history.sql?raw'
 
 type Row = Record<string, unknown>
 
@@ -73,6 +79,23 @@ export function registerAnalyticsHandlers(): void {
             assignees: members.map((m) => m.fullName)
           } satisfies CardAgeStats
         })
+        return { success: true, data: rows }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Weekly history (12 months) ──────────────────────────────────────────────
+  //
+  // Returns cards moved to a "done" list per user per ISO week for the past
+  // 12 months. Used to render the historical completion trend chart.
+
+  ipcMain.handle(
+    IPC_CHANNELS.ANALYTICS_WEEKLY_HISTORY,
+    async (_e, boardId: string): Promise<IpcResult<WeeklyHistory[]>> => {
+      try {
+        const rows = getDb().prepare(sqlWeeklyHistory).all(boardId) as WeeklyHistory[]
         return { success: true, data: rows }
       } catch (err) {
         return { success: false, error: String(err) }
