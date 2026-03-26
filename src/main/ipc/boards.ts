@@ -18,6 +18,7 @@ import {
   getDb
 } from '../database/db'
 import { TrelloClient } from '../trello/client'
+import sqlColumnCounts from '../database/sql/analytics/column-counts.sql?raw'
 
 export function registerBoardHandlers(): void {
   // ── Board CRUD ──────────────────────────────────────────────────────────────
@@ -148,19 +149,7 @@ export function registerBoardHandlers(): void {
     IPC_CHANNELS.ANALYTICS_COLUMN_COUNTS,
     async (_e, boardId: string): Promise<IpcResult<ColumnCount[]>> => {
       try {
-        const rows = getDb()
-          .prepare(
-            `SELECT l.id   AS listId,
-                    l.name AS listName,
-                    COUNT(c.id) AS cardCount
-             FROM trello_lists l
-             LEFT JOIN trello_cards c
-               ON c.list_id = l.id AND c.closed = 0
-             WHERE l.board_id = ? AND l.closed = 0
-             GROUP BY l.id, l.name
-             ORDER BY l.pos ASC`
-          )
-          .all(boardId) as ColumnCount[]
+        const rows = getDb().prepare(sqlColumnCounts).all(boardId) as ColumnCount[]
         return { success: true, data: rows }
       } catch (err) {
         return { success: false, error: String(err) }
