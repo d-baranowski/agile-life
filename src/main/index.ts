@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerBoardHandlers } from './ipc/boards'
+import { registerTicketHandlers } from './ipc/tickets'
 import { registerSettingsHandlers } from './ipc/settings'
 
 function createWindow(): void {
@@ -41,6 +42,7 @@ app.whenReady().then(() => {
 
   // Register IPC handlers
   registerBoardHandlers()
+  registerTicketHandlers()
   registerSettingsHandlers()
 
   // Default open or close DevTools by F12 in development
