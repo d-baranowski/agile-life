@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { BoardConfig } from '@shared/board.types'
+import type { DbPathInfo } from '@shared/settings.types'
 import { api } from '../hooks/useApi'
 import styles from './SettingsPage.module.css'
 
@@ -21,6 +22,17 @@ export default function SettingsPage({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  const [dbPathInfo, setDbPathInfo] = useState<DbPathInfo | null>(null)
+  const [dbPathChanging, setDbPathChanging] = useState(false)
+  const [dbPathError, setDbPathError] = useState<string | null>(null)
+  const [dbPathChanged, setDbPathChanged] = useState(false)
+
+  useEffect(() => {
+    api.settings.getDbPath().then((result) => {
+      if (result.success && result.data) setDbPathInfo(result.data)
+    })
+  }, [])
 
   const handleSave = async () => {
     setSaving(true)
@@ -56,6 +68,32 @@ export default function SettingsPage({
     } else {
       setError(result.error ?? 'Failed to delete board.')
       setDeleting(false)
+    }
+  }
+
+  const handleChooseDbPath = async () => {
+    setDbPathChanging(true)
+    setDbPathError(null)
+    const result = await api.settings.setDbPath(false)
+    setDbPathChanging(false)
+    if (result.success && result.data) {
+      setDbPathInfo(result.data)
+      if (result.data.isCustom) setDbPathChanged(true)
+    } else {
+      setDbPathError(result.error ?? 'Failed to change database location.')
+    }
+  }
+
+  const handleResetDbPath = async () => {
+    setDbPathChanging(true)
+    setDbPathError(null)
+    const result = await api.settings.setDbPath(true)
+    setDbPathChanging(false)
+    if (result.success && result.data) {
+      setDbPathInfo(result.data)
+      setDbPathChanged(true)
+    } else {
+      setDbPathError(result.error ?? 'Failed to reset database location.')
     }
   }
 
@@ -128,6 +166,42 @@ export default function SettingsPage({
             </tr>
           </tbody>
         </table>
+      </div>
+
+      {/* ── Database ── */}
+      <div className="card">
+        <h2 className={styles.cardTitle}>Database</h2>
+        {dbPathError && <div className={styles.errorBanner}>{dbPathError}</div>}
+        {dbPathChanged && (
+          <div className={styles.successBanner}>
+            Database location updated. Restart the app for the change to take effect.
+          </div>
+        )}
+        <div className={styles.form}>
+          <label className={styles.label}>
+            Database File Location
+            <span className={styles.hint}>
+              The SQLite file where all board data is stored locally.
+              {dbPathInfo?.isCustom ? ' (custom)' : ' (default)'}
+            </span>
+            <input
+              type="text"
+              readOnly
+              value={dbPathInfo?.currentPath ?? '…'}
+              style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+            />
+          </label>
+        </div>
+        <div className={styles.actions}>
+          {dbPathInfo?.isCustom && (
+            <button className="btn-ghost" onClick={handleResetDbPath} disabled={dbPathChanging}>
+              Restore Default
+            </button>
+          )}
+          <button className="btn-primary" onClick={handleChooseDbPath} disabled={dbPathChanging}>
+            {dbPathChanging ? 'Choosing…' : '📂 Choose Location'}
+          </button>
+        </div>
       </div>
 
       {/* ── Danger Zone ── */}
