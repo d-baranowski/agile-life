@@ -8,25 +8,22 @@ import { getDbPath, getDefaultDbPath, setDbPath } from '../settings/appSettings'
 export function registerSettingsHandlers(): void {
   // ── Get DB path info ────────────────────────────────────────────────────────
 
-  ipcMain.handle(
-    IPC_CHANNELS.SETTINGS_GET_DB_PATH,
-    async (): Promise<IpcResult<DbPathInfo>> => {
-      try {
-        const defaultPath = getDefaultDbPath()
-        const currentPath = getDbPath()
-        return {
-          success: true,
-          data: {
-            currentPath,
-            defaultPath,
-            isCustom: currentPath !== defaultPath
-          }
+  ipcMain.handle(IPC_CHANNELS.SETTINGS_GET_DB_PATH, async (): Promise<IpcResult<DbPathInfo>> => {
+    try {
+      const defaultPath = getDefaultDbPath()
+      const currentPath = getDbPath()
+      return {
+        success: true,
+        data: {
+          currentPath,
+          defaultPath,
+          isCustom: currentPath !== defaultPath
         }
-      } catch (err) {
-        return { success: false, error: String(err) }
       }
+    } catch (err) {
+      return { success: false, error: String(err) }
     }
-  )
+  })
 
   // ── Set DB path (opens native save dialog, then copies current DB) ──────────
 
