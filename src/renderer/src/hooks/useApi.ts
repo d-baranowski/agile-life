@@ -9,7 +9,8 @@ import type {
   BoardConfigInput,
   SyncResult,
   ArchiveResult,
-  DoneCardPreview
+  DoneCardPreview,
+  DoneCardDebugInfo
 } from '@shared/board.types'
 import type { TrelloBoard } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
@@ -41,6 +42,9 @@ export const api = {
         boardId,
         olderThanWeeks
       ),
+    /** Debug: all done-column cards with raw timestamp data (no threshold). */
+    getDoneColumnDebug: (boardId: string) =>
+      invoke<DoneCardDebugInfo[]>(IPC_CHANNELS.TRELLO_GET_DONE_COLUMN_DEBUG, boardId),
     /** Archives open cards in the "done" lists that have been in done for olderThanWeeks weeks. */
     archiveDoneCards: (boardId: string, olderThanWeeks: number) =>
       invoke<ArchiveResult>(IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS, boardId, olderThanWeeks)

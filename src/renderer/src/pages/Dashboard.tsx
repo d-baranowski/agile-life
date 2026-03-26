@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { BoardConfig, SyncResult, ArchiveResult, DoneCardPreview } from '@shared/board.types'
+import type {
+  BoardConfig,
+  SyncResult,
+  ArchiveResult,
+  DoneCardPreview,
+  DoneCardDebugInfo
+} from '@shared/board.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
 import styles from './Dashboard.module.css'
@@ -23,6 +29,11 @@ export default function Dashboard({ board }: Props): JSX.Element {
   const [archiveResult, setArchiveResult] = useState<ArchiveResult | null>(null)
   const [archiveError, setArchiveError] = useState<string | null>(null)
 
+  const [debugOpen, setDebugOpen] = useState(false)
+  const [debugLoading, setDebugLoading] = useState(false)
+  const [debugCards, setDebugCards] = useState<DoneCardDebugInfo[] | null>(null)
+  const [debugError, setDebugError] = useState<string | null>(null)
+
   const loadCounts = useCallback(async () => {
     const result = await api.analytics.columnCounts(board.boardId)
     if (result.success && result.data) {
@@ -40,6 +51,9 @@ export default function Dashboard({ board }: Props): JSX.Element {
     setPreviewError(null)
     setArchiveResult(null)
     setArchiveError(null)
+    setDebugOpen(false)
+    setDebugCards(null)
+    setDebugError(null)
     loadCounts()
   }, [loadCounts])
 
@@ -87,11 +101,29 @@ export default function Dashboard({ board }: Props): JSX.Element {
     if (result.success && result.data) {
       setArchiveResult(result.data)
       setPreviewCards(null)
+      setDebugCards(null)
       await loadCounts()
     } else {
       setArchiveError(result.error ?? 'Archive failed.')
     }
     setArchiving(false)
+  }
+
+  const handleDebugToggle = async (): Promise<void> => {
+    if (debugOpen) {
+      setDebugOpen(false)
+      return
+    }
+    setDebugOpen(true)
+    setDebugLoading(true)
+    setDebugError(null)
+    const result = await api.trello.getDoneColumnDebug(board.boardId)
+    if (result.success && result.data) {
+      setDebugCards(result.data)
+    } else {
+      setDebugError(result.error ?? 'Failed to load debug data.')
+    }
+    setDebugLoading(false)
   }
 
   const totalCards = columns.reduce((sum, c) => sum + c.cardCount, 0)
@@ -100,9 +132,22 @@ export default function Dashboard({ board }: Props): JSX.Element {
 
   function weeksAgo(isoDate: string): string {
     const days = Math.floor((Date.now() - new Date(isoDate).getTime()) / (1000 * 60 * 60 * 24))
+    if (days < 1) return 'today'
     if (days < 7) return `${days}d`
     const weeks = Math.floor(days / 7)
     return `${weeks}w`
+  }
+
+  function fmtDate(isoDate: string): string {
+    try {
+      return new Date(isoDate).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+    } catch {
+      return isoDate
+    }
   }
 
   return (
@@ -259,6 +304,94 @@ export default function Dashboard({ board }: Props): JSX.Element {
               </>
             )}
           </div>
+        )}
+      </div>
+
+      {/* ── Debug: Done column card data ── */}
+      <div className="card">
+        <div className={styles.debugHeader}>
+          <div>
+            <h2 className={styles.sectionTitle}>Diagnostic: Done Column Data</h2>
+            <p className={styles.archiveHint}>
+              Shows the raw data stored for every card currently in the{' '}
+              <strong>{doneListLabel}</strong>{' '}
+              {board.doneListNames.length === 1 ? 'column' : 'columns'}. Use this to understand why
+              a card is or is not being picked up by the archive threshold. The{' '}
+              <em>Entered Done</em> timestamp is what the archive query compares against your
+              threshold.
+            </p>
+          </div>
+          <button
+            className="btn-ghost"
+            onClick={handleDebugToggle}
+            disabled={debugLoading}
+            style={{ flexShrink: 0 }}
+          >
+            {debugOpen ? '▲ Hide' : '▼ Show'}
+          </button>
+        </div>
+
+        {debugOpen && (
+          <>
+            {debugError && <div className={styles.errorBanner}>{debugError}</div>}
+            {debugLoading && (
+              <div className={styles.centred}>
+                <div className="spinner" />
+                <span>Loading…</span>
+              </div>
+            )}
+            {!debugLoading && debugCards !== null && (
+              <>
+                {debugCards.length === 0 ? (
+                  <p className={styles.previewEmpty}>
+                    No open cards found in the <strong>{doneListLabel}</strong>{' '}
+                    {board.doneListNames.length === 1 ? 'column' : 'columns'}. Make sure you have
+                    synced the board and that the done list name matches exactly.
+                  </p>
+                ) : (
+                  <div className={styles.debugTableWrap}>
+                    <table className={styles.debugTable}>
+                      <thead>
+                        <tr>
+                          <th>Card</th>
+                          <th>Column</th>
+                          <th>Entered Done</th>
+                          <th>Last Activity</th>
+                          <th>Source</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {debugCards.map((card) => (
+                          <tr key={card.id}>
+                            <td className={styles.debugCardName}>{card.name}</td>
+                            <td>{card.listName}</td>
+                            <td>
+                              {fmtDate(card.enteredDoneAt)}{' '}
+                              <span className={styles.debugAge}>
+                                ({weeksAgo(card.enteredDoneAt)})
+                              </span>
+                            </td>
+                            <td>{fmtDate(card.dateLastActivity)}</td>
+                            <td>
+                              <span
+                                className={
+                                  card.hasActionEntry
+                                    ? styles.debugBadgeAction
+                                    : styles.debugBadgeFallback
+                                }
+                              >
+                                {card.hasActionEntry ? 'move action' : 'fallback'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )}
       </div>
 

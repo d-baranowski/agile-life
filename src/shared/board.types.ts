@@ -36,3 +36,19 @@ export interface DoneCardPreview {
   listName: string
   enteredDoneAt: string
 }
+
+/** Raw debug info for a single done-column card (no threshold applied). */
+export interface DoneCardDebugInfo {
+  id: string
+  name: string
+  listId: string
+  listName: string
+  /** enteredDoneAt: action-based timestamp or date_last_activity fallback */
+  enteredDoneAt: string
+  /** Trello's own dateLastActivity field for the card */
+  dateLastActivity: string
+  /** When this app last synced the card (updated every sync) */
+  cardSyncedAt: string
+  /** 1 if enteredDoneAt came from a real Trello move-action, 0 if it is the fallback */
+  hasActionEntry: 0 | 1
+}

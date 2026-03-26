@@ -14,6 +14,7 @@ export const IPC_CHANNELS = {
   TRELLO_SYNC: 'trello:sync',
   TRELLO_ARCHIVE_DONE_CARDS: 'trello:archiveDoneCards',
   TRELLO_PREVIEW_ARCHIVE_DONE_CARDS: 'trello:previewArchiveDoneCards',
+  TRELLO_GET_DONE_COLUMN_DEBUG: 'trello:getDoneColumnDebug',
 
   // Analytics
   ANALYTICS_COLUMN_COUNTS: 'analytics:columnCounts',

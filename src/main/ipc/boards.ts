@@ -6,7 +6,8 @@ import type {
   BoardConfigInput,
   SyncResult,
   ArchiveResult,
-  DoneCardPreview
+  DoneCardPreview,
+  DoneCardDebugInfo
 } from '@shared/board.types'
 import type { TrelloBoard } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
@@ -25,6 +26,7 @@ import {
   setCardListEntryFallback,
   hasCardListEntries,
   getDoneCardsOlderThan,
+  getDoneColumnDebug,
   getDb
 } from '../database/db'
 import { TrelloClient } from '../trello/client'
@@ -217,6 +219,28 @@ export function registerBoardHandlers(): void {
 
         const candidates = getDoneCardsOlderThan(boardId, config.doneListNames, cutoffDate)
         return { success: true, data: candidates }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Debug: all done-column cards with raw timestamp data ───────────────────
+  //
+  // Returns every open card in the configured done list(s) without any time
+  // filter, exposing enteredDoneAt, dateLastActivity, synced_at, and a flag
+  // indicating whether the timestamp came from a real Trello action or the
+  // date_last_activity fallback.  Lets the user diagnose why cards are (or are
+  // not) picked up by the archive threshold.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_GET_DONE_COLUMN_DEBUG,
+    async (_e, boardId: string): Promise<IpcResult<DoneCardDebugInfo[]>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+        const rows = getDoneColumnDebug(boardId, config.doneListNames)
+        return { success: true, data: rows }
       } catch (err) {
         return { success: false, error: String(err) }
       }
