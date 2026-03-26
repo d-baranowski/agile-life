@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { BoardConfig, SyncResult } from '@shared/board.types'
+import type { BoardConfig, SyncResult, ArchiveResult } from '@shared/board.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
 import styles from './Dashboard.module.css'
@@ -15,6 +15,11 @@ export default function Dashboard({ board }: Props): JSX.Element {
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [archiveWeeks, setArchiveWeeks] = useState(2)
+  const [archiving, setArchiving] = useState(false)
+  const [archiveResult, setArchiveResult] = useState<ArchiveResult | null>(null)
+  const [archiveError, setArchiveError] = useState<string | null>(null)
+
   const loadCounts = useCallback(async () => {
     const result = await api.analytics.columnCounts(board.boardId)
     if (result.success && result.data) {
@@ -28,6 +33,8 @@ export default function Dashboard({ board }: Props): JSX.Element {
     setLoading(true)
     setError(null)
     setSyncResult(null)
+    setArchiveResult(null)
+    setArchiveError(null)
     loadCounts()
   }, [loadCounts])
 
@@ -44,7 +51,23 @@ export default function Dashboard({ board }: Props): JSX.Element {
     setSyncing(false)
   }
 
+  const handleArchive = async (): Promise<void> => {
+    setArchiving(true)
+    setArchiveError(null)
+    setArchiveResult(null)
+    const result = await api.trello.archiveDoneCards(board.boardId, archiveWeeks)
+    if (result.success && result.data) {
+      setArchiveResult(result.data)
+      await loadCounts()
+    } else {
+      setArchiveError(result.error ?? 'Archive failed.')
+    }
+    setArchiving(false)
+  }
+
   const totalCards = columns.reduce((sum, c) => sum + c.cardCount, 0)
+
+  const doneListLabel = (board.doneListNames ?? ['Done']).join(', ')
 
   return (
     <div className={styles.container}>
@@ -98,6 +121,49 @@ export default function Dashboard({ board }: Props): JSX.Element {
           </div>
         </div>
       )}
+
+      {/* ── Archive done cards ── */}
+      <div className="card">
+        <h2 className={styles.sectionTitle}>Archive Done Cards</h2>
+        <p className={styles.archiveHint}>
+          Archive cards from the <strong>{doneListLabel}</strong>{' '}
+          {board.doneListNames.length === 1 ? 'column' : 'columns'} on Trello that have had no
+          activity for the selected number of weeks. The cards will remain in your local database
+          (marked as archived) so your history is preserved.
+        </p>
+        {archiveError && <div className={styles.errorBanner}>{archiveError}</div>}
+        {archiveResult && (
+          <div className={styles.archiveSuccess}>
+            ✓ Archived {archiveResult.archivedCount} card
+            {archiveResult.archivedCount !== 1 ? 's' : ''}
+            {archiveResult.skippedCount > 0 ? ` (${archiveResult.skippedCount} skipped)` : ''}.
+          </div>
+        )}
+        <div className={styles.archiveControls}>
+          <label className={styles.weeksLabel}>
+            Inactive for at least
+            <input
+              type="number"
+              min={1}
+              max={52}
+              value={archiveWeeks}
+              onChange={(e) => setArchiveWeeks(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              className={styles.weeksInput}
+            />
+            week{archiveWeeks !== 1 ? 's' : ''}
+          </label>
+          <button className="btn-danger" onClick={handleArchive} disabled={archiving || syncing}>
+            {archiving ? (
+              <span className={styles.syncingLabel}>
+                <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                Archiving…
+              </span>
+            ) : (
+              '🗄 Archive Done Cards'
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* ── Column grid ── */}
       <h2 className={styles.sectionTitle}>Cards per Column</h2>

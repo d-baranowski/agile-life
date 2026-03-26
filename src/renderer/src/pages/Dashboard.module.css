@@ -157,3 +157,47 @@
   font-size: 11px;
   color: var(--color-text-muted);
 }
+
+/* ── Archive ── */
+.archiveHint {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.archiveSuccess {
+  background: rgba(39, 174, 96, 0.15);
+  border: 1px solid rgba(39, 174, 96, 0.3);
+  color: #27ae60;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.archiveControls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.weeksLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.weeksInput {
+  width: 64px;
+  text-align: center;
+}
+
+.syncingLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

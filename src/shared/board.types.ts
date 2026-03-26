@@ -20,3 +20,10 @@ export interface SyncResult {
   cardCount: number
   syncedAt: string
 }
+
+/** Returned by the TRELLO_ARCHIVE_DONE_CARDS IPC handler. */
+export interface ArchiveResult {
+  archivedCount: number
+  skippedCount: number
+  syncedAt: string
+}

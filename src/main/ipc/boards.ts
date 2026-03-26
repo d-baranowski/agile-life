@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '@shared/ipc.types'
 import type { IpcResult } from '@shared/ipc.types'
-import type { BoardConfig, BoardConfigInput, SyncResult } from '@shared/board.types'
+import type { BoardConfig, BoardConfigInput, SyncResult, ArchiveResult } from '@shared/board.types'
 import type { TrelloBoard } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import {
@@ -15,6 +15,7 @@ import {
   upsertCards,
   markRemovedCards,
   updateBoardSyncTime,
+  getDoneCardsOlderThan,
   getDb
 } from '../database/db'
 import { TrelloClient } from '../trello/client'
@@ -151,6 +152,69 @@ export function registerBoardHandlers(): void {
       try {
         const rows = getDb().prepare(sqlColumnCounts).all(boardId) as ColumnCount[]
         return { success: true, data: rows }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Archive done cards older than N weeks ───────────────────────────────────
+  //
+  // 1. Look up the board's configured "done" list names.
+  // 2. Query local cache for open cards in those lists whose last activity
+  //    is older than the requested number of weeks.
+  // 3. Archive each matching card on Trello via PUT /cards/{id}?closed=true.
+  // 4. Run a full sync so the local cache reflects the new archived state.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS,
+    async (_e, boardId: string, olderThanWeeks: number): Promise<IpcResult<ArchiveResult>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+
+        const cutoffDate = new Date(
+          Date.now() - olderThanWeeks * 7 * 24 * 60 * 60 * 1000
+        ).toISOString()
+
+        const candidates = getDoneCardsOlderThan(boardId, config.doneListNames, cutoffDate)
+
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+
+        let archivedCount = 0
+        let skippedCount = 0
+
+        for (const card of candidates) {
+          try {
+            await client.archiveCard(card.id)
+            archivedCount++
+          } catch (err) {
+            console.error(`Failed to archive card ${card.id} ("${card.name}"):`, String(err))
+            skippedCount++
+          }
+        }
+
+        // Re-sync so the local cache reflects archived state
+        const [freshLists, freshCards] = await Promise.all([
+          client.getLists(boardId),
+          client.getCards(boardId)
+        ])
+        upsertLists(boardId, freshLists)
+        markRemovedLists(
+          boardId,
+          freshLists.map((l) => l.id)
+        )
+        upsertCards(boardId, freshCards)
+        markRemovedCards(
+          boardId,
+          freshCards.map((c) => c.id)
+        )
+        updateBoardSyncTime(boardId)
+
+        return {
+          success: true,
+          data: { archivedCount, skippedCount, syncedAt: new Date().toISOString() }
+        }
       } catch (err) {
         return { success: false, error: String(err) }
       }

@@ -12,6 +12,7 @@ export const IPC_CHANNELS = {
   TRELLO_GET_MEMBERS: 'trello:getMembers',
   TRELLO_GET_ACTIONS: 'trello:getActions',
   TRELLO_SYNC: 'trello:sync',
+  TRELLO_ARCHIVE_DONE_CARDS: 'trello:archiveDoneCards',
 
   // Analytics
   ANALYTICS_COLUMN_COUNTS: 'analytics:columnCounts',

@@ -20,6 +20,7 @@ import sqlListsMarkAllRemoved from './sql/lists/mark-all-removed.sql?raw'
 import sqlCardsUpsert from './sql/cards/upsert.sql?raw'
 import sqlCardsMarkRemoved from './sql/cards/mark-removed.sql?raw'
 import sqlCardsMarkAllRemoved from './sql/cards/mark-all-removed.sql?raw'
+import sqlCardsGetDoneOlderThan from './sql/cards/get-done-cards-older-than.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -162,6 +163,24 @@ export function markRemovedCards(boardId: string, freshCardIds: string[]): void 
 /** Stamp the board row with the current UTC time after a successful sync. */
 export function updateBoardSyncTime(boardId: string): void {
   getDb().prepare(sqlBoardsUpdateSyncTime).run(boardId)
+}
+
+/**
+ * Returns all open cards that live in one of the given done-list names and
+ * whose last activity is older than the supplied ISO-8601 cutoff date.
+ */
+export function getDoneCardsOlderThan(
+  boardId: string,
+  doneListNames: string[],
+  cutoffDate: string
+): { id: string; name: string; listId: string; dateLastActivity: string }[] {
+  return getDb()
+    .prepare(sqlCardsGetDoneOlderThan)
+    .all({
+      boardId,
+      doneListNames: JSON.stringify(doneListNames),
+      cutoffDate
+    }) as { id: string; name: string; listId: string; dateLastActivity: string }[]
 }
 
 // ─── Row Mapper ────────────────────────────────────────────────────────────────
