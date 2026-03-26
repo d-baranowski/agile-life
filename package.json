@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "Local Electron app for Trello analytics with JIRA-style ticket numbering",
   "main": "out/main/index.js",
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=24.14.0",
+    "pnpm": ">=10.11.0"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

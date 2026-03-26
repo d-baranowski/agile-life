@@ -4,22 +4,44 @@ A local Electron desktop app that connects to your Trello boards, syncs card dat
 
 ## Prerequisites
 
-| Tool | Minimum version |
+| Tool | Version |
 |---|---|
-| Node.js | 18 LTS or later |
-| npm | 9 or later |
+| [asdf](https://asdf-vm.com) | v0.14 or later |
+| Node.js | 24.14.0 (managed via asdf) |
+| pnpm | 10.11.0 (managed via asdf) |
 
 You will also need a **Trello API key and token** to connect the app to your boards.  
 Generate them at <https://trello.com/power-ups/admin> (create a Power-Up, then expose its API key and generate a token with read/write scope).
 
 ## Getting started
 
-```bash
-# 1. Install dependencies
-npm install
+### 1. Install asdf and required plugins
 
-# 2. Start the app in development mode (hot-reload enabled)
-npm run dev
+Run the provided setup script to install asdf and the nodejs/pnpm plugins:
+
+```bash
+bash scripts/setup-asdf.sh
+```
+
+Then activate asdf in your shell (add to `~/.bashrc` or `~/.zshrc`):
+
+```bash
+source "$HOME/.asdf/asdf.sh"
+```
+
+### 2. Install the correct tool versions
+
+asdf reads the exact versions from `.tool-versions` and installs them:
+
+```bash
+asdf install
+```
+
+### 3. Install dependencies and start the app
+
+```bash
+pnpm install
+pnpm run dev
 ```
 
 The Electron window opens automatically. On first launch the app asks you to register a Trello board using your API key and token.
@@ -28,19 +50,22 @@ The Electron window opens automatically. On first launch the app asks you to reg
 
 | Script | Description |
 |---|---|
-| `npm run dev` | Start in development mode with hot-reload |
-| `npm run build` | Compile TypeScript and bundle with Vite into `out/` |
-| `npm start` | Preview the last production build (requires `npm run build` first) |
-| `npm run typecheck` | Run TypeScript type-checking without emitting files |
-| `npm run lint` | Lint all `.ts` / `.tsx` source files (zero warnings allowed) |
-| `npm run lint:fix` | Lint and auto-fix fixable issues |
-| `npm run format` | Format all files with Prettier |
-| `npm run format:check` | Check formatting without writing changes |
-| `npm test` | Run the Jest test suite |
+| `pnpm run dev` | Start in development mode with hot-reload |
+| `pnpm run build` | Compile TypeScript and bundle with Vite into `out/` |
+| `pnpm start` | Preview the last production build (requires `pnpm run build` first) |
+| `pnpm run typecheck` | Run TypeScript type-checking without emitting files |
+| `pnpm run lint` | Lint all `.ts` / `.tsx` source files (zero warnings allowed) |
+| `pnpm run lint:fix` | Lint and auto-fix fixable issues |
+| `pnpm run format` | Format all files with Prettier |
+| `pnpm run format:check` | Check formatting without writing changes |
+| `pnpm test` | Run the Jest test suite |
 
 ## Project structure
 
 ```
+.tool-versions          # Pinned nodejs and pnpm versions for asdf
+scripts/
+  setup-asdf.sh         # One-time asdf + plugin installation script
 src/
   main/           # Electron main process
     database/     # SQLite setup, schema, and query helpers
@@ -69,11 +94,12 @@ docs/
 
 ```bash
 # 1. Compile the app
-npm run build
+pnpm run build
 
 # 2. Package for your current platform
-npx electron-builder
+pnpm exec electron-builder
 ```
 
 Output installers are written to the `dist/` folder.  
 Supported targets: `.dmg` (macOS), `.exe` NSIS installer (Windows), `.AppImage` / `.deb` / `.snap` (Linux).
+
