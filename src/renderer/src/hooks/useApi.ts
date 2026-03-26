@@ -12,6 +12,7 @@ import type {
   LabelUserStats,
   CardAgeStats
 } from '@shared/analytics.types'
+import type { DbPathInfo } from '@shared/settings.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return window.api.invoke(channel as Parameters<typeof window.api.invoke>[0], ...args) as Promise<
@@ -47,5 +48,18 @@ export const api = {
       invoke<LabelUserStats[]>(IPC_CHANNELS.ANALYTICS_LABEL_USER_STATS, boardId),
     /** Returns age in days for every open card. */
     cardAge: (boardId: string) => invoke<CardAgeStats[]>(IPC_CHANNELS.ANALYTICS_CARD_AGE, boardId)
+  },
+
+  settings: {
+    /** Returns the current database file path and whether it is a custom path. */
+    getDbPath: () => invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_GET_DB_PATH),
+    /**
+     * Opens a native save dialog so the user can choose a new database
+     * location, copies the existing DB file there, and persists the choice.
+     * Pass `resetToDefault = true` to restore the built-in userData path.
+     * Changes take effect after restarting the app.
+     */
+    setDbPath: (resetToDefault = false) =>
+      invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_SET_DB_PATH, resetToDefault)
   }
 }
