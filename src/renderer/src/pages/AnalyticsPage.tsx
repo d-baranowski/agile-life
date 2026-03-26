@@ -48,7 +48,7 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
     }
 
     if (!labelResult.success) {
-      setError((prev) => prev ?? (labelResult.error ?? 'Failed to load label stats.'))
+      setError((prev) => prev ?? labelResult.error ?? 'Failed to load label stats.')
     } else {
       setLabelStats(labelResult.data ?? [])
     }
@@ -83,7 +83,11 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
     if (!acc[row.labelName]) {
       acc[row.labelName] = { color: row.labelColor, users: [] }
     }
-    acc[row.labelName].users.push({ userId: row.userId, userName: row.userName, count: row.closedCount })
+    acc[row.labelName].users.push({
+      userId: row.userId,
+      userName: row.userName,
+      count: row.closedCount
+    })
     return acc
   }, {})
 
