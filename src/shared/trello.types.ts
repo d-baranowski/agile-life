@@ -57,6 +57,7 @@ export interface KanbanCard {
   id: string
   name: string
   listId: string
+  pos: number
   labels: TrelloLabel[]
   members: TrelloMember[]
   dateLastActivity: string

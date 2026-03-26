@@ -85,14 +85,41 @@ export default function KanbanPage({ board }: Props): JSX.Element {
 
       // ── Optimistic update ──
       if (fromColId === toColId) {
-        // Reorder within the same column — local only, no API call needed
+        // Reorder within the same column — optimistically update UI and persist new pos
+        const col = columns.find((c) => c.id === fromColId)
+        if (!col) return
+
+        const newCards = reorderCards(col.cards, source.index, destination.index)
+
+        // Compute a midpoint pos so the order survives a page reload.
+        // 65536 matches Trello's default gap: new cards get pos = 65536,
+        // and cards moved to the top get pos = previous_top / 2.
+        const prev = destination.index > 0 ? newCards[destination.index - 1] : null
+        const next =
+          destination.index < newCards.length - 1 ? newCards[destination.index + 1] : null
+        const newPos =
+          prev && next
+            ? (prev.pos + next.pos) / 2 // between neighbours
+            : prev
+              ? prev.pos + 65536 // after the last card
+              : next
+                ? next.pos / 2 // before the first card
+                : 65536 // only card in the column
+
         setColumns((prev) =>
           prev.map((c) =>
             c.id === fromColId
-              ? { ...c, cards: reorderCards(c.cards, source.index, destination.index) }
+              ? {
+                  ...c,
+                  cards: newCards.map((card, i) =>
+                    i === destination.index ? { ...card, pos: newPos } : card
+                  )
+                }
               : c
           )
         )
+
+        api.trello.updateCardPos(draggableId, newPos)
         return
       }
 

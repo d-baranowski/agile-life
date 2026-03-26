@@ -23,6 +23,7 @@ import sqlCardsMarkAllRemoved from './sql/cards/mark-all-removed.sql?raw'
 import sqlKanbanGetLists from './sql/kanban/get-lists.sql?raw'
 import sqlKanbanGetCards from './sql/kanban/get-cards.sql?raw'
 import sqlKanbanMoveCard from './sql/kanban/move-card.sql?raw'
+import sqlCardsUpdatePos from './sql/cards/update-pos.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -41,6 +42,17 @@ export function getDb(): Database.Database {
 
   _db = new Database(dbPath)
   _db.exec(schemaSql)
+
+  // ── Migrations for existing databases ──────────────────────────────────────
+  // CREATE TABLE IF NOT EXISTS won't add new columns to an existing table, so
+  // we inspect the live schema and apply ALTER TABLE as needed.
+  const cardCols = (
+    _db.prepare('PRAGMA table_info(trello_cards)').all() as { name: string }[]
+  ).map((c) => c.name)
+  if (!cardCols.includes('pos')) {
+    _db.exec('ALTER TABLE trello_cards ADD COLUMN pos REAL NOT NULL DEFAULT 0')
+  }
+
   return _db
 }
 
@@ -144,6 +156,7 @@ export function upsertCards(boardId: string, cards: TrelloCard[]): void {
         name: c.name,
         closed: c.closed ? 1 : 0,
         dateLastActivity: c.dateLastActivity,
+        pos: c.pos,
         labelsJson: JSON.stringify(c.labels),
         membersJson: JSON.stringify(c.members)
       })
@@ -180,6 +193,7 @@ interface CardRow {
   id: string
   name: string
   list_id: string
+  pos: number
   labels_json: string
   members_json: string
   date_last_activity: string
@@ -195,6 +209,11 @@ export function getCardsForBoard(boardId: string): CardRow[] {
 
 export function moveCardToList(cardId: string, toListId: string): void {
   getDb().prepare(sqlKanbanMoveCard).run({ cardId, toListId })
+}
+
+/** Update only the position of a card (used when reordering within a column). */
+export function updateCardPos(cardId: string, pos: number): void {
+  getDb().prepare(sqlCardsUpdatePos).run({ cardId, pos })
 }
 
 // ─── Row Mapper ────────────────────────────────────────────────────────────────

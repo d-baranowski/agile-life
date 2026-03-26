@@ -18,6 +18,7 @@ import {
   getListsForBoard,
   getCardsForBoard,
   moveCardToList,
+  updateCardPos,
   getDb
 } from '../database/db'
 import { TrelloClient } from '../trello/client'
@@ -182,6 +183,7 @@ export function registerBoardHandlers(): void {
               id: c.id,
               name: c.name,
               listId: c.list_id,
+              pos: c.pos,
               labels: JSON.parse(c.labels_json),
               members: JSON.parse(c.members_json),
               dateLastActivity: c.date_last_activity
@@ -212,6 +214,20 @@ export function registerBoardHandlers(): void {
 
         moveCardToList(cardId, toListId)
 
+        return { success: true }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Update card position (local DB only — persists within-column reorders) ──
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_UPDATE_CARD_POS,
+    async (_e, cardId: string, pos: number): Promise<IpcResult<void>> => {
+      try {
+        updateCardPos(cardId, pos)
         return { success: true }
       } catch (err) {
         return { success: false, error: String(err) }

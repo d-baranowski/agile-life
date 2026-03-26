@@ -39,7 +39,10 @@ export const api = {
       invoke<KanbanColumn[]>(IPC_CHANNELS.TRELLO_GET_BOARD_DATA, boardId),
     /** Moves a card to a different list on Trello and updates the local cache. */
     moveCard: (boardId: string, cardId: string, toListId: string) =>
-      invoke<void>(IPC_CHANNELS.TRELLO_MOVE_CARD, boardId, cardId, toListId)
+      invoke<void>(IPC_CHANNELS.TRELLO_MOVE_CARD, boardId, cardId, toListId),
+    /** Updates only the local pos of a card (persists within-column reorders). */
+    updateCardPos: (cardId: string, pos: number) =>
+      invoke<void>(IPC_CHANNELS.TRELLO_UPDATE_CARD_POS, cardId, pos)
   },
 
   analytics: {

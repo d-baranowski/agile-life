@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS trello_lists (
 -- list_id is updated on every sync, so moving a card between columns
 -- is automatically reflected in subsequent column-count queries.
 -- closed = 1 when the card is no longer returned by the Trello API.
+-- pos mirrors Trello's own position value and is used to sort cards within
+-- each column.
 CREATE TABLE IF NOT EXISTS trello_cards (
   id                 TEXT PRIMARY KEY,
   board_id           TEXT NOT NULL,
@@ -44,6 +46,7 @@ CREATE TABLE IF NOT EXISTS trello_cards (
   name               TEXT NOT NULL,
   closed             INTEGER NOT NULL DEFAULT 0,
   date_last_activity TEXT NOT NULL,
+  pos                REAL NOT NULL DEFAULT 0,
   labels_json        TEXT NOT NULL DEFAULT '[]',
   members_json       TEXT NOT NULL DEFAULT '[]',
   synced_at          TEXT NOT NULL DEFAULT (datetime('now')),

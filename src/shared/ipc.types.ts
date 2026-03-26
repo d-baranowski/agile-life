@@ -32,7 +32,8 @@ export const IPC_CHANNELS = {
 
   // Kanban board view
   TRELLO_GET_BOARD_DATA: 'trello:getBoardData',
-  TRELLO_MOVE_CARD: 'trello:moveCard'
+  TRELLO_MOVE_CARD: 'trello:moveCard',
+  TRELLO_UPDATE_CARD_POS: 'trello:updateCardPos'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]
