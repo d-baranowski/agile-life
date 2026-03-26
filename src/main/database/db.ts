@@ -178,6 +178,22 @@ export function upsertCardListEntry(cardId: string, listId: string, enteredAt: s
 }
 
 /**
+ * Returns true if card_list_entries has at least one row for the given board.
+ * Used during sync to decide whether a full action history fetch is needed to
+ * backfill the table (e.g. after first installing this version of the app).
+ */
+export function hasCardListEntries(boardId: string): boolean {
+  const row = getDb()
+    .prepare(
+      `SELECT 1 FROM card_list_entries e
+       JOIN trello_cards c ON c.id = e.card_id
+       WHERE c.board_id = ? LIMIT 1`
+    )
+    .get(boardId)
+  return row !== undefined
+}
+
+/**
  * For open cards with no card_list_entries row for their current list (e.g. cards
  * already in a column when the board was first synced), inserts a fallback row
  * using synced_at as a conservative lower-bound for how long they've been there.

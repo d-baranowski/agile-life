@@ -17,6 +17,7 @@ import {
   updateBoardSyncTime,
   upsertCardListEntry,
   setCardListEntryFallback,
+  hasCardListEntries,
   getDoneCardsOlderThan,
   getDb
 } from '../database/db'
@@ -130,13 +131,15 @@ export function registerBoardHandlers(): void {
           freshCards.map((c) => c.id)
         )
 
-        // Fetch card-movement actions.  On the very first sync there is no
-        // lastSyncedAt, so we fetch the full board history to get accurate
-        // "entered column" timestamps for cards that are already on the board.
-        // Subsequent syncs only fetch actions since the last sync time.
+        // Fetch card-movement actions.
+        // Force a full history fetch when card_list_entries has no rows for this
+        // board yet — this handles both the very first sync and the case where an
+        // existing user upgrades to the version that introduced this table.
+        // Subsequent syncs (table already populated) only fetch new actions.
+        const needsFullHistory = !hasCardListEntries(boardId)
         const actions = await client.getActions(
           boardId,
-          config.lastSyncedAt ? { since: config.lastSyncedAt } : {}
+          needsFullHistory ? {} : { since: config.lastSyncedAt ?? undefined }
         )
 
         // Upsert an entry for every action that placed a card in a list.
