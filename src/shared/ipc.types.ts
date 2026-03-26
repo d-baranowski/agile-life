@@ -23,7 +23,11 @@ export const IPC_CHANNELS = {
   TICKETS_GET_CONFIG: 'tickets:getConfig',
   TICKETS_PREVIEW_UNNUMBERED: 'tickets:previewUnnumbered',
   TICKETS_APPLY_NUMBERING: 'tickets:applyNumbering',
-  TICKETS_UPDATE_CONFIG: 'tickets:updateConfig'
+  TICKETS_UPDATE_CONFIG: 'tickets:updateConfig',
+
+  // Kanban board view
+  TRELLO_GET_BOARD_DATA: 'trello:getBoardData',
+  TRELLO_MOVE_CARD: 'trello:moveCard'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

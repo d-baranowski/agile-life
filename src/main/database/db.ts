@@ -20,6 +20,9 @@ import sqlListsMarkAllRemoved from './sql/lists/mark-all-removed.sql?raw'
 import sqlCardsUpsert from './sql/cards/upsert.sql?raw'
 import sqlCardsMarkRemoved from './sql/cards/mark-removed.sql?raw'
 import sqlCardsMarkAllRemoved from './sql/cards/mark-all-removed.sql?raw'
+import sqlKanbanGetLists from './sql/kanban/get-lists.sql?raw'
+import sqlKanbanGetCards from './sql/kanban/get-cards.sql?raw'
+import sqlKanbanMoveCard from './sql/kanban/move-card.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -162,6 +165,35 @@ export function markRemovedCards(boardId: string, freshCardIds: string[]): void 
 /** Stamp the board row with the current UTC time after a successful sync. */
 export function updateBoardSyncTime(boardId: string): void {
   getDb().prepare(sqlBoardsUpdateSyncTime).run(boardId)
+}
+
+// ─── Kanban ────────────────────────────────────────────────────────────────────
+
+interface ListRow {
+  id: string
+  name: string
+  pos: number
+}
+
+interface CardRow {
+  id: string
+  name: string
+  list_id: string
+  labels_json: string
+  members_json: string
+  date_last_activity: string
+}
+
+export function getListsForBoard(boardId: string): ListRow[] {
+  return getDb().prepare(sqlKanbanGetLists).all(boardId) as ListRow[]
+}
+
+export function getCardsForBoard(boardId: string): CardRow[] {
+  return getDb().prepare(sqlKanbanGetCards).all(boardId) as CardRow[]
+}
+
+export function moveCardToList(cardId: string, toListId: string): void {
+  getDb().prepare(sqlKanbanMoveCard).run({ cardId, toListId })
 }
 
 // ─── Row Mapper ────────────────────────────────────────────────────────────────

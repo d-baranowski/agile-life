@@ -51,6 +51,24 @@ export interface TrelloCard {
   url: string
 }
 
+// ─── Kanban ───────────────────────────────────────────────────────────────────
+
+export interface KanbanCard {
+  id: string
+  name: string
+  listId: string
+  labels: TrelloLabel[]
+  members: TrelloMember[]
+  dateLastActivity: string
+}
+
+export interface KanbanColumn {
+  id: string
+  name: string
+  pos: number
+  cards: KanbanCard[]
+}
+
 export interface TrelloAction {
   id: string
   type: string

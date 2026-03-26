@@ -5,7 +5,7 @@
 import { IPC_CHANNELS } from '@shared/ipc.types'
 import type { IpcResult } from '@shared/ipc.types'
 import type { BoardConfig, BoardConfigInput, SyncResult } from '@shared/board.types'
-import type { TrelloBoard } from '@shared/trello.types'
+import type { TrelloBoard, KanbanColumn } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
@@ -27,7 +27,13 @@ export const api = {
 
   trello: {
     /** Syncs lists + cards for the board and returns a summary. */
-    sync: (boardId: string) => invoke<SyncResult>(IPC_CHANNELS.TRELLO_SYNC, boardId)
+    sync: (boardId: string) => invoke<SyncResult>(IPC_CHANNELS.TRELLO_SYNC, boardId),
+    /** Returns columns with their cards from the local SQLite cache. */
+    getBoardData: (boardId: string) =>
+      invoke<KanbanColumn[]>(IPC_CHANNELS.TRELLO_GET_BOARD_DATA, boardId),
+    /** Moves a card to a different list on Trello and updates the local cache. */
+    moveCard: (boardId: string, cardId: string, toListId: string) =>
+      invoke<void>(IPC_CHANNELS.TRELLO_MOVE_CARD, boardId, cardId, toListId)
   },
 
   analytics: {

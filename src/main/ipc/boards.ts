@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '@shared/ipc.types'
 import type { IpcResult } from '@shared/ipc.types'
 import type { BoardConfig, BoardConfigInput, SyncResult } from '@shared/board.types'
-import type { TrelloBoard } from '@shared/trello.types'
+import type { TrelloBoard, KanbanColumn } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import {
   getAllBoards,
@@ -15,6 +15,9 @@ import {
   upsertCards,
   markRemovedCards,
   updateBoardSyncTime,
+  getListsForBoard,
+  getCardsForBoard,
+  moveCardToList,
   getDb
 } from '../database/db'
 import { TrelloClient } from '../trello/client'
@@ -151,6 +154,65 @@ export function registerBoardHandlers(): void {
       try {
         const rows = getDb().prepare(sqlColumnCounts).all(boardId) as ColumnCount[]
         return { success: true, data: rows }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Kanban board data (reads from local cache) ───────────────────────────────
+  //
+  // Returns lists with their cards grouped, for rendering the kanban view.
+  // Always reads from the local SQLite cache — call TRELLO_SYNC first.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_GET_BOARD_DATA,
+    async (_e, boardId: string): Promise<IpcResult<KanbanColumn[]>> => {
+      try {
+        const lists = getListsForBoard(boardId)
+        const cards = getCardsForBoard(boardId)
+
+        const columns: KanbanColumn[] = lists.map((list) => ({
+          id: list.id,
+          name: list.name,
+          pos: list.pos,
+          cards: cards
+            .filter((c) => c.list_id === list.id)
+            .map((c) => ({
+              id: c.id,
+              name: c.name,
+              listId: c.list_id,
+              labels: JSON.parse(c.labels_json),
+              members: JSON.parse(c.members_json),
+              dateLastActivity: c.date_last_activity
+            }))
+        }))
+
+        return { success: true, data: columns }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Move card (optimistic — caller has already updated the UI) ───────────────
+  //
+  // Calls the Trello API to move the card, then updates the local SQLite cache.
+  // On any error the renderer must revert its optimistic update.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_MOVE_CARD,
+    async (_e, boardId: string, cardId: string, toListId: string): Promise<IpcResult<void>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        await client.moveCard(cardId, toListId)
+
+        moveCardToList(cardId, toListId)
+
+        return { success: true }
       } catch (err) {
         return { success: false, error: String(err) }
       }

@@ -137,6 +137,14 @@ export class TrelloClient {
     return data
   }
 
+  /**
+   * Moves a card to a different list via the Trello API.
+   */
+  async moveCard(cardId: string, toListId: string): Promise<TrelloCard> {
+    const { data } = await this.http.put<TrelloCard>(`/cards/${cardId}`, { idList: toListId })
+    return data
+  }
+
   // ─── Credentials Validation ──────────────────────────────────────────────────
 
   async validateCredentials(): Promise<{ valid: boolean; memberName?: string }> {
