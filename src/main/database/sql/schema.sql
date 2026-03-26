@@ -53,3 +53,26 @@ CREATE TABLE IF NOT EXISTS trello_cards (
 CREATE INDEX IF NOT EXISTS idx_cards_board ON trello_cards(board_id);
 CREATE INDEX IF NOT EXISTS idx_cards_list  ON trello_cards(list_id);
 CREATE INDEX IF NOT EXISTS idx_lists_board ON trello_lists(board_id);
+
+-- One row per Trello action (card movement event).
+-- Immutable — once recorded on Trello an action never changes.
+-- INSERT OR IGNORE is safe to use on every sync.
+CREATE TABLE IF NOT EXISTS trello_actions (
+  id               TEXT PRIMARY KEY,
+  board_id         TEXT NOT NULL,
+  card_id          TEXT,
+  action_type      TEXT NOT NULL,
+  action_date      TEXT NOT NULL,
+  member_id        TEXT,
+  member_name      TEXT,
+  list_before_id   TEXT,
+  list_before_name TEXT,
+  list_after_id    TEXT,
+  list_after_name  TEXT,
+  synced_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (board_id) REFERENCES board_configs(board_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_actions_board  ON trello_actions(board_id);
+CREATE INDEX IF NOT EXISTS idx_actions_date   ON trello_actions(action_date);
+CREATE INDEX IF NOT EXISTS idx_actions_member ON trello_actions(member_id);

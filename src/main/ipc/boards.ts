@@ -15,6 +15,8 @@ import {
   upsertCards,
   markRemovedCards,
   updateBoardSyncTime,
+  upsertActions,
+  getLatestActionDate,
   getDb
 } from '../database/db'
 import { TrelloClient } from '../trello/client'
@@ -110,9 +112,11 @@ export function registerBoardHandlers(): void {
 
         const client = new TrelloClient(config.apiKey, config.apiToken)
 
-        const [freshLists, freshCards] = await Promise.all([
+        const since = getLatestActionDate(boardId) ?? undefined
+        const [freshLists, freshCards, freshActions] = await Promise.all([
           client.getLists(boardId),
-          client.getCards(boardId)
+          client.getCards(boardId),
+          client.getActions(boardId, { since })
         ])
 
         upsertLists(boardId, freshLists)
@@ -126,6 +130,8 @@ export function registerBoardHandlers(): void {
           boardId,
           freshCards.map((c) => c.id)
         )
+
+        upsertActions(boardId, freshActions)
 
         updateBoardSyncTime(boardId)
 
