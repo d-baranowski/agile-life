@@ -167,16 +167,23 @@ export function registerBoardHandlers(): void {
         // Upsert an entry for every action that placed a card in a list.
         // MAX() semantics in the SQL mean the most-recent move-into-column wins,
         // which is correct for tracking "when did the card last enter this column".
+        // We silently skip actions that reference cards or lists not present in
+        // the local DB (e.g. historically archived/deleted cards and lists) — they
+        // are irrelevant for archiving and would violate the FK constraints.
         for (const action of actions) {
           const cardId = action.data.card?.id
           if (!cardId) continue
 
-          if (action.data.listAfter) {
-            // updateCard:idList — card moved from one list to another
-            upsertCardListEntry(cardId, action.data.listAfter.id, action.date)
-          } else if (action.data.list) {
-            // createCard — card was created directly in this list
-            upsertCardListEntry(cardId, action.data.list.id, action.date)
+          try {
+            if (action.data.listAfter) {
+              // updateCard:idList — card moved from one list to another
+              upsertCardListEntry(cardId, action.data.listAfter.id, action.date)
+            } else if (action.data.list) {
+              // createCard — card was created directly in this list
+              upsertCardListEntry(cardId, action.data.list.id, action.date)
+            }
+          } catch {
+            // FK violation: card or list not in local DB — skip this action.
           }
         }
 
