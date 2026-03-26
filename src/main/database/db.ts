@@ -43,7 +43,7 @@ export function getDb(): Database.Database {
 // ─── Board Config ──────────────────────────────────────────────────────────────
 
 export function getAllBoards(): BoardConfig[] {
-  return getDb().prepare(sqlBoardsGetAll).all().map(rowToBoardConfig)
+  return (getDb().prepare(sqlBoardsGetAll).all() as Row[]).map(rowToBoardConfig)
 }
 
 export function getBoardById(boardId: string): BoardConfig | undefined {
