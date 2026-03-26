@@ -23,7 +23,12 @@ export const IPC_CHANNELS = {
   TICKETS_GET_CONFIG: 'tickets:getConfig',
   TICKETS_PREVIEW_UNNUMBERED: 'tickets:previewUnnumbered',
   TICKETS_APPLY_NUMBERING: 'tickets:applyNumbering',
+  TICKETS_APPLY_SINGLE_CARD: 'tickets:applySingleCard',
   TICKETS_UPDATE_CONFIG: 'tickets:updateConfig',
+
+  // App-level settings
+  SETTINGS_GET_DB_PATH: 'settings:getDbPath',
+  SETTINGS_SET_DB_PATH: 'settings:setDbPath',
 
   // Kanban board view
   TRELLO_GET_BOARD_DATA: 'trello:getBoardData',

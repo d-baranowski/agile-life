@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd'
+import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
 import type { BoardConfig } from '@shared/board.types'
 import type { KanbanColumn, KanbanCard } from '@shared/trello.types'
 import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
+import StrictModeDroppable from '../components/StrictModeDroppable'
 import styles from './KanbanPage.module.css'
 
 interface Props {
@@ -159,7 +160,7 @@ export default function KanbanPage({ board }: Props): JSX.Element {
                 <span className={styles.columnCount}>{column.cards.length}</span>
               </div>
 
-              <Droppable droppableId={column.id}>
+              <StrictModeDroppable droppableId={column.id}>
                 {(provided, snapshot) => (
                   <div
                     ref={provided.innerRef}
@@ -172,7 +173,7 @@ export default function KanbanPage({ board }: Props): JSX.Element {
                     {provided.placeholder}
                   </div>
                 )}
-              </Droppable>
+              </StrictModeDroppable>
             </div>
           ))}
         </div>
