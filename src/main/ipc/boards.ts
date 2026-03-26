@@ -15,9 +15,8 @@ import {
   upsertCards,
   markRemovedCards,
   updateBoardSyncTime,
-  updateCardMovedToDone,
-  clearMovedToDoneForNonDone,
-  setMovedToDoneFallback,
+  upsertCardListEntry,
+  setCardListEntryFallback,
   getDoneCardsOlderThan,
   getDb
 } from '../database/db'
@@ -93,17 +92,17 @@ export function registerBoardHandlers(): void {
 
   // ── Full board sync ─────────────────────────────────────────────────────────
   //
-  // This is the core of the POC.  The flow is:
+  // Flow:
+  //  1. Fetch all open lists and cards from Trello
+  //  2. Upsert lists  →  mark lists absent from response as closed
+  //  3. Upsert cards  →  mark cards absent from response as closed
+  //  4. Fetch card-movement actions (since last sync, or all history on first sync)
+  //  5. Upsert card_list_entries from those actions so we know when each card
+  //     entered each column (both updateCard:idList moves and createCard placements)
+  //  6. Fallback: for cards with no entry for their current list yet, use synced_at
+  //  7. Stamp board row with last_synced_at
   //
-  //  1. Fetch all open lists from Trello
-  //  2. Fetch all open cards from Trello
-  //  3. Upsert lists  →  mark lists absent from Trello response as closed
-  //  4. Upsert cards  →  mark cards absent from Trello response as closed
-  //  5. Stamp board row with last_synced_at
-  //
-  // Running this handler N times is safe — each run is fully idempotent.
-  // A card that moves between columns gets its list_id updated by the upsert
-  // so subsequent column-count queries automatically reflect the new position.
+  // Running this handler N times is safe — every step is fully idempotent.
 
   ipcMain.handle(
     IPC_CHANNELS.TRELLO_SYNC,
@@ -130,6 +129,35 @@ export function registerBoardHandlers(): void {
           boardId,
           freshCards.map((c) => c.id)
         )
+
+        // Fetch card-movement actions.  On the very first sync there is no
+        // lastSyncedAt, so we fetch the full board history to get accurate
+        // "entered column" timestamps for cards that are already on the board.
+        // Subsequent syncs only fetch actions since the last sync time.
+        const actions = await client.getActions(
+          boardId,
+          config.lastSyncedAt ? { since: config.lastSyncedAt } : {}
+        )
+
+        // Upsert an entry for every action that placed a card in a list.
+        // The SQL only advances entered_at — it never overwrites a newer value —
+        // so replaying the same actions is safe.
+        for (const action of actions) {
+          const cardId = action.data.card?.id
+          if (!cardId) continue
+
+          if (action.data.listAfter) {
+            // updateCard:idList — card moved from one list to another
+            upsertCardListEntry(cardId, action.data.listAfter.id, action.date)
+          } else if (action.data.list) {
+            // createCard — card was created directly in this list
+            upsertCardListEntry(cardId, action.data.list.id, action.date)
+          }
+        }
+
+        // Insert a fallback entry for any card that still has no row for its
+        // current list (e.g. cards older than the available action history).
+        setCardListEntryFallback(boardId)
 
         updateBoardSyncTime(boardId)
 

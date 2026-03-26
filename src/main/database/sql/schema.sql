@@ -37,7 +37,6 @@ CREATE TABLE IF NOT EXISTS trello_lists (
 -- list_id is updated on every sync, so moving a card between columns
 -- is automatically reflected in subsequent column-count queries.
 -- closed = 1 when the card is no longer returned by the Trello API.
--- moved_to_done_at records when the card last entered a "done" list.
 CREATE TABLE IF NOT EXISTS trello_cards (
   id                 TEXT PRIMARY KEY,
   board_id           TEXT NOT NULL,
@@ -47,7 +46,6 @@ CREATE TABLE IF NOT EXISTS trello_cards (
   date_last_activity TEXT NOT NULL,
   labels_json        TEXT NOT NULL DEFAULT '[]',
   members_json       TEXT NOT NULL DEFAULT '[]',
-  moved_to_done_at   TEXT,
   synced_at          TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (board_id) REFERENCES board_configs(board_id) ON DELETE CASCADE
 );
@@ -55,3 +53,19 @@ CREATE TABLE IF NOT EXISTS trello_cards (
 CREATE INDEX IF NOT EXISTS idx_cards_board ON trello_cards(board_id);
 CREATE INDEX IF NOT EXISTS idx_cards_list  ON trello_cards(list_id);
 CREATE INDEX IF NOT EXISTS idx_lists_board ON trello_lists(board_id);
+
+-- Records the most recent time each card entered each list (column).
+-- Updated on every sync by processing Trello card-movement actions.
+-- Used to measure how long a card has been in its current column and
+-- to determine eligibility for archiving.
+CREATE TABLE IF NOT EXISTS card_list_entries (
+  card_id    TEXT NOT NULL,
+  list_id    TEXT NOT NULL,
+  entered_at TEXT NOT NULL,
+  PRIMARY KEY (card_id, list_id),
+  FOREIGN KEY (card_id) REFERENCES trello_cards(id) ON DELETE CASCADE,
+  FOREIGN KEY (list_id) REFERENCES trello_lists(id) ON DELETE CASCADE
+);
+
+-- Extra index so queries filtering by list_id alone stay fast.
+CREATE INDEX IF NOT EXISTS idx_card_list_entries_list ON card_list_entries(list_id);

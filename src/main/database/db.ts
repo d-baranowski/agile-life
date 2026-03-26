@@ -21,9 +21,8 @@ import sqlCardsUpsert from './sql/cards/upsert.sql?raw'
 import sqlCardsMarkRemoved from './sql/cards/mark-removed.sql?raw'
 import sqlCardsMarkAllRemoved from './sql/cards/mark-all-removed.sql?raw'
 import sqlCardsGetDoneOlderThan from './sql/cards/get-done-cards-older-than.sql?raw'
-import sqlCardsUpdateMovedToDone from './sql/cards/update-moved-to-done.sql?raw'
-import sqlCardsClearMovedToDoneForNonDone from './sql/cards/clear-moved-to-done-for-non-done.sql?raw'
-import sqlCardsSetMovedToDoneFallback from './sql/cards/set-moved-to-done-fallback.sql?raw'
+import sqlCardListEntriesUpsert from './sql/card-list-entries/upsert.sql?raw'
+import sqlCardListEntriesSetFallback from './sql/card-list-entries/set-fallback.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -41,15 +40,6 @@ export function getDb(): Database.Database {
 
   _db = new Database(path.join(dir, 'agile-life.db'))
   _db.exec(schemaSql)
-
-  // Migration: add moved_to_done_at if the DB was created before this column existed.
-  // SQLite does not support ADD COLUMN IF NOT EXISTS, so we try and ignore the error.
-  try {
-    _db.exec(`ALTER TABLE trello_cards ADD COLUMN moved_to_done_at TEXT`)
-  } catch {
-    // Column already exists — nothing to do.
-  }
-
   return _db
 }
 
@@ -177,34 +167,23 @@ export function updateBoardSyncTime(boardId: string): void {
   getDb().prepare(sqlBoardsUpdateSyncTime).run(boardId)
 }
 
+// ─── Card List Entries ─────────────────────────────────────────────────────────
+
 /**
- * Records the timestamp when a card last entered a done list.
- * Only updates if the supplied timestamp is more recent than the stored one.
+ * Upsert the timestamp when a card entered a list.
+ * Only advances the stored value — an older timestamp never overwrites a newer one.
  */
-export function updateCardMovedToDone(cardId: string, movedAt: string): void {
-  getDb().prepare(sqlCardsUpdateMovedToDone).run({ cardId, movedAt })
+export function upsertCardListEntry(cardId: string, listId: string, enteredAt: string): void {
+  getDb().prepare(sqlCardListEntriesUpsert).run({ cardId, listId, enteredAt })
 }
 
 /**
- * Resets moved_to_done_at to NULL for open cards that are no longer in any
- * done list. Call this after upserting cards so that a card moved back to an
- * active column is no longer treated as "done".
+ * For open cards with no card_list_entries row for their current list (e.g. cards
+ * already in a column when the board was first synced), inserts a fallback row
+ * using synced_at as a conservative lower-bound for how long they've been there.
  */
-export function clearMovedToDoneForNonDone(boardId: string, doneListNames: string[]): void {
-  getDb()
-    .prepare(sqlCardsClearMovedToDoneForNonDone)
-    .run({ boardId, doneListNames: JSON.stringify(doneListNames) })
-}
-
-/**
- * For cards that are currently in a done list but have no recorded
- * moved_to_done_at (e.g. on the very first sync), sets the field to
- * synced_at as a conservative lower-bound estimate.
- */
-export function setMovedToDoneFallback(boardId: string, doneListNames: string[]): void {
-  getDb()
-    .prepare(sqlCardsSetMovedToDoneFallback)
-    .run({ boardId, doneListNames: JSON.stringify(doneListNames) })
+export function setCardListEntryFallback(boardId: string): void {
+  getDb().prepare(sqlCardListEntriesSetFallback).run({ boardId })
 }
 
 /**
@@ -215,14 +194,14 @@ export function getDoneCardsOlderThan(
   boardId: string,
   doneListNames: string[],
   cutoffDate: string
-): { id: string; name: string; listId: string; movedToDoneAt: string }[] {
+): { id: string; name: string; listId: string; enteredDoneAt: string }[] {
   return getDb()
     .prepare(sqlCardsGetDoneOlderThan)
     .all({
       boardId,
       doneListNames: JSON.stringify(doneListNames),
       cutoffDate
-    }) as { id: string; name: string; listId: string; movedToDoneAt: string }[]
+    }) as { id: string; name: string; listId: string; enteredDoneAt: string }[]
 }
 
 // ─── Row Mapper ────────────────────────────────────────────────────────────────
