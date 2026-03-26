@@ -1,8 +1,8 @@
 import Database from 'better-sqlite3'
-import { app } from 'electron'
-import path from 'path'
 import fs from 'fs'
+import path from 'path'
 import type { BoardConfig, BoardConfigInput } from '@shared/board.types'
+import { getDbPath } from '../settings/appSettings'
 import type { TrelloList, TrelloCard } from '@shared/trello.types'
 
 // ─── SQL imports ───────────────────────────────────────────────────────────────
@@ -32,10 +32,11 @@ let _db: Database.Database | null = null
 export function getDb(): Database.Database {
   if (_db) return _db
 
-  const dir = app.getPath('userData')
+  const dbPath = getDbPath()
+  const dir = path.dirname(dbPath)
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
-  _db = new Database(path.join(dir, 'agile-life.db'))
+  _db = new Database(dbPath)
   _db.exec(schemaSql)
   return _db
 }
