@@ -19,8 +19,8 @@ if (process.contextIsolated) {
     console.error(error)
   }
 } else {
-  // @ts-ignore defined on the window in preload typings
+  // @ts-expect-error defined on the window in preload typings
   window.electron = electronAPI
-  // @ts-ignore defined on the window in preload typings
+  // @ts-expect-error defined on the window in preload typings
   window.api = api
 }
