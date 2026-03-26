@@ -7,7 +7,11 @@ import type { IpcResult } from '@shared/ipc.types'
 import type { BoardConfig, BoardConfigInput, SyncResult } from '@shared/board.types'
 import type { TrelloBoard } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
-import type { TicketNumberingConfig, UnnumberedCard, ApplyNumberingResult } from '@shared/ticket.types'
+import type {
+  TicketNumberingConfig,
+  UnnumberedCard,
+  ApplyNumberingResult
+} from '@shared/ticket.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return window.api.invoke(channel as Parameters<typeof window.api.invoke>[0], ...args) as Promise<
@@ -44,9 +48,7 @@ export const api = {
       invoke<UnnumberedCard[]>(IPC_CHANNELS.TICKETS_PREVIEW_UNNUMBERED, boardId),
     applyNumbering: (boardId: string) =>
       invoke<ApplyNumberingResult>(IPC_CHANNELS.TICKETS_APPLY_NUMBERING, boardId),
-    updateConfig: (
-      boardId: string,
-      updates: { projectCode?: string; nextTicketNumber?: number }
-    ) => invoke<void>(IPC_CHANNELS.TICKETS_UPDATE_CONFIG, boardId, updates)
+    updateConfig: (boardId: string, updates: { projectCode?: string; nextTicketNumber?: number }) =>
+      invoke<void>(IPC_CHANNELS.TICKETS_UPDATE_CONFIG, boardId, updates)
   }
 }

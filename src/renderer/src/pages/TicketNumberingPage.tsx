@@ -4,7 +4,11 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import type { BoardConfig } from '@shared/board.types'
-import type { TicketNumberingConfig, UnnumberedCard, ApplyNumberingResult } from '@shared/ticket.types'
+import type {
+  TicketNumberingConfig,
+  UnnumberedCard,
+  ApplyNumberingResult
+} from '@shared/ticket.types'
 import { api } from '../hooks/useApi'
 import styles from './TicketNumberingPage.module.css'
 
@@ -101,8 +105,8 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
       {/* ── Title ── */}
       <h1 className={styles.title}>🎫 Ticket Numbering — {board.boardName}</h1>
       <p className={styles.description}>
-        Assigns a unique <code>AGI-000001</code>-style prefix to every open card that
-        doesn&apos;t already have one. Cards already prefixed are left untouched.
+        Assigns a unique <code>AGI-000001</code>-style prefix to every open card that doesn&apos;t
+        already have one. Cards already prefixed are left untouched.
       </p>
 
       {/* ── Config card ── */}
@@ -194,7 +198,9 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
         )}
 
         {preview && preview.length > 0 && (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16 }}>
+          <table
+            style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16 }}
+          >
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
                 <th style={{ padding: '6px 8px' }}>List</th>
@@ -219,12 +225,18 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
         )}
 
         <div className={styles.actions}>
-          <button className="btn-secondary" onClick={handlePreview} disabled={loadingPreview || applying}>
+          <button
+            className="btn-secondary"
+            onClick={handlePreview}
+            disabled={loadingPreview || applying}
+          >
             {loadingPreview ? 'Loading…' : '🔍 Preview'}
           </button>
           {preview && preview.length > 0 && (
             <button className="btn-primary" onClick={handleApply} disabled={applying}>
-              {applying ? 'Applying…' : `▶ Apply to ${preview.length} card${preview.length !== 1 ? 's' : ''}`}
+              {applying
+                ? 'Applying…'
+                : `▶ Apply to ${preview.length} card${preview.length !== 1 ? 's' : ''}`}
             </button>
           )}
         </div>

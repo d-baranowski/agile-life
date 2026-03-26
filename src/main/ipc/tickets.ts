@@ -1,7 +1,11 @@
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '@shared/ipc.types'
 import type { IpcResult } from '@shared/ipc.types'
-import type { TicketNumberingConfig, UnnumberedCard, ApplyNumberingResult } from '@shared/ticket.types'
+import type {
+  TicketNumberingConfig,
+  UnnumberedCard,
+  ApplyNumberingResult
+} from '@shared/ticket.types'
 import { getBoardById, updateBoard, getDb } from '../database/db'
 import { TrelloClient } from '../trello/client'
 
