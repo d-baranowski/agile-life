@@ -2,6 +2,7 @@
 -- Uses card assignees (members_json on trello_cards) instead of the action creator.
 -- Cards with no labels are excluded (json_each returns no rows for empty arrays).
 -- Cards with no assigned members appear under "Unassigned" per label.
+-- Uses LEFT JOIN so that recently-archived cards not yet re-synced still count.
 WITH done_cards AS (
   SELECT DISTINCT
     a.card_id
@@ -23,7 +24,7 @@ SELECT
   json_extract(jm.value, '$.fullName')   AS userName,
   COUNT(DISTINCT dc.card_id)             AS closedCount
 FROM done_cards dc
-JOIN trello_cards c ON c.id = dc.card_id
+LEFT JOIN trello_cards c ON c.id = dc.card_id
 JOIN json_each(c.labels_json) jl
 JOIN json_each(c.members_json) jm
 GROUP BY
@@ -33,7 +34,7 @@ GROUP BY
 
 UNION ALL
 
--- Unassigned: labelled cards with an empty (or null) members_json array
+-- Unassigned: labelled cards with empty/null members_json OR card not in trello_cards
 SELECT
   json_extract(jl.value, '$.name')       AS labelName,
   json_extract(jl.value, '$.color')      AS labelColor,
@@ -41,7 +42,7 @@ SELECT
   'Unassigned'                           AS userName,
   COUNT(DISTINCT dc.card_id)             AS closedCount
 FROM done_cards dc
-JOIN trello_cards c ON c.id = dc.card_id
+LEFT JOIN trello_cards c ON c.id = dc.card_id
 JOIN json_each(c.labels_json) jl
 WHERE COALESCE(json_array_length(c.members_json), 0) = 0
 GROUP BY
@@ -49,3 +50,4 @@ GROUP BY
   json_extract(jl.value, '$.color')
 
 ORDER BY closedCount DESC, labelName, userName
+

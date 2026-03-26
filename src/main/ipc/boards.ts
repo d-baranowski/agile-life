@@ -115,7 +115,7 @@ export function registerBoardHandlers(): void {
         const since = getLatestActionDate(boardId) ?? undefined
         const [freshLists, freshCards, freshActions] = await Promise.all([
           client.getLists(boardId),
-          client.getCards(boardId),
+          client.getAllCards(boardId),
           client.getActions(boardId, { since })
         ])
 

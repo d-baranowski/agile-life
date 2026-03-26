@@ -287,14 +287,20 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
           </section>
 
           {/* ── 12-month history chart ── */}
-          {allHistoryWeeks.length > 0 && (
-            <section>
-              <h2 className={styles.sectionTitle}>Completion Trend — Past 12 Months</h2>
+          <section>
+            <h2 className={styles.sectionTitle}>Completion Trend — Past 12 Months</h2>
+            {allHistoryWeeks.length === 0 ? (
+              <p className="text-muted">
+                No historical data yet. Sync your board to populate this chart — the sync now
+                fetches all cards (including archived ones) so historical completions will appear
+                here.
+              </p>
+            ) : (
               <div className={styles.chartWrap}>
                 <Line data={historyChartData} options={historyChartOptions} />
               </div>
-            </section>
-          )}
+            )}
+          </section>
         </>
       )}
     </div>
