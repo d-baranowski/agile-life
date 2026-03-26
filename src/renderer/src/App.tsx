@@ -6,9 +6,10 @@ import BoardRegistration from './components/BoardRegistration'
 import Dashboard from './pages/Dashboard'
 import SettingsPage from './pages/SettingsPage'
 import AnalyticsPage from './pages/AnalyticsPage'
+import TicketNumberingPage from './pages/TicketNumberingPage'
 import styles from './App.module.css'
 
-type Tab = 'dashboard' | 'analytics' | 'settings'
+type Tab = 'dashboard' | 'analytics' | 'tickets' | 'settings'
 
 export default function App(): JSX.Element {
   const [boards, setBoards] = useState<BoardConfig[]>([])
@@ -70,7 +71,7 @@ export default function App(): JSX.Element {
           />
         </div>
         <nav className={styles.nav}>
-          {(['dashboard', 'analytics', 'settings'] as Tab[]).map((tab) => (
+          {(['dashboard', 'analytics', 'tickets', 'settings'] as Tab[]).map((tab) => (
             <button
               key={tab}
               className={`${styles.navBtn} ${activeTab === tab ? styles.navBtnActive : ''}`}
@@ -78,6 +79,7 @@ export default function App(): JSX.Element {
             >
               {tab === 'dashboard' && '📊 '}
               {tab === 'analytics' && '📈 '}
+              {tab === 'tickets' && '🎫 '}
               {tab === 'settings' && '⚙️ '}
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
@@ -104,6 +106,7 @@ export default function App(): JSX.Element {
           <>
             {activeTab === 'dashboard' && <Dashboard board={selectedBoard} />}
             {activeTab === 'analytics' && <AnalyticsPage board={selectedBoard} />}
+            {activeTab === 'tickets' && <TicketNumberingPage board={selectedBoard} />}
             {activeTab === 'settings' && (
               <SettingsPage
                 board={selectedBoard}

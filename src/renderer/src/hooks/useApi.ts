@@ -12,6 +12,11 @@ import type {
   LabelUserStats,
   CardAgeStats
 } from '@shared/analytics.types'
+import type {
+  TicketNumberingConfig,
+  UnnumberedCard,
+  ApplyNumberingResult
+} from '@shared/ticket.types'
 import type { DbPathInfo } from '@shared/settings.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
@@ -48,6 +53,19 @@ export const api = {
       invoke<LabelUserStats[]>(IPC_CHANNELS.ANALYTICS_LABEL_USER_STATS, boardId),
     /** Returns age in days for every open card. */
     cardAge: (boardId: string) => invoke<CardAgeStats[]>(IPC_CHANNELS.ANALYTICS_CARD_AGE, boardId)
+  },
+
+  tickets: {
+    getConfig: (boardId: string) =>
+      invoke<TicketNumberingConfig>(IPC_CHANNELS.TICKETS_GET_CONFIG, boardId),
+    previewUnnumbered: (boardId: string) =>
+      invoke<UnnumberedCard[]>(IPC_CHANNELS.TICKETS_PREVIEW_UNNUMBERED, boardId),
+    applyNumbering: (boardId: string) =>
+      invoke<ApplyNumberingResult>(IPC_CHANNELS.TICKETS_APPLY_NUMBERING, boardId),
+    applySingleCard: (boardId: string, cardId: string, newName: string) =>
+      invoke<void>(IPC_CHANNELS.TICKETS_APPLY_SINGLE_CARD, boardId, cardId, newName),
+    updateConfig: (boardId: string, updates: { projectCode?: string; nextTicketNumber?: number }) =>
+      invoke<void>(IPC_CHANNELS.TICKETS_UPDATE_CONFIG, boardId, updates)
   },
 
   settings: {
