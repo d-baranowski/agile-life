@@ -87,6 +87,9 @@ importers:
       typescript:
         specifier: ^5.4.2
         version: 5.9.3
+      vite:
+        specifier: ^5.1.4
+        version: 5.4.21(@types/node@20.19.37)
 
 packages:
 
