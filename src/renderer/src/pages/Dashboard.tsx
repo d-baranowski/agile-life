@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { BoardConfig, SyncResult, ArchiveResult } from '@shared/board.types'
+import type { BoardConfig, SyncResult, ArchiveResult, DoneCardPreview } from '@shared/board.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
 import styles from './Dashboard.module.css'
@@ -16,6 +16,9 @@ export default function Dashboard({ board }: Props): JSX.Element {
   const [error, setError] = useState<string | null>(null)
 
   const [archiveWeeks, setArchiveWeeks] = useState(2)
+  const [previewing, setPreviewing] = useState(false)
+  const [previewCards, setPreviewCards] = useState<DoneCardPreview[] | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [archiving, setArchiving] = useState(false)
   const [archiveResult, setArchiveResult] = useState<ArchiveResult | null>(null)
   const [archiveError, setArchiveError] = useState<string | null>(null)
@@ -28,15 +31,25 @@ export default function Dashboard({ board }: Props): JSX.Element {
     setLoading(false)
   }, [board.boardId])
 
-  // Load cached counts on board switch
+  // Load cached counts on board switch; also reset archive state
   useEffect(() => {
     setLoading(true)
     setError(null)
     setSyncResult(null)
+    setPreviewCards(null)
+    setPreviewError(null)
     setArchiveResult(null)
     setArchiveError(null)
     loadCounts()
   }, [loadCounts])
+
+  // Reset preview when weeks threshold changes
+  useEffect(() => {
+    setPreviewCards(null)
+    setPreviewError(null)
+    setArchiveResult(null)
+    setArchiveError(null)
+  }, [archiveWeeks])
 
   const handleSync = async (): Promise<void> => {
     setSyncing(true)
@@ -51,6 +64,21 @@ export default function Dashboard({ board }: Props): JSX.Element {
     setSyncing(false)
   }
 
+  const handlePreview = async (): Promise<void> => {
+    setPreviewing(true)
+    setPreviewError(null)
+    setPreviewCards(null)
+    setArchiveResult(null)
+    setArchiveError(null)
+    const result = await api.trello.previewArchiveDoneCards(board.boardId, archiveWeeks)
+    if (result.success && result.data) {
+      setPreviewCards(result.data)
+    } else {
+      setPreviewError(result.error ?? 'Preview failed.')
+    }
+    setPreviewing(false)
+  }
+
   const handleArchive = async (): Promise<void> => {
     setArchiving(true)
     setArchiveError(null)
@@ -58,6 +86,7 @@ export default function Dashboard({ board }: Props): JSX.Element {
     const result = await api.trello.archiveDoneCards(board.boardId, archiveWeeks)
     if (result.success && result.data) {
       setArchiveResult(result.data)
+      setPreviewCards(null)
       await loadCounts()
     } else {
       setArchiveError(result.error ?? 'Archive failed.')
@@ -68,6 +97,13 @@ export default function Dashboard({ board }: Props): JSX.Element {
   const totalCards = columns.reduce((sum, c) => sum + c.cardCount, 0)
 
   const doneListLabel = (board.doneListNames ?? ['Done']).join(', ')
+
+  function weeksAgo(isoDate: string): string {
+    const days = Math.floor((Date.now() - new Date(isoDate).getTime()) / (1000 * 60 * 60 * 24))
+    if (days < 7) return `${days}d`
+    const weeks = Math.floor(days / 7)
+    return `${weeks}w`
+  }
 
   return (
     <div className={styles.container}>
@@ -127,21 +163,14 @@ export default function Dashboard({ board }: Props): JSX.Element {
         <h2 className={styles.sectionTitle}>Archive Done Cards</h2>
         <p className={styles.archiveHint}>
           Archive cards from the <strong>{doneListLabel}</strong>{' '}
-          {board.doneListNames.length === 1 ? 'column' : 'columns'} on Trello that have had no
-          activity for the selected number of weeks. The cards will remain in your local database
+          {board.doneListNames.length === 1 ? 'column' : 'columns'} on Trello that have been in the
+          done column for the selected number of weeks. The cards will remain in your local database
           (marked as archived) so your history is preserved.
         </p>
-        {archiveError && <div className={styles.errorBanner}>{archiveError}</div>}
-        {archiveResult && (
-          <div className={styles.archiveSuccess}>
-            ✓ Archived {archiveResult.archivedCount} card
-            {archiveResult.archivedCount !== 1 ? 's' : ''}
-            {archiveResult.skippedCount > 0 ? ` (${archiveResult.skippedCount} skipped)` : ''}.
-          </div>
-        )}
+
         <div className={styles.archiveControls}>
           <label className={styles.weeksLabel}>
-            Inactive for at least
+            In done for at least
             <input
               type="number"
               min={1}
@@ -152,17 +181,85 @@ export default function Dashboard({ board }: Props): JSX.Element {
             />
             week{archiveWeeks !== 1 ? 's' : ''}
           </label>
-          <button className="btn-danger" onClick={handleArchive} disabled={archiving || syncing}>
-            {archiving ? (
+          <button
+            className="btn-secondary"
+            onClick={handlePreview}
+            disabled={previewing || archiving || syncing}
+          >
+            {previewing ? (
               <span className={styles.syncingLabel}>
                 <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
-                Archiving…
+                Loading…
               </span>
             ) : (
-              '🗄 Archive Done Cards'
+              '🔍 Preview'
             )}
           </button>
         </div>
+
+        {previewError && <div className={styles.errorBanner}>{previewError}</div>}
+        {archiveError && <div className={styles.errorBanner}>{archiveError}</div>}
+
+        {archiveResult && (
+          <div className={styles.archiveSuccess}>
+            ✓ Archived {archiveResult.archivedCount} card
+            {archiveResult.archivedCount !== 1 ? 's' : ''}
+            {archiveResult.skippedCount > 0 ? ` (${archiveResult.skippedCount} skipped)` : ''}.
+          </div>
+        )}
+
+        {previewCards !== null && (
+          <div className={styles.previewSection}>
+            {previewCards.length === 0 ? (
+              <p className={styles.previewEmpty}>
+                No cards have been in the done column for {archiveWeeks} week
+                {archiveWeeks !== 1 ? 's' : ''} or more.
+              </p>
+            ) : (
+              <>
+                <p className={styles.previewCount}>
+                  {previewCards.length} card{previewCards.length !== 1 ? 's' : ''} will be archived:
+                </p>
+                <ul className={styles.previewList}>
+                  {previewCards.map((card) => (
+                    <li key={card.id} className={styles.previewItem}>
+                      <span className={styles.previewCardName}>{card.name}</span>
+                      <span className={styles.previewCardMeta}>
+                        {card.listName} · {weeksAgo(card.enteredDoneAt)} in Done
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className={styles.previewActions}>
+                  <button
+                    className="btn-danger"
+                    onClick={handleArchive}
+                    disabled={archiving || syncing}
+                  >
+                    {archiving ? (
+                      <span className={styles.syncingLabel}>
+                        <span
+                          className="spinner"
+                          style={{ width: 14, height: 14, borderWidth: 2 }}
+                        />
+                        Archiving…
+                      </span>
+                    ) : (
+                      `🗄 Archive ${previewCards.length} Card${previewCards.length !== 1 ? 's' : ''}`
+                    )}
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => setPreviewCards(null)}
+                    disabled={archiving}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Column grid ── */}

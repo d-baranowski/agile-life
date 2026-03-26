@@ -1,7 +1,13 @@
 import { ipcMain } from 'electron'
 import { IPC_CHANNELS } from '@shared/ipc.types'
 import type { IpcResult } from '@shared/ipc.types'
-import type { BoardConfig, BoardConfigInput, SyncResult, ArchiveResult } from '@shared/board.types'
+import type {
+  BoardConfig,
+  BoardConfigInput,
+  SyncResult,
+  ArchiveResult,
+  DoneCardPreview
+} from '@shared/board.types'
 import type { TrelloBoard } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import {
@@ -186,6 +192,31 @@ export function registerBoardHandlers(): void {
       try {
         const rows = getDb().prepare(sqlColumnCounts).all(boardId) as ColumnCount[]
         return { success: true, data: rows }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Preview: which done cards would be archived? ────────────────────────────
+  //
+  // Dry-run version of TRELLO_ARCHIVE_DONE_CARDS: returns the list of cards
+  // that *would* be archived without actually touching Trello.  The UI shows
+  // this to the user before they confirm the destructive operation.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_PREVIEW_ARCHIVE_DONE_CARDS,
+    async (_e, boardId: string, olderThanWeeks: number): Promise<IpcResult<DoneCardPreview[]>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+
+        const cutoffDate = new Date(
+          Date.now() - olderThanWeeks * 7 * 24 * 60 * 60 * 1000
+        ).toISOString()
+
+        const candidates = getDoneCardsOlderThan(boardId, config.doneListNames, cutoffDate)
+        return { success: true, data: candidates }
       } catch (err) {
         return { success: false, error: String(err) }
       }

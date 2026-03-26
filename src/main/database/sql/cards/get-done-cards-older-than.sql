@@ -6,6 +6,7 @@ SELECT
   c.id,
   c.name,
   c.list_id                              AS listId,
+  l.name                                 AS listName,
   COALESCE(e.entered_at, c.synced_at)   AS enteredDoneAt
 FROM trello_cards c
 JOIN trello_lists l ON l.id = c.list_id

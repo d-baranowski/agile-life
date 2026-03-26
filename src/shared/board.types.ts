@@ -27,3 +27,12 @@ export interface ArchiveResult {
   skippedCount: number
   syncedAt: string
 }
+
+/** A single card candidate returned by the preview (dry-run) handler. */
+export interface DoneCardPreview {
+  id: string
+  name: string
+  listId: string
+  listName: string
+  enteredDoneAt: string
+}

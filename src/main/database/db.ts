@@ -210,14 +210,14 @@ export function getDoneCardsOlderThan(
   boardId: string,
   doneListNames: string[],
   cutoffDate: string
-): { id: string; name: string; listId: string; enteredDoneAt: string }[] {
+): { id: string; name: string; listId: string; listName: string; enteredDoneAt: string }[] {
   return getDb()
     .prepare(sqlCardsGetDoneOlderThan)
     .all({
       boardId,
       doneListNames: JSON.stringify(doneListNames),
       cutoffDate
-    }) as { id: string; name: string; listId: string; enteredDoneAt: string }[]
+    }) as { id: string; name: string; listId: string; listName: string; enteredDoneAt: string }[]
 }
 
 // ─── Row Mapper ────────────────────────────────────────────────────────────────
