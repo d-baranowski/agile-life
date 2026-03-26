@@ -165,6 +165,7 @@ export function registerTicketHandlers(): void {
   //
   // Renames a single card on Trello + updates local DB + increments the counter.
   // The renderer calls this once per card to drive per-card UX feedback.
+  // The counter is incremented atomically in SQL to avoid stale-read issues.
 
   ipcMain.handle(
     IPC_CHANNELS.TICKETS_APPLY_SINGLE_CARD,
@@ -176,8 +177,12 @@ export function registerTicketHandlers(): void {
         const client = new TrelloClient(board.apiKey, board.apiToken)
         await client.updateCardName(cardId, newName)
 
-        getDb().prepare('UPDATE trello_cards SET name = ? WHERE id = ?').run(newName, cardId)
-        updateBoard(boardId, { nextTicketNumber: board.nextTicketNumber + 1 })
+        const db = getDb()
+        db.prepare('UPDATE trello_cards SET name = ? WHERE id = ?').run(newName, cardId)
+        // Atomic increment avoids any stale-read if multiple calls land concurrently.
+        db.prepare(
+          'UPDATE board_configs SET next_ticket_number = next_ticket_number + 1 WHERE board_id = ?'
+        ).run(boardId)
 
         return { success: true }
       } catch (err) {

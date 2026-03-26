@@ -254,7 +254,7 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
             ) : (
               <>
                 ⚠️ {successCount} updated, {errorCount} failed
-                {remainingCount > 0 && `, ${remainingCount} skipped`}.
+                {remainingCount > 0 && `, ${remainingCount} not processed`}.
               </>
             )}
           </div>
