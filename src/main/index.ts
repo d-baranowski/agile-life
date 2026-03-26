@@ -5,6 +5,9 @@ import { registerBoardHandlers } from './ipc/boards'
 import { registerSettingsHandlers } from './ipc/settings'
 import icon from '../../resources/icon.png?asset'
 
+// Ensure the Dock / taskbar always shows "Agile Life", not the Electron binary name
+app.setName('Agile Life')
+
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1280,
