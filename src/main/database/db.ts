@@ -24,6 +24,8 @@ import sqlCardsGetDoneOlderThan from './sql/cards/get-done-cards-older-than.sql?
 import sqlCardsGetDoneColumnDebug from './sql/cards/get-done-column-debug.sql?raw'
 import sqlCardListEntriesUpsert from './sql/card-list-entries/upsert.sql?raw'
 import sqlCardListEntriesSetFallback from './sql/card-list-entries/set-fallback.sql?raw'
+import sqlCardListEntriesClearForBoard from './sql/card-list-entries/clear-for-board.sql?raw'
+import sqlBoardsSetCardListEntriesInitialized from './sql/boards/set-card-list-entries-initialized.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -41,6 +43,18 @@ export function getDb(): Database.Database {
 
   _db = new Database(path.join(dir, 'agile-life.db'))
   _db.exec(schemaSql)
+
+  // ── Column migrations ──────────────────────────────────────────────────────
+  // SQLite has no "ADD COLUMN IF NOT EXISTS", so we try and ignore the error
+  // if the column already exists (e.g. new installs where schema.sql created it).
+  try {
+    _db.exec(
+      'ALTER TABLE board_configs ADD COLUMN card_list_entries_initialized INTEGER NOT NULL DEFAULT 0'
+    )
+  } catch {
+    // Column already exists — nothing to do.
+  }
+
   return _db
 }
 
@@ -172,32 +186,55 @@ export function updateBoardSyncTime(boardId: string): void {
 
 /**
  * Upsert the timestamp when a card entered a list.
- * Only advances the stored value — an older timestamp never overwrites a newer one.
+ * MAX() keeps the most-recent value so that re-processing the same events is
+ * safe — only a newer timestamp can overwrite an existing one.  This means the
+ * table must be cleared (clearCardListEntriesForBoard) before re-running a
+ * full-history fetch so stale "today" rows can't block historical dates.
  */
 export function upsertCardListEntry(cardId: string, listId: string, enteredAt: string): void {
   getDb().prepare(sqlCardListEntriesUpsert).run({ cardId, listId, enteredAt })
 }
 
 /**
- * Returns true if card_list_entries has at least one row for the given board.
- * Used during sync to decide whether a full action history fetch is needed to
- * backfill the table (e.g. after first installing this version of the app).
+ * Delete all card_list_entries rows for the given board.
+ * Called before a full-history rebuild to ensure stale rows written by old
+ * code (e.g. entered_at = now()) can't survive and block correct timestamps.
  */
-export function hasCardListEntries(boardId: string): boolean {
-  const row = getDb()
-    .prepare(
-      `SELECT 1 FROM card_list_entries e
-       JOIN trello_cards c ON c.id = e.card_id
-       WHERE c.board_id = ? LIMIT 1`
-    )
-    .get(boardId)
-  return row !== undefined
+export function clearCardListEntriesForBoard(boardId: string): void {
+  getDb().prepare(sqlCardListEntriesClearForBoard).run({ boardId })
 }
 
 /**
- * For open cards with no card_list_entries row for their current list (e.g. cards
- * already in a column when the board was first synced), inserts a fallback row
- * using synced_at as a conservative lower-bound for how long they've been there.
+ * Returns true when the card_list_entries table for this board has been
+ * fully initialized from Trello's action history.
+ * A board starts with card_list_entries_initialized = 0 (the default),
+ * including boards upgraded from a version that lacked this column.
+ * The sync flow sets it to 1 after a successful full-history fetch.
+ */
+export function isCardListEntriesInitialized(boardId: string): boolean {
+  const row = getDb()
+    .prepare(`SELECT card_list_entries_initialized FROM board_configs WHERE board_id = ?`)
+    .get(boardId) as { card_list_entries_initialized: number } | undefined
+  return (row?.card_list_entries_initialized ?? 0) === 1
+}
+
+/**
+ * Mark the board's card_list_entries as fully initialized.
+ * Called after a successful full-history action fetch so subsequent syncs
+ * only need to fetch incremental actions.
+ */
+export function setCardListEntriesInitialized(boardId: string): void {
+  getDb().prepare(sqlBoardsSetCardListEntriesInitialized).run({ boardId })
+}
+
+/**
+ * For open cards that still have no card_list_entries row for their current
+ * list after processing all available Trello actions (e.g. cards created
+ * before Trello started recording actions), inserts a fallback row using
+ * date_last_activity as a conservative lower-bound.
+ *
+ * Only inserts when no row already exists (NOT EXISTS guard) — cards with a
+ * real action-based entry are left untouched.
  */
 export function setCardListEntryFallback(boardId: string): void {
   getDb().prepare(sqlCardListEntriesSetFallback).run({ boardId })

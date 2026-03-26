@@ -24,7 +24,9 @@ import {
   updateBoardSyncTime,
   upsertCardListEntry,
   setCardListEntryFallback,
-  hasCardListEntries,
+  isCardListEntriesInitialized,
+  setCardListEntriesInitialized,
+  clearCardListEntriesForBoard,
   getDoneCardsOlderThan,
   getDoneColumnDebug,
   getDb
@@ -105,13 +107,22 @@ export function registerBoardHandlers(): void {
   //  1. Fetch all open lists and cards from Trello
   //  2. Upsert lists  →  mark lists absent from response as closed
   //  3. Upsert cards  →  mark cards absent from response as closed
-  //  4. Fetch card-movement actions (since last sync, or all history on first sync)
-  //  5. Upsert card_list_entries from those actions so we know when each card
-  //     entered each column (both updateCard:idList moves and createCard placements)
-  //  6. Fallback: for cards with no entry for their current list yet, use synced_at
-  //  7. Stamp board row with last_synced_at
+  //  4. Determine whether a full or incremental action fetch is needed:
+  //       • card_list_entries_initialized = 0  →  full fetch
+  //         Delete ALL existing card_list_entries for the board first so stale
+  //         "today" rows (written by old code that used synced_at as the
+  //         fallback) cannot survive and block correct historical timestamps
+  //         from being stored via MAX() semantics in the upsert.
+  //       • card_list_entries_initialized = 1  →  incremental fetch since
+  //         last_synced_at
+  //  5. Upsert card_list_entries from actions (updateCard:idList, createCard)
+  //  6. Fallback: for cards with no action history at all (older than Trello's
+  //     retention window), insert date_last_activity as a lower-bound
+  //  7. Mark the board as initialized (no-op on subsequent syncs)
+  //  8. Stamp board row with last_synced_at
   //
-  // Running this handler N times is safe — every step is fully idempotent.
+  // Running this handler N times is safe — every step is fully idempotent once
+  // initialized; the clear+full-fetch in step 4 only runs once per board.
 
   ipcMain.handle(
     IPC_CHANNELS.TRELLO_SYNC,
@@ -140,19 +151,22 @@ export function registerBoardHandlers(): void {
         )
 
         // Fetch card-movement actions.
-        // Force a full history fetch when card_list_entries has no rows for this
-        // board yet — this handles both the very first sync and the case where an
-        // existing user upgrades to the version that introduced this table.
-        // Subsequent syncs (table already populated) only fetch new actions.
-        const needsFullHistory = !hasCardListEntries(boardId)
+        // On the first sync (or after an upgrade from a version that lacked this
+        // flag): clear any stale entries and fetch the full board history so
+        // entered_at reflects real Trello action dates, not today.
+        // Subsequent syncs only fetch actions since last_synced_at.
+        const needsFullHistory = !isCardListEntriesInitialized(boardId)
+        if (needsFullHistory) {
+          clearCardListEntriesForBoard(boardId)
+        }
         const actions = await client.getActions(
           boardId,
           needsFullHistory ? {} : { since: config.lastSyncedAt ?? undefined }
         )
 
         // Upsert an entry for every action that placed a card in a list.
-        // The SQL only advances entered_at — it never overwrites a newer value —
-        // so replaying the same actions is safe.
+        // MAX() semantics in the SQL mean the most-recent move-into-column wins,
+        // which is correct for tracking "when did the card last enter this column".
         for (const action of actions) {
           const cardId = action.data.card?.id
           if (!cardId) continue
@@ -166,9 +180,12 @@ export function registerBoardHandlers(): void {
           }
         }
 
-        // Insert a fallback entry for any card that still has no row for its
-        // current list (e.g. cards older than the available action history).
+        // Fallback: for cards with no action entry at all (predating Trello's
+        // action history retention), use date_last_activity as a lower-bound.
         setCardListEntryFallback(boardId)
+
+        // Mark this board as fully initialized so future syncs are incremental.
+        setCardListEntriesInitialized(boardId)
 
         updateBoardSyncTime(boardId)
 
