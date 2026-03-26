@@ -4,16 +4,25 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import type { BoardConfig } from '@shared/board.types'
-import type {
-  TicketNumberingConfig,
-  UnnumberedCard,
-  ApplyNumberingResult
-} from '@shared/ticket.types'
+import type { TicketNumberingConfig, UnnumberedCard } from '@shared/ticket.types'
 import { api } from '../hooks/useApi'
 import styles from './TicketNumberingPage.module.css'
 
 interface Props {
   board: BoardConfig
+}
+
+type CardStatus = 'queued' | 'in-progress' | 'success' | 'error'
+
+interface CardState {
+  card: UnnumberedCard
+  status: CardStatus
+  error?: string
+  showError: boolean
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 export default function TicketNumberingPage({ board }: Props): JSX.Element {
@@ -27,9 +36,9 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
 
-  const [applyResult, setApplyResult] = useState<ApplyNumberingResult | null>(null)
+  // Per-card apply state — populated once the user clicks Apply
+  const [cardStates, setCardStates] = useState<CardState[] | null>(null)
   const [applying, setApplying] = useState(false)
-  const [applyError, setApplyError] = useState<string | null>(null)
 
   const loadConfig = useCallback(async () => {
     const result = await api.tickets.getConfig(board.boardId)
@@ -43,10 +52,9 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
   useEffect(() => {
     setConfig(null)
     setPreview(null)
-    setApplyResult(null)
+    setCardStates(null)
     setConfigError(null)
     setPreviewError(null)
-    setApplyError(null)
     loadConfig()
   }, [loadConfig])
 
@@ -68,14 +76,14 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
     } else {
       await loadConfig()
       setPreview(null)
-      setApplyResult(null)
+      setCardStates(null)
     }
   }
 
   const handlePreview = async () => {
     setLoadingPreview(true)
     setPreviewError(null)
-    setApplyResult(null)
+    setCardStates(null)
     const result = await api.tickets.previewUnnumbered(board.boardId)
     setLoadingPreview(false)
     if (result.success && result.data) {
@@ -87,18 +95,62 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
   }
 
   const handleApply = async () => {
+    if (!preview || preview.length === 0) return
+
+    // Initialise every card as "queued"
+    const initial: CardState[] = preview.map((card) => ({
+      card,
+      status: 'queued',
+      showError: false
+    }))
+    setCardStates(initial)
+    setPreview(null)
     setApplying(true)
-    setApplyError(null)
-    const result = await api.tickets.applyNumbering(board.boardId)
-    setApplying(false)
-    if (result.success && result.data) {
-      setApplyResult(result.data)
-      setPreview(null)
-      await loadConfig()
-    } else {
-      setApplyError(result.error ?? 'Numbering failed.')
+
+    for (let i = 0; i < initial.length; i++) {
+      // Mark as in-progress
+      setCardStates((prev) =>
+        prev ? prev.map((cs, idx) => (idx === i ? { ...cs, status: 'in-progress' } : cs)) : prev
+      )
+
+      const { cardId, proposedName } = initial[i].card
+      const result = await api.tickets.applySingleCard(board.boardId, cardId, proposedName)
+
+      if (result.success) {
+        setCardStates((prev) =>
+          prev ? prev.map((cs, idx) => (idx === i ? { ...cs, status: 'success' } : cs)) : prev
+        )
+      } else {
+        setCardStates((prev) =>
+          prev
+            ? prev.map((cs, idx) =>
+                idx === i ? { ...cs, status: 'error', error: result.error } : cs
+              )
+            : prev
+        )
+      }
+
+      // Respect Trello's rate limit between calls
+      if (i < initial.length - 1) {
+        await sleep(200)
+      }
     }
+
+    setApplying(false)
+    await loadConfig()
   }
+
+  const toggleErrorDetail = (idx: number) => {
+    setCardStates((prev) =>
+      prev ? prev.map((cs, i) => (i === idx ? { ...cs, showError: !cs.showError } : cs)) : prev
+    )
+  }
+
+  // Derived counts for the summary line shown after/during apply
+  const successCount = cardStates?.filter((cs) => cs.status === 'success').length ?? 0
+  const errorCount = cardStates?.filter((cs) => cs.status === 'error').length ?? 0
+  const remainingCount =
+    cardStates?.filter((cs) => cs.status === 'queued' || cs.status === 'in-progress').length ?? 0
 
   return (
     <div className={styles.container}>
@@ -177,48 +229,122 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
         <h2 className={styles.cardTitle}>Apply Numbering</h2>
 
         {previewError && <div className={styles.errorBanner}>{previewError}</div>}
-        {applyError && <div className={styles.errorBanner}>{applyError}</div>}
 
-        {applyResult && (
-          <div className={styles.applyResult}>
-            ✅ Done — {applyResult.updated} card{applyResult.updated !== 1 ? 's' : ''} updated
-            {applyResult.failed > 0 && `, ${applyResult.failed} failed`}.
-            {applyResult.errors.length > 0 && (
-              <ul style={{ marginTop: 8, paddingLeft: 20 }}>
-                {applyResult.errors.map((e, i) => (
-                  <li key={i}>{e}</li>
-                ))}
-              </ul>
+        {/* Progress summary while applying or after completion */}
+        {cardStates && (
+          <div
+            className={`${styles.progressSummary} ${
+              !applying && errorCount === 0
+                ? styles.summarySuccess
+                : !applying && errorCount > 0
+                  ? styles.summaryPartial
+                  : styles.summaryRunning
+            }`}
+          >
+            {applying ? (
+              <>
+                <span className={styles.summarySpinner} />
+                Applying… {successCount + errorCount} / {cardStates.length} done
+                {errorCount > 0 && ` · ${errorCount} failed`}
+              </>
+            ) : errorCount === 0 ? (
+              <>
+                ✅ All {successCount} card{successCount !== 1 ? 's' : ''} updated successfully.
+              </>
+            ) : (
+              <>
+                ⚠️ {successCount} updated, {errorCount} failed
+                {remainingCount > 0 && `, ${remainingCount} skipped`}.
+              </>
             )}
           </div>
         )}
 
-        {preview && preview.length === 0 && (
+        {/* Empty state */}
+        {preview && preview.length === 0 && !cardStates && (
           <p className={styles.description}>No unnumbered cards found — nothing to do.</p>
         )}
 
-        {preview && preview.length > 0 && (
-          <table
-            style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16 }}
-          >
+        {/* Card table — preview mode (before apply) */}
+        {preview && preview.length > 0 && !cardStates && (
+          <table className={styles.table}>
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
-                <th style={{ padding: '6px 8px' }}>List</th>
-                <th style={{ padding: '6px 8px' }}>Current Name</th>
-                <th style={{ padding: '6px 8px' }}>Proposed Name</th>
+              <tr>
+                <th>List</th>
+                <th>Current Name</th>
+                <th>Proposed Name</th>
               </tr>
             </thead>
             <tbody>
               {preview.map((card) => (
-                <tr key={card.cardId} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '6px 8px', color: 'var(--color-text-muted)' }}>
-                    {card.listName}
-                  </td>
-                  <td style={{ padding: '6px 8px' }}>{card.cardName}</td>
-                  <td style={{ padding: '6px 8px' }}>
+                <tr key={card.cardId}>
+                  <td className={styles.cellMuted}>{card.listName}</td>
+                  <td>{card.cardName}</td>
+                  <td>
                     <span className={styles.proposedName}>{card.proposedName}</span>
                   </td>
                 </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {/* Card table — apply mode (while running or after completion) */}
+        {cardStates && (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.statusCol}>Status</th>
+                <th>List</th>
+                <th>Current Name</th>
+                <th>Proposed Name</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cardStates.map((cs, idx) => (
+                <>
+                  <tr
+                    key={cs.card.cardId}
+                    className={`${styles.cardRow} ${styles[`row-${cs.status}`]}`}
+                  >
+                    <td className={styles.statusCell}>
+                      {cs.status === 'queued' && (
+                        <span className={styles.badgeQueued}>⏳ Queued</span>
+                      )}
+                      {cs.status === 'in-progress' && (
+                        <span className={styles.badgeInProgress}>
+                          <span className={styles.spinner} /> Updating…
+                        </span>
+                      )}
+                      {cs.status === 'success' && (
+                        <span className={styles.badgeSuccess}>✅ Done</span>
+                      )}
+                      {cs.status === 'error' && (
+                        <span className={styles.badgeError}>
+                          ❌ Failed
+                          <button
+                            className={styles.errorToggle}
+                            onClick={() => toggleErrorDetail(idx)}
+                          >
+                            {cs.showError ? 'Hide' : 'Details'}
+                          </button>
+                        </span>
+                      )}
+                    </td>
+                    <td className={styles.cellMuted}>{cs.card.listName}</td>
+                    <td>{cs.card.cardName}</td>
+                    <td>
+                      <span className={styles.proposedName}>{cs.card.proposedName}</span>
+                    </td>
+                  </tr>
+                  {cs.status === 'error' && cs.showError && cs.error && (
+                    <tr key={`${cs.card.cardId}-err`} className={styles.errorDetailRow}>
+                      <td colSpan={4}>
+                        <span className={styles.errorDetail}>{cs.error}</span>
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>
@@ -232,11 +358,9 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
           >
             {loadingPreview ? 'Loading…' : '🔍 Preview'}
           </button>
-          {preview && preview.length > 0 && (
+          {preview && preview.length > 0 && !cardStates && (
             <button className="btn-primary" onClick={handleApply} disabled={applying}>
-              {applying
-                ? 'Applying…'
-                : `▶ Apply to ${preview.length} card${preview.length !== 1 ? 's' : ''}`}
+              ▶ Apply to {preview.length} card{preview.length !== 1 ? 's' : ''}
             </button>
           )}
         </div>

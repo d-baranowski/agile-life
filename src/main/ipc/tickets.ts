@@ -161,6 +161,31 @@ export function registerTicketHandlers(): void {
     }
   )
 
+  // ── TICKETS_APPLY_SINGLE_CARD ───────────────────────────────────────────────
+  //
+  // Renames a single card on Trello + updates local DB + increments the counter.
+  // The renderer calls this once per card to drive per-card UX feedback.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TICKETS_APPLY_SINGLE_CARD,
+    async (_e, boardId: string, cardId: string, newName: string): Promise<IpcResult<void>> => {
+      try {
+        const board = getBoardById(boardId)
+        if (!board) return { success: false, error: `Board not found: ${boardId}` }
+
+        const client = new TrelloClient(board.apiKey, board.apiToken)
+        await client.updateCardName(cardId, newName)
+
+        getDb().prepare('UPDATE trello_cards SET name = ? WHERE id = ?').run(newName, cardId)
+        updateBoard(boardId, { nextTicketNumber: board.nextTicketNumber + 1 })
+
+        return { success: true }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
   // ── TICKETS_UPDATE_CONFIG ───────────────────────────────────────────────────
   //
   // Saves project_code and/or next_ticket_number for the board.

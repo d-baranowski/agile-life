@@ -48,6 +48,8 @@ export const api = {
       invoke<UnnumberedCard[]>(IPC_CHANNELS.TICKETS_PREVIEW_UNNUMBERED, boardId),
     applyNumbering: (boardId: string) =>
       invoke<ApplyNumberingResult>(IPC_CHANNELS.TICKETS_APPLY_NUMBERING, boardId),
+    applySingleCard: (boardId: string, cardId: string, newName: string) =>
+      invoke<void>(IPC_CHANNELS.TICKETS_APPLY_SINGLE_CARD, boardId, cardId, newName),
     updateConfig: (boardId: string, updates: { projectCode?: string; nextTicketNumber?: number }) =>
       invoke<void>(IPC_CHANNELS.TICKETS_UPDATE_CONFIG, boardId, updates)
   }
