@@ -5,9 +5,10 @@ import BoardSwitcher from './components/BoardSwitcher'
 import BoardRegistration from './components/BoardRegistration'
 import Dashboard from './pages/Dashboard'
 import SettingsPage from './pages/SettingsPage'
+import TicketNumberingPage from './pages/TicketNumberingPage'
 import styles from './App.module.css'
 
-type Tab = 'dashboard' | 'settings'
+type Tab = 'dashboard' | 'tickets' | 'settings'
 
 export default function App(): JSX.Element {
   const [boards, setBoards] = useState<BoardConfig[]>([])
@@ -69,13 +70,14 @@ export default function App(): JSX.Element {
           />
         </div>
         <nav className={styles.nav}>
-          {(['dashboard', 'settings'] as Tab[]).map((tab) => (
+          {(['dashboard', 'tickets', 'settings'] as Tab[]).map((tab) => (
             <button
               key={tab}
               className={`${styles.navBtn} ${activeTab === tab ? styles.navBtnActive : ''}`}
               onClick={() => setActiveTab(tab)}
             >
               {tab === 'dashboard' && '📊 '}
+              {tab === 'tickets' && '🎫 '}
               {tab === 'settings' && '⚙️ '}
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
@@ -101,6 +103,7 @@ export default function App(): JSX.Element {
         ) : (
           <>
             {activeTab === 'dashboard' && <Dashboard board={selectedBoard} />}
+            {activeTab === 'tickets' && <TicketNumberingPage board={selectedBoard} />}
             {activeTab === 'settings' && (
               <SettingsPage
                 board={selectedBoard}
