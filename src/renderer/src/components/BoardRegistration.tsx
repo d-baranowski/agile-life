@@ -11,6 +11,44 @@ interface Props {
 
 type Step = 'credentials' | 'select-board' | 'configure'
 
+function looksLikeUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim())
+}
+
+function normalizeApiKey(value: string): string {
+  return value.trim()
+}
+
+function normalizeApiToken(value: string): string {
+  const trimmed = value.trim()
+
+  try {
+    const parsed = new URL(trimmed)
+    const searchToken = parsed.searchParams.get('token')
+    if (searchToken) return searchToken.trim()
+
+    const hashParams = new URLSearchParams(parsed.hash.replace(/^#/, ''))
+    const hashToken = hashParams.get('token')
+    if (hashToken) return hashToken.trim()
+  } catch {
+    return trimmed
+  }
+
+  return trimmed
+}
+
+function getTrelloAuthorizeUrl(apiKey: string): string {
+  const params = new URLSearchParams({
+    expiration: 'never',
+    scope: 'read,write',
+    response_type: 'token',
+    name: 'Agile Life',
+    key: apiKey
+  })
+
+  return `https://trello.com/1/authorize?${params.toString()}`
+}
+
 export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JSX.Element {
   const [step, setStep] = useState<Step>('credentials')
   const [apiKey, setApiKey] = useState('')
@@ -21,21 +59,41 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
   const [doneListNames, setDoneListNames] = useState('Done')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const normalizedApiKey = normalizeApiKey(apiKey)
+  const normalizedApiToken = normalizeApiToken(apiToken)
+  const authorizeUrl = normalizedApiKey ? getTrelloAuthorizeUrl(normalizedApiKey) : ''
 
   // ── Step 1: Validate credentials & fetch boards ───────────────────────────
   const handleFetchBoards = async () => {
-    if (!apiKey.trim() || !apiToken.trim()) {
-      setError('API Key and Token are required.')
+    if (!normalizedApiKey || !normalizedApiToken) {
+      setError('Enter your Trello API key, then generate and paste a token.')
       return
     }
+
+    if (looksLikeUrl(normalizedApiKey)) {
+      setError(
+        'That looks like a Trello settings page URL, not the API key itself. Open the page and copy the API Key value.'
+      )
+      return
+    }
+
     setLoading(true)
     setError(null)
 
-    const result = await api.boards.fetchFromTrello(apiKey.trim(), apiToken.trim())
+    const result = await api.boards.fetchFromTrello(normalizedApiKey, normalizedApiToken)
     setLoading(false)
 
     if (!result.success || !result.data) {
-      setError(result.error ?? 'Failed to connect to Trello.')
+      setError(
+        result.error === 'Invalid Trello API credentials'
+          ? 'Trello rejected that key/token pair. Use the API key value from the Power-Up page, click Open Trello authorization, approve access, then paste the token Trello shows.'
+          : (result.error ?? 'Failed to connect to Trello.')
+      )
+      return
+    }
+
+    if (result.data.length === 0) {
+      setError('Connected successfully, but no open Trello boards were found for this account.')
       return
     }
 
@@ -77,8 +135,8 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
     const result = await api.boards.add({
       boardId: chosenBoard.id,
       boardName: chosenBoard.name,
-      apiKey: apiKey.trim(),
-      apiToken: apiToken.trim(),
+      apiKey: normalizedApiKey,
+      apiToken: normalizedApiToken,
       projectCode: projectCode.toUpperCase(),
       nextTicketNumber: 1,
       doneListNames: parsedDoneNames.length > 0 ? parsedDoneNames : ['Done']
@@ -134,18 +192,51 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
         {/* ── Step 1: Credentials ── */}
         {step === 'credentials' && (
           <div className={styles.form}>
-            <p className={styles.hint}>
-              You can find your API Key and Token at{' '}
-              <a href="https://trello.com/app-key" target="_blank" rel="noreferrer">
-                trello.com/app-key
-              </a>
-              .
-            </p>
+            <div className={styles.infoPanel}>
+              <h3>Connect Trello in 3 quick steps</h3>
+              <ol className={styles.guideList}>
+                <li>Open your Trello API key page and copy the API key value.</li>
+                <li>Use that key to open Trello authorization in your browser.</li>
+                <li>Approve access, copy the token Trello shows, then paste it here.</li>
+              </ol>
+              <div className={styles.linkRow}>
+                <a
+                  className={styles.actionLink}
+                  href="https://trello.com/app-key"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open Trello API key page
+                </a>
+                <a
+                  className={`${styles.actionLink} ${!normalizedApiKey ? styles.actionLinkDisabled : ''}`}
+                  href={normalizedApiKey ? authorizeUrl : undefined}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-disabled={!normalizedApiKey}
+                  onClick={(event) => {
+                    if (!normalizedApiKey) {
+                      event.preventDefault()
+                      setError('Paste your API key first, then open browser authorization.')
+                    }
+                  }}
+                >
+                  Open Trello authorization
+                </a>
+              </div>
+            </div>
+
+            <div className={styles.tipBox}>
+              If you copied a link like <code>trello.com/power-ups/.../edit/api-key</code> that is
+              only the settings page. You need the API key value shown on that page, plus a token
+              generated after approving access.
+            </div>
+
             <label className={styles.label}>
               Trello API Key
               <input
                 type="text"
-                placeholder="e.g. abcd1234..."
+                placeholder="Paste the API key value"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 autoComplete="off"
@@ -155,15 +246,22 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
               Trello API Token
               <input
                 type="password"
-                placeholder="e.g. efgh5678..."
+                placeholder="Paste the token shown after browser approval"
                 value={apiToken}
                 onChange={(e) => setApiToken(e.target.value)}
                 autoComplete="off"
               />
             </label>
+            <p className={styles.hint}>
+              Prefer the classic Trello page instead? Open{' '}
+              <a href="https://trello.com/app-key" target="_blank" rel="noreferrer">
+                trello.com/app-key
+              </a>
+              , then use the token link shown there after signing in.
+            </p>
             <div className={styles.actions}>
               <button className="btn-primary" onClick={handleFetchBoards} disabled={loading}>
-                {loading ? 'Connecting…' : 'Connect to Trello →'}
+                {loading ? 'Connecting…' : 'Connect and load boards →'}
               </button>
             </div>
           </div>

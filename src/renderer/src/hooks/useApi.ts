@@ -7,6 +7,7 @@ import type { IpcResult } from '@shared/ipc.types'
 import type { BoardConfig, BoardConfigInput, SyncResult } from '@shared/board.types'
 import type { TrelloBoard } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
+import type { DbPathInfo } from '@shared/settings.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return window.api.invoke(channel as Parameters<typeof window.api.invoke>[0], ...args) as Promise<
@@ -34,5 +35,18 @@ export const api = {
     /** Returns card counts per open column, read from local cache. */
     columnCounts: (boardId: string) =>
       invoke<ColumnCount[]>(IPC_CHANNELS.ANALYTICS_COLUMN_COUNTS, boardId)
+  },
+
+  settings: {
+    /** Returns the current database file path and whether it is a custom path. */
+    getDbPath: () => invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_GET_DB_PATH),
+    /**
+     * Opens a native save dialog so the user can choose a new database
+     * location, copies the existing DB file there, and persists the choice.
+     * Pass `resetToDefault = true` to restore the built-in userData path.
+     * Changes take effect after restarting the app.
+     */
+    setDbPath: (resetToDefault = false) =>
+      invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_SET_DB_PATH, resetToDefault)
   }
 }
