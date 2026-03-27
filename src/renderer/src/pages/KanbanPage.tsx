@@ -22,6 +22,12 @@ interface ContextMenuState {
   card: KanbanCard
 }
 
+interface AddCardState {
+  listId: string
+  text: string
+  submitting: boolean
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function reorderCards(cards: KanbanCard[], fromIndex: number, toIndex: number): KanbanCard[] {
@@ -88,6 +94,10 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   // Epic assignment dropdown state
   const [epicDropdownCardId, setEpicDropdownCardId] = useState<string | null>(null)
+
+  // Add-card form state: tracks which column is in "add card" mode
+  const [addCardState, setAddCardState] = useState<AddCardState | null>(null)
+  const addCardTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const loadBoardData = useCallback(async () => {
     const [dataResult, membersResult] = await Promise.all([
