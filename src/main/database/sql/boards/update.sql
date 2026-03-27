@@ -5,5 +5,6 @@ SET board_name         = @boardName,
     project_code       = @projectCode,
     next_ticket_number = @nextTicketNumber,
     done_list_names    = @doneListNames,
+    story_points_config = @storyPointsConfig,
     updated_at         = datetime('now')
 WHERE board_id = @boardId

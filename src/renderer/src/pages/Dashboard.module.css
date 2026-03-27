@@ -444,3 +444,53 @@
   border: 1px solid var(--color-border);
   border-radius: 8px;
 }
+
+/* ── Chart header with navigation ── */
+.chartHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.chartHeader .sectionTitle {
+  margin-bottom: 0;
+}
+
+.chartNav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chartNavBtn {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 10px;
+}
+
+.chartNavBtn:hover:not(:disabled) {
+  background: var(--color-surface-2);
+}
+
+.chartNavBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.chartNavLabel {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  min-width: 160px;
+  text-align: center;
+}
+
+.analyticsHint {
+  margin: 0;
+  font-size: 13px;
+}

@@ -34,3 +34,10 @@ export interface WeeklyHistory {
   userName: string
   closedCount: number
 }
+
+/** Story points completed by a single user in the last 7 days. */
+export interface StoryPointsUserStats {
+  userId: string | null
+  userName: string
+  storyPoints: number
+}
