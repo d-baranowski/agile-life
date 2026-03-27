@@ -169,7 +169,9 @@
   color: var(--color-text-muted);
   text-decoration: none;
   opacity: 0;
-  transition: opacity var(--transition), color var(--transition);
+  transition:
+    opacity var(--transition),
+    color var(--transition);
   padding: 2px 4px;
   border-radius: var(--radius-sm);
   line-height: 1;
