@@ -1,18 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { BoardConfig, SyncResult } from '@shared/board.types'
+import type { BoardConfig } from '@shared/board.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
 import styles from './Dashboard.module.css'
 
 interface Props {
   board: BoardConfig
+  /** Incremented by App each time a Trello sync completes — triggers a data reload. */
+  syncVersion: number
 }
 
-export default function Dashboard({ board }: Props): JSX.Element {
+export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
   const [columns, setColumns] = useState<ColumnCount[]>([])
-  const [syncResult, setSyncResult] = useState<SyncResult | null>(null)
   const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const loadCounts = useCallback(async () => {
@@ -23,26 +23,12 @@ export default function Dashboard({ board }: Props): JSX.Element {
     setLoading(false)
   }, [board.boardId])
 
-  // Load cached counts on board switch
+  // Reload counts whenever the board changes or a global sync completes
   useEffect(() => {
     setLoading(true)
     setError(null)
-    setSyncResult(null)
     loadCounts()
-  }, [loadCounts])
-
-  const handleSync = async (): Promise<void> => {
-    setSyncing(true)
-    setError(null)
-    const result = await api.trello.sync(board.boardId)
-    if (result.success && result.data) {
-      setSyncResult(result.data)
-      await loadCounts()
-    } else {
-      setError(result.error ?? 'Sync failed.')
-    }
-    setSyncing(false)
-  }
+  }, [loadCounts, syncVersion])
 
   const totalCards = columns.reduce((sum, c) => sum + c.cardCount, 0)
 
@@ -52,27 +38,12 @@ export default function Dashboard({ board }: Props): JSX.Element {
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>{board.boardName}</h1>
-          {board.lastSyncedAt && !syncResult && (
+          {board.lastSyncedAt && (
             <span className={styles.lastSync}>
               Last synced {new Date(board.lastSyncedAt).toLocaleString()}
             </span>
           )}
-          {syncResult && (
-            <span className={styles.lastSync}>
-              Synced just now — {syncResult.cardCount} cards across {syncResult.listCount} columns
-            </span>
-          )}
         </div>
-        <button className="btn-primary" onClick={handleSync} disabled={syncing}>
-          {syncing ? (
-            <span className={styles.syncingLabel}>
-              <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
-              Fetching from Trello…
-            </span>
-          ) : (
-            '↻ Fetch from Trello'
-          )}
-        </button>
       </div>
 
       {error && <div className={styles.errorBanner}>{error}</div>}
@@ -111,7 +82,8 @@ export default function Dashboard({ board }: Props): JSX.Element {
         <div className={styles.emptyState}>
           <p>No data yet.</p>
           <p className="text-muted">
-            Click <strong>Fetch from Trello</strong> to import this board&apos;s data.
+            Click <strong>↻ Fetch from Trello</strong> in the top bar to import this board&apos;s
+            data.
           </p>
         </div>
       ) : (

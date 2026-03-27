@@ -3,6 +3,7 @@ import type { BoardConfig } from '@shared/board.types'
 import { api } from './hooks/useApi'
 import BoardSwitcher from './components/BoardSwitcher'
 import BoardRegistration from './components/BoardRegistration'
+import Toast from './components/Toast'
 import Dashboard from './pages/Dashboard'
 import SettingsPage from './pages/SettingsPage'
 import KanbanPage from './pages/KanbanPage'
@@ -17,6 +18,9 @@ export default function App(): JSX.Element {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [showRegistration, setShowRegistration] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [syncVersion, setSyncVersion] = useState(0)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   const loadBoards = useCallback(async () => {
     const result = await api.boards.getAll()
@@ -48,6 +52,21 @@ export default function App(): JSX.Element {
     }
   }
 
+  const handleSync = async () => {
+    if (!selectedBoardId) return
+    setSyncing(true)
+    setSyncError(null)
+    const result = await api.trello.sync(selectedBoardId)
+    if (result.success) {
+      // Refresh board list so lastSyncedAt timestamp updates
+      await loadBoards()
+      setSyncVersion((v) => v + 1)
+    } else {
+      setSyncError(result.error ?? 'Sync failed. Please try again.')
+    }
+    setSyncing(false)
+  }
+
   if (loading) {
     return (
       <div className={styles.loadingScreen}>
@@ -69,6 +88,21 @@ export default function App(): JSX.Element {
             onSelect={setSelectedBoardId}
             onAddNew={() => setShowRegistration(true)}
           />
+          <button
+            className={`btn-primary ${styles.syncBtn}`}
+            onClick={handleSync}
+            disabled={!selectedBoard || syncing}
+            title="Fetch latest data from Trello"
+          >
+            {syncing ? (
+              <span className={styles.syncingLabel}>
+                <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />
+                Syncing…
+              </span>
+            ) : (
+              '↻ Fetch from Trello'
+            )}
+          </button>
         </div>
         <nav className={styles.nav}>
           {(['dashboard', 'kanban', 'tickets', 'settings'] as Tab[]).map((tab) => (
@@ -104,7 +138,9 @@ export default function App(): JSX.Element {
           </div>
         ) : (
           <>
-            {activeTab === 'dashboard' && <Dashboard board={selectedBoard} />}
+            {activeTab === 'dashboard' && (
+              <Dashboard board={selectedBoard} syncVersion={syncVersion} />
+            )}
             {activeTab === 'kanban' && <KanbanPage board={selectedBoard} />}
             {activeTab === 'tickets' && <TicketNumberingPage board={selectedBoard} />}
             {activeTab === 'settings' && (
@@ -121,6 +157,8 @@ export default function App(): JSX.Element {
           </>
         )}
       </main>
+
+      <Toast message={syncError} onDismiss={() => setSyncError(null)} />
     </div>
   )
 }

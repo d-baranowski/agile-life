@@ -145,6 +145,14 @@ export class TrelloClient {
     return data
   }
 
+  /**
+   * Updates a card's position within its current list via the Trello API.
+   */
+  async reorderCard(cardId: string, pos: number): Promise<TrelloCard> {
+    const { data } = await this.http.put<TrelloCard>(`/cards/${cardId}`, { pos })
+    return data
+  }
+
   // ─── Credentials Validation ──────────────────────────────────────────────────
 
   async validateCredentials(): Promise<{ valid: boolean; memberName?: string }> {

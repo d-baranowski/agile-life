@@ -221,13 +221,22 @@ export function registerBoardHandlers(): void {
     }
   )
 
-  // ── Update card position (local DB only — persists within-column reorders) ──
+  // ── Update card position (calls Trello API + persists to local DB) ──────────
 
   ipcMain.handle(
     IPC_CHANNELS.TRELLO_UPDATE_CARD_POS,
-    async (_e, cardId: string, pos: number): Promise<IpcResult<void>> => {
+    async (_e, boardId: string, cardId: string, pos: number): Promise<IpcResult<void>> => {
       try {
+        const config = getBoardById(boardId)
+        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+
+        // Persist locally first so the UI state is always consistent,
+        // even if the Trello API call fails.
         updateCardPos(cardId, pos)
+
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        await client.reorderCard(cardId, pos)
+
         return { success: true }
       } catch (err) {
         return { success: false, error: String(err) }

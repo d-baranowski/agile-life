@@ -119,7 +119,7 @@ export default function KanbanPage({ board }: Props): JSX.Element {
           )
         )
 
-        api.trello.updateCardPos(draggableId, newPos)
+        api.trello.updateCardPos(board.boardId, draggableId, newPos)
         return
       }
 
@@ -162,8 +162,8 @@ export default function KanbanPage({ board }: Props): JSX.Element {
       <div className={styles.emptyState}>
         <p>No data yet.</p>
         <p className="text-muted">
-          Switch to the <strong>Dashboard</strong> tab and click <strong>Fetch from Trello</strong>{' '}
-          to import this board&apos;s data.
+          Click <strong>↻ Fetch from Trello</strong> in the top bar to import this board&apos;s
+          data.
         </p>
       </div>
     )
