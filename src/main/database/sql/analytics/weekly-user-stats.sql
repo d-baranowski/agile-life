@@ -2,10 +2,11 @@
 -- Uses card assignees (members_json on trello_cards) instead of the action creator.
 -- Cards with no assigned members appear as a single "Unassigned" row.
 -- Uses LEFT JOIN so that recently-archived cards not yet re-synced still count.
+-- Uses %Y-W%W (supported by all SQLite builds) instead of ISO %G-W%V.
 WITH done_cards AS (
   SELECT DISTINCT
     a.card_id,
-    strftime('%G-W%V', a.action_date) AS week
+    strftime('%Y-W%W', a.action_date) AS week
   FROM trello_actions a
   JOIN board_configs bc ON bc.board_id = a.board_id
   WHERE a.board_id = ?

@@ -1,12 +1,13 @@
--- Returns the number of cards moved to a "done" list per assignee per ISO-week
+-- Returns the number of cards moved to a "done" list per assignee per week
 -- for the past 12 months (approximately 52 weeks).
 -- Cards with no assigned members appear as a single "Unassigned" row per week.
 -- Uses LEFT JOIN on trello_cards so that archived cards not yet re-synced are
 -- still counted (they fall through to the Unassigned bucket).
+-- Uses %Y-W%W (supported by all SQLite builds) instead of ISO %G-W%V.
 WITH done_cards AS (
   SELECT DISTINCT
     a.card_id,
-    strftime('%G-W%V', a.action_date) AS week
+    strftime('%Y-W%W', a.action_date) AS week
   FROM trello_actions a
   JOIN board_configs bc ON bc.board_id = a.board_id
   WHERE a.board_id = ?

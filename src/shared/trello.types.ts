@@ -61,6 +61,11 @@ export interface TrelloAction {
       name: string
       idShort: number
     }
+    /** Present on createCard actions — the list the card was created in. */
+    list?: {
+      id: string
+      name: string
+    }
     listBefore?: TrelloList
     listAfter?: TrelloList
     board?: {
