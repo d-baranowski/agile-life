@@ -49,7 +49,7 @@
     "@types/react": "^18.2.57",
     "@types/react-dom": "^18.2.19",
     "@vitejs/plugin-react": "^4.2.1",
-    "electron": "^29.1.0",
+    "electron": "^35.7.5",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.0.0",
     "eslint": "^8.57.0",
@@ -63,7 +63,10 @@
   },
   "pnpm": {
     "overrides": {
-      "tar": ">=7.5.11"
+      "tar": ">=7.5.11",
+      "esbuild": ">=0.25.0",
+      "brace-expansion": ">=5.0.5",
+      "handlebars": ">=4.7.9"
     }
   },
   "build": {
