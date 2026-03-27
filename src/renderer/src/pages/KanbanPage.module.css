@@ -179,6 +179,24 @@
   gap: 4px;
 }
 
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.columnAge {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.card:hover .columnAge {
+  opacity: 1;
+}
+
 .trelloLink {
   flex-shrink: 0;
   font-size: 0.75rem;
