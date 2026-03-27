@@ -322,6 +322,53 @@
   background: var(--color-surface-2);
 }
 
+/* ── Duplicates button ────────────────────────────────────────────────────── */
+
+.duplicatesBtn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    color var(--transition);
+  white-space: nowrap;
+}
+
+.duplicatesBtn:hover {
+  border-color: #e8b84b;
+  background: var(--color-surface-2);
+}
+
+.duplicatesBtnActive {
+  border-color: #e8b84b;
+  background: rgba(232, 184, 75, 0.12);
+  color: #e8b84b;
+}
+
+/* ── Duplicate card highlight ─────────────────────────────────────────────── */
+
+.cardDuplicate {
+  border-color: rgba(232, 184, 75, 0.5);
+}
+
+.cardDuplicate:hover {
+  border-color: #e8b84b;
+}
+
+.duplicateBadge {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 0.75rem;
+  color: #e8b84b;
+  flex-shrink: 0;
+}
+
 /* ── Epic board badge on card ────────────────────────────────────────────── */
 
 .epicBoardHint {

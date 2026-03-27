@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
 import type { BoardConfig } from '@shared/board.types'
 import type { EpicCardOption, EpicStory } from '@shared/board.types'
@@ -219,6 +219,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   )
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
+  const [showDuplicates, setShowDuplicates] = useState(false)
 
   const handleOpenLogs = useCallback(() => {
     api.logs.openFolder()
@@ -347,15 +348,33 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  // Compute the set of card names (lowercased) that appear more than once across all columns.
+  const duplicateNames = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const col of columns) {
+      for (const card of col.cards) {
+        const key = card.name.trim().toLowerCase()
+        counts.set(key, (counts.get(key) ?? 0) + 1)
+      }
+    }
+    const result = new Set<string>()
+    for (const [name, count] of counts) {
+      if (count > 1) result.add(name)
+    }
+    return result
+  }, [columns])
+
   const filteredColumns =
-    searchQuery.trim() || epicFilter
+    searchQuery.trim() || epicFilter || showDuplicates
       ? columns.map((col) => ({
           ...col,
           cards: col.cards.filter((card) => {
             if (searchQuery.trim() && !fuzzyMatch(searchQuery, `${card.name} ${card.desc}`))
               return false
-            if (epicFilter === '__none__') return !card.epicCardId
-            if (epicFilter) return card.epicCardId === epicFilter
+            if (epicFilter === '__none__' && card.epicCardId) return false
+            if (epicFilter && epicFilter !== '__none__' && card.epicCardId !== epicFilter)
+              return false
+            if (showDuplicates && !duplicateNames.has(card.name.trim().toLowerCase())) return false
             return true
           })
         }))
@@ -440,6 +459,13 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             ))}
           </select>
         )}
+        <button
+          className={`${styles.duplicatesBtn} ${showDuplicates ? styles.duplicatesBtnActive : ''}`}
+          onClick={() => setShowDuplicates((v) => !v)}
+          title={showDuplicates ? 'Show all cards' : 'Show only cards with duplicate titles'}
+        >
+          ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
+        </button>
         <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
           🎫 Number Tickets
         </button>
@@ -469,6 +495,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                         isEpicBoard={isEpicBoard}
                         epicCardOptions={epicCardOptions}
                         epicDropdownCardId={epicDropdownCardId}
+                        isDuplicate={duplicateNames.has(card.name.trim().toLowerCase())}
                         onOpenEpicStories={handleOpenEpicStories}
                         onSetCardEpic={handleSetCardEpic}
                         onToggleEpicDropdown={(cardId) =>
@@ -606,6 +633,7 @@ interface CardProps {
   isEpicBoard: boolean
   epicCardOptions: EpicCardOption[]
   epicDropdownCardId: string | null
+  isDuplicate: boolean
   onOpenEpicStories: (cardId: string, cardName: string) => void
   onSetCardEpic: (cardId: string, epicCardId: string | null) => void
   onToggleEpicDropdown: (cardId: string) => void
@@ -619,6 +647,7 @@ function DraggableCard({
   isEpicBoard,
   epicCardOptions,
   epicDropdownCardId,
+  isDuplicate,
   onOpenEpicStories,
   onSetCardEpic,
   onToggleEpicDropdown,
@@ -643,12 +672,15 @@ function DraggableCard({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''}`}
+          className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''} ${isDuplicate ? styles.cardDuplicate : ''}`}
           onClick={handleClick}
           onContextMenu={onContextMenu}
           title={isEpicBoard ? 'Double-click to see stories in this epic' : undefined}
         >
-          <span className={styles.cardName}>{card.name}</span>
+          <span className={styles.cardName}>
+            {isDuplicate && <span className={styles.duplicateBadge} title="Duplicate title">⊖</span>}
+            {card.name}
+          </span>
 
           {/* Epic label (story board only) */}
           {isStoryBoard && (
