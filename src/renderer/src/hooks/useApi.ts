@@ -27,6 +27,13 @@ import type {
   UnnumberedCard,
   ApplyNumberingResult
 } from '@shared/ticket.types'
+import type {
+  TemplateGroup,
+  TicketTemplate,
+  TemplateGroupInput,
+  TicketTemplateInput,
+  GenerateCardsResult
+} from '@shared/template.types'
 import type { DbPathInfo } from '@shared/settings.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
@@ -136,5 +143,35 @@ export const api = {
      */
     setDbPath: (resetToDefault = false) =>
       invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_SET_DB_PATH, resetToDefault)
+  },
+
+  templates: {
+    /** Returns all template groups for the board. */
+    getGroups: (boardId: string) =>
+      invoke<TemplateGroup[]>(IPC_CHANNELS.TEMPLATES_GET_GROUPS, boardId),
+    /** Creates a new template group. */
+    createGroup: (boardId: string, input: TemplateGroupInput) =>
+      invoke<TemplateGroup>(IPC_CHANNELS.TEMPLATES_CREATE_GROUP, boardId, input),
+    /** Updates the name of a template group. */
+    updateGroup: (boardId: string, id: number, input: TemplateGroupInput) =>
+      invoke<void>(IPC_CHANNELS.TEMPLATES_UPDATE_GROUP, boardId, id, input),
+    /** Deletes a template group and all its templates. */
+    deleteGroup: (boardId: string, id: number) =>
+      invoke<void>(IPC_CHANNELS.TEMPLATES_DELETE_GROUP, boardId, id),
+    /** Returns all templates in a group. */
+    getTemplates: (boardId: string, groupId: number) =>
+      invoke<TicketTemplate[]>(IPC_CHANNELS.TEMPLATES_GET, boardId, groupId),
+    /** Creates a new template in a group. */
+    createTemplate: (boardId: string, input: TicketTemplateInput) =>
+      invoke<TicketTemplate>(IPC_CHANNELS.TEMPLATES_CREATE, boardId, input),
+    /** Updates an existing template. */
+    updateTemplate: (boardId: string, id: number, input: TicketTemplateInput) =>
+      invoke<void>(IPC_CHANNELS.TEMPLATES_UPDATE, boardId, id, input),
+    /** Deletes a template. */
+    deleteTemplate: (boardId: string, id: number) =>
+      invoke<void>(IPC_CHANNELS.TEMPLATES_DELETE, boardId, id),
+    /** Generates Trello cards from all templates in a group. */
+    generateCards: (boardId: string, groupId: number) =>
+      invoke<GenerateCardsResult>(IPC_CHANNELS.TEMPLATES_GENERATE_CARDS, boardId, groupId)
   }
 }

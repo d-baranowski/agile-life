@@ -7,9 +7,10 @@ import Toast from './components/Toast'
 import Dashboard from './pages/Dashboard'
 import SettingsPage from './pages/SettingsPage'
 import KanbanPage from './pages/KanbanPage'
+import TemplatesPage from './pages/TemplatesPage'
 import styles from './App.module.css'
 
-type Tab = 'kanban' | 'dashboard' | 'settings'
+type Tab = 'kanban' | 'dashboard' | 'templates' | 'settings'
 
 export default function App(): JSX.Element {
   const [boards, setBoards] = useState<BoardConfig[]>([])
@@ -104,7 +105,7 @@ export default function App(): JSX.Element {
           </button>
         </div>
         <nav className={styles.nav}>
-          {(['kanban', 'dashboard', 'settings'] as Tab[]).map((tab) => (
+          {(['kanban', 'dashboard', 'templates', 'settings'] as Tab[]).map((tab) => (
             <button
               key={tab}
               className={`${styles.navBtn} ${activeTab === tab ? styles.navBtnActive : ''}`}
@@ -112,6 +113,7 @@ export default function App(): JSX.Element {
             >
               {tab === 'kanban' && '📋 '}
               {tab === 'dashboard' && '📊 '}
+              {tab === 'templates' && '🗂️ '}
               {tab === 'settings' && '⚙️ '}
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>

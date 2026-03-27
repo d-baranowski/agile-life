@@ -4,6 +4,7 @@ import path from 'path'
 import type { BoardConfig, BoardConfigInput, StoryPointRule } from '@shared/board.types'
 import { getDbPath } from '../settings/appSettings'
 import type { TrelloList, TrelloCard, TrelloAction, TrelloMember } from '@shared/trello.types'
+import type { TemplateGroup, TicketTemplate, TemplateGroupInput, TicketTemplateInput } from '@shared/template.types'
 
 // ─── SQL imports ───────────────────────────────────────────────────────────────
 import schemaSql from './sql/schema.sql?raw'
@@ -34,6 +35,14 @@ import sqlCardListEntriesUpsert from './sql/card-list-entries/upsert.sql?raw'
 import sqlCardListEntriesSetFallback from './sql/card-list-entries/set-fallback.sql?raw'
 import sqlCardListEntriesClearForBoard from './sql/card-list-entries/clear-for-board.sql?raw'
 import sqlBoardsSetCardListEntriesInitialized from './sql/boards/set-card-list-entries-initialized.sql?raw'
+import sqlTemplatesGetGroups from './sql/templates/get-groups.sql?raw'
+import sqlTemplatesInsertGroup from './sql/templates/insert-group.sql?raw'
+import sqlTemplatesUpdateGroup from './sql/templates/update-group.sql?raw'
+import sqlTemplatesDeleteGroup from './sql/templates/delete-group.sql?raw'
+import sqlTemplatesGetByGroup from './sql/templates/get-by-group.sql?raw'
+import sqlTemplatesInsert from './sql/templates/insert-template.sql?raw'
+import sqlTemplatesUpdate from './sql/templates/update-template.sql?raw'
+import sqlTemplatesDelete from './sql/templates/delete-template.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -499,6 +508,125 @@ function rowToBoardConfig(row: Row): BoardConfig {
       ? (JSON.parse(row.story_points_config as string) as StoryPointRule[])
       : defaultStoryPoints,
     lastSyncedAt: (row.last_synced_at as string | null) ?? null,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string
+  }
+}
+
+// ─── Template Groups ───────────────────────────────────────────────────────────
+
+export function getTemplateGroups(boardId: string): TemplateGroup[] {
+  return (
+    getDb().prepare(sqlTemplatesGetGroups).all({ boardId }) as Row[]
+  ).map(rowToTemplateGroup)
+}
+
+export function createTemplateGroup(boardId: string, input: TemplateGroupInput): TemplateGroup {
+  const db = getDb()
+  const result = db.prepare(sqlTemplatesInsertGroup).run({ boardId, name: input.name })
+  const row = db
+    .prepare('SELECT id, board_id, name, created_at, updated_at FROM template_groups WHERE id = ?')
+    .get(result.lastInsertRowid) as Row
+  return rowToTemplateGroup(row)
+}
+
+export function updateTemplateGroup(
+  boardId: string,
+  id: number,
+  input: TemplateGroupInput
+): boolean {
+  const result = getDb()
+    .prepare(sqlTemplatesUpdateGroup)
+    .run({ id, boardId, name: input.name })
+  return result.changes > 0
+}
+
+export function deleteTemplateGroup(boardId: string, id: number): boolean {
+  const result = getDb().prepare(sqlTemplatesDeleteGroup).run({ id, boardId })
+  return result.changes > 0
+}
+
+// ─── Ticket Templates ──────────────────────────────────────────────────────────
+
+export function getTemplatesByGroup(boardId: string, groupId: number): TicketTemplate[] {
+  return (
+    getDb().prepare(sqlTemplatesGetByGroup).all({ boardId, groupId }) as Row[]
+  ).map(rowToTicketTemplate)
+}
+
+export function createTicketTemplate(
+  boardId: string,
+  input: TicketTemplateInput
+): TicketTemplate {
+  const db = getDb()
+  const result = db.prepare(sqlTemplatesInsert).run({
+    boardId,
+    groupId: input.groupId,
+    name: input.name,
+    titleTemplate: input.titleTemplate,
+    descTemplate: input.descTemplate ?? '',
+    listId: input.listId,
+    listName: input.listName,
+    position: input.position ?? 0
+  })
+  const row = db
+    .prepare(
+      `SELECT id, board_id, group_id, name, title_template, desc_template,
+              list_id, list_name, position, created_at, updated_at
+       FROM ticket_templates WHERE id = ?`
+    )
+    .get(result.lastInsertRowid) as Row
+  return rowToTicketTemplate(row)
+}
+
+export function updateTicketTemplate(
+  boardId: string,
+  id: number,
+  input: TicketTemplateInput
+): boolean {
+  const result = getDb()
+    .prepare(sqlTemplatesUpdate)
+    .run({
+      id,
+      boardId,
+      name: input.name,
+      titleTemplate: input.titleTemplate,
+      descTemplate: input.descTemplate ?? '',
+      listId: input.listId,
+      listName: input.listName,
+      position: input.position ?? 0
+    })
+  return result.changes > 0
+}
+
+export function deleteTicketTemplate(boardId: string, id: number): boolean {
+  const result = getDb().prepare(sqlTemplatesDelete).run({ id, boardId })
+  return result.changes > 0
+}
+
+// ─── Template Row Mappers ──────────────────────────────────────────────────────
+
+function rowToTemplateGroup(row: Row): TemplateGroup {
+  return {
+    id: row.id as number,
+    boardId: row.board_id as string,
+    name: row.name as string,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string
+  }
+}
+
+function rowToTicketTemplate(row: Row): TicketTemplate {
+  return {
+    id: row.id as number,
+    boardId: row.board_id as string,
+    groupId: row.group_id as number,
+    name: row.name as string,
+    titleTemplate: row.title_template as string,
+    descTemplate: (row.desc_template as string) ?? '',
+    listId: row.list_id as string,
+    listName: row.list_name as string,
+    position: row.position as number,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   }
