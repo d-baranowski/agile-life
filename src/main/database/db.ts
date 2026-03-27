@@ -327,7 +327,6 @@ export function getStoriesForEpic(epicCardId: string): EpicStoryRow[] {
   return getDb().prepare(sqlKanbanGetStoriesForEpic).all(epicCardId) as EpicStoryRow[]
 }
 
-
 /** Mark a single card as archived in the local cache. */
 export function archiveCardLocally(cardId: string): void {
   getDb().prepare(sqlCardsArchive).run({ cardId })

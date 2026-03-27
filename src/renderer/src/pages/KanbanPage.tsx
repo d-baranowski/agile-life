@@ -628,7 +628,6 @@ function DraggableCard({
     lastClickRef.current = now
   }
 
-
   return (
     <Draggable draggableId={card.id} index={index}>
       {(provided, snapshot) => (
