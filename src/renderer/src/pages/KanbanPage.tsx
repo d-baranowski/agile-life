@@ -53,6 +53,7 @@ export default function KanbanPage({ board }: Props): JSX.Element {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const loadBoardData = useCallback(async () => {
     const result = await api.trello.getBoardData(board.boardId)
@@ -170,6 +171,13 @@ export default function KanbanPage({ board }: Props): JSX.Element {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const filteredColumns = searchQuery.trim()
+    ? columns.map((col) => ({
+        ...col,
+        cards: col.cards.filter((card) => fuzzyMatch(searchQuery, `${card.name} ${card.desc}`))
+      }))
+    : columns
+
   if (loading) {
     return (
       <div className={styles.centred}>
@@ -201,9 +209,18 @@ export default function KanbanPage({ board }: Props): JSX.Element {
 
   return (
     <div className={styles.container}>
+      <div className={styles.searchBar}>
+        <input
+          type="search"
+          className={styles.searchInput}
+          placeholder="🔍 Fuzzy search cards…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className={styles.board}>
-          {columns.map((column) => (
+          {filteredColumns.map((column) => (
             <div key={column.id} className={styles.column}>
               <div className={styles.columnHeader}>
                 <span className={styles.columnName}>{column.name}</span>
@@ -315,4 +332,18 @@ const LABEL_COLORS: Record<string, string> = {
 
 function labelColor(color: string): string {
   return LABEL_COLORS[color] ?? '#8892a4'
+}
+
+// ─── fuzzy matching ───────────────────────────────────────────────────────────
+
+/** Returns true when every character of `needle` appears in `haystack` in order. */
+function fuzzyMatch(needle: string, haystack: string): boolean {
+  const n = needle.toLowerCase()
+  const h = haystack.toLowerCase()
+  const nLen = n.length
+  let ni = 0
+  for (let i = 0; i < h.length && ni < nLen; i++) {
+    if (h[i] === n[ni]) ni++
+  }
+  return ni === nLen
 }

@@ -61,6 +61,9 @@ export function getDb(): Database.Database {
   if (!cardCols.includes('short_url')) {
     _db.exec("ALTER TABLE trello_cards ADD COLUMN short_url TEXT NOT NULL DEFAULT ''")
   }
+  if (!cardCols.includes('desc')) {
+    _db.exec("ALTER TABLE trello_cards ADD COLUMN desc TEXT NOT NULL DEFAULT ''")
+  }
   // SQLite has no "ADD COLUMN IF NOT EXISTS", so we try and ignore the error
   // if the column already exists (e.g. new installs where schema.sql created it).
   try {
@@ -172,6 +175,7 @@ export function upsertCards(boardId: string, cards: TrelloCard[]): void {
         boardId,
         listId: c.idList,
         name: c.name,
+        desc: c.desc,
         closed: c.closed ? 1 : 0,
         dateLastActivity: c.dateLastActivity,
         pos: c.pos,
@@ -211,6 +215,7 @@ interface ListRow {
 interface CardRow {
   id: string
   name: string
+  desc: string
   list_id: string
   pos: number
   short_url: string

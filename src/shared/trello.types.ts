@@ -56,6 +56,7 @@ export interface TrelloCard {
 export interface KanbanCard {
   id: string
   name: string
+  desc: string
   listId: string
   pos: number
   shortUrl: string

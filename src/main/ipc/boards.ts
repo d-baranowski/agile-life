@@ -252,6 +252,7 @@ export function registerBoardHandlers(): void {
             .map((c) => ({
               id: c.id,
               name: c.name,
+              desc: c.desc,
               listId: c.list_id,
               pos: c.pos,
               shortUrl: c.short_url,

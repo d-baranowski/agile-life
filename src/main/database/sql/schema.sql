@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS trello_cards (
   board_id           TEXT NOT NULL,
   list_id            TEXT NOT NULL,
   name               TEXT NOT NULL,
+  desc               TEXT NOT NULL DEFAULT '',
   closed             INTEGER NOT NULL DEFAULT 0,
   date_last_activity TEXT NOT NULL,
   pos                REAL NOT NULL DEFAULT 0,
