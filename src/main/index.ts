@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerBoardHandlers } from './ipc/boards'
+import { registerAnalyticsHandlers } from './ipc/analytics'
 import { registerTicketHandlers } from './ipc/tickets'
 import { registerSettingsHandlers } from './ipc/settings'
 import icon from '../../resources/icon.png?asset'
@@ -52,6 +53,7 @@ app.whenReady().then(() => {
 
   // Register IPC handlers
   registerBoardHandlers()
+  registerAnalyticsHandlers()
   registerTicketHandlers()
   registerSettingsHandlers()
 

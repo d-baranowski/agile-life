@@ -7,10 +7,11 @@ import Toast from './components/Toast'
 import Dashboard from './pages/Dashboard'
 import SettingsPage from './pages/SettingsPage'
 import KanbanPage from './pages/KanbanPage'
+import AnalyticsPage from './pages/AnalyticsPage'
 import TicketNumberingPage from './pages/TicketNumberingPage'
 import styles from './App.module.css'
 
-type Tab = 'dashboard' | 'kanban' | 'tickets' | 'settings'
+type Tab = 'dashboard' | 'kanban' | 'analytics' | 'tickets' | 'settings'
 
 export default function App(): JSX.Element {
   const [boards, setBoards] = useState<BoardConfig[]>([])
@@ -105,7 +106,7 @@ export default function App(): JSX.Element {
           </button>
         </div>
         <nav className={styles.nav}>
-          {(['dashboard', 'kanban', 'tickets', 'settings'] as Tab[]).map((tab) => (
+          {(['dashboard', 'kanban', 'analytics', 'tickets', 'settings'] as Tab[]).map((tab) => (
             <button
               key={tab}
               className={`${styles.navBtn} ${activeTab === tab ? styles.navBtnActive : ''}`}
@@ -113,6 +114,7 @@ export default function App(): JSX.Element {
             >
               {tab === 'dashboard' && '📊 '}
               {tab === 'kanban' && '📋 '}
+              {tab === 'analytics' && '📈 '}
               {tab === 'tickets' && '🎫 '}
               {tab === 'settings' && '⚙️ '}
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -142,6 +144,7 @@ export default function App(): JSX.Element {
               <Dashboard board={selectedBoard} syncVersion={syncVersion} />
             )}
             {activeTab === 'kanban' && <KanbanPage board={selectedBoard} />}
+            {activeTab === 'analytics' && <AnalyticsPage board={selectedBoard} />}
             {activeTab === 'tickets' && <TicketNumberingPage board={selectedBoard} />}
             {activeTab === 'settings' && (
               <SettingsPage

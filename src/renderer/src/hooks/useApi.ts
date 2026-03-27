@@ -13,7 +13,13 @@ import type {
   DoneCardDebugInfo
 } from '@shared/board.types'
 import type { TrelloBoard, KanbanColumn } from '@shared/trello.types'
-import type { ColumnCount } from '@shared/analytics.types'
+import type {
+  ColumnCount,
+  WeeklyUserStats,
+  LabelUserStats,
+  CardAgeStats,
+  WeeklyHistory
+} from '@shared/analytics.types'
 import type {
   TicketNumberingConfig,
   UnnumberedCard,
@@ -68,7 +74,18 @@ export const api = {
   analytics: {
     /** Returns card counts per open column, read from local cache. */
     columnCounts: (boardId: string) =>
-      invoke<ColumnCount[]>(IPC_CHANNELS.ANALYTICS_COLUMN_COUNTS, boardId)
+      invoke<ColumnCount[]>(IPC_CHANNELS.ANALYTICS_COLUMN_COUNTS, boardId),
+    /** Returns cards closed per user in the last 7 days, grouped by ISO week. */
+    weeklyUserStats: (boardId: string) =>
+      invoke<WeeklyUserStats[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_USER_STATS, boardId),
+    /** Returns closed cards grouped by label + user in the last 7 days. */
+    labelUserStats: (boardId: string) =>
+      invoke<LabelUserStats[]>(IPC_CHANNELS.ANALYTICS_LABEL_USER_STATS, boardId),
+    /** Returns age in days for every open card. */
+    cardAge: (boardId: string) => invoke<CardAgeStats[]>(IPC_CHANNELS.ANALYTICS_CARD_AGE, boardId),
+    /** Returns tickets completed per user per week for the past 12 months. */
+    weeklyHistory: (boardId: string) =>
+      invoke<WeeklyHistory[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_HISTORY, boardId)
   },
 
   tickets: {

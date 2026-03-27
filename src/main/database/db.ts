@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import type { BoardConfig, BoardConfigInput } from '@shared/board.types'
 import { getDbPath } from '../settings/appSettings'
-import type { TrelloList, TrelloCard } from '@shared/trello.types'
+import type { TrelloList, TrelloCard, TrelloAction } from '@shared/trello.types'
 
 // ─── SQL imports ───────────────────────────────────────────────────────────────
 import schemaSql from './sql/schema.sql?raw'
@@ -234,6 +234,58 @@ export function moveCardToList(cardId: string, toListId: string, pos: number): v
 /** Update only the position of a card (used when reordering within a column). */
 export function updateCardPos(cardId: string, pos: number): void {
   getDb().prepare(sqlCardsUpdatePos).run({ cardId, pos })
+}
+
+// ─── Actions ───────────────────────────────────────────────────────────────────
+
+const sqlActionsUpsert = `
+  INSERT OR IGNORE INTO trello_actions
+    (id, board_id, card_id, action_type, action_date,
+     member_id, member_name,
+     list_before_id, list_before_name, list_after_id, list_after_name)
+  VALUES
+    (@id, @boardId, @cardId, @actionType, @actionDate,
+     @memberId, @memberName,
+     @listBeforeId, @listBeforeName, @listAfterId, @listAfterName)
+`
+
+/**
+ * Persist a batch of Trello actions.
+ * Uses INSERT OR IGNORE because actions are immutable once created on Trello.
+ */
+export function upsertActions(boardId: string, actions: TrelloAction[]): void {
+  const db = getDb()
+  const stmt = db.prepare(sqlActionsUpsert)
+
+  db.transaction((rows: TrelloAction[]) => {
+    for (const a of rows) {
+      stmt.run({
+        id: a.id,
+        boardId,
+        cardId: a.data.card?.id ?? null,
+        actionType: a.type,
+        actionDate: a.date,
+        memberId: a.memberCreator?.id ?? null,
+        memberName: a.memberCreator?.fullName ?? null,
+        listBeforeId: a.data.listBefore?.id ?? null,
+        listBeforeName: a.data.listBefore?.name ?? null,
+        listAfterId: a.data.listAfter?.id ?? null,
+        listAfterName: a.data.listAfter?.name ?? null
+      })
+    }
+  })(actions)
+}
+
+/**
+ * Returns the ISO-8601 date of the most recently stored action for this board,
+ * or null if no actions have been synced yet.  Used as the `since` parameter
+ * on incremental syncs to avoid re-fetching the full action history.
+ */
+export function getLatestActionDate(boardId: string): string | null {
+  const row = getDb()
+    .prepare('SELECT MAX(action_date) AS latest FROM trello_actions WHERE board_id = ?')
+    .get(boardId) as { latest: string | null }
+  return row?.latest ?? null
 }
 
 // ─── Card List Entries ─────────────────────────────────────────────────────────
