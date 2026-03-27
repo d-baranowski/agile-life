@@ -9,5 +9,7 @@ module.exports = {
   },
   moduleNameMapper: {
     '@shared/(.*)': '<rootDir>/src/shared/$1'
-  }
+  },
+  collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/__tests__/**', '!src/renderer/**'],
+  coverageReporters: ['text', 'lcov']
 }
