@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS trello_cards (
   closed             INTEGER NOT NULL DEFAULT 0,
   date_last_activity TEXT NOT NULL,
   pos                REAL NOT NULL DEFAULT 0,
+  short_url          TEXT NOT NULL DEFAULT '',
   labels_json        TEXT NOT NULL DEFAULT '[]',
   members_json       TEXT NOT NULL DEFAULT '[]',
   synced_at          TEXT NOT NULL DEFAULT (datetime('now')),

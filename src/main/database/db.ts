@@ -52,6 +52,9 @@ export function getDb(): Database.Database {
   if (!cardCols.includes('pos')) {
     _db.exec('ALTER TABLE trello_cards ADD COLUMN pos REAL NOT NULL DEFAULT 0')
   }
+  if (!cardCols.includes('short_url')) {
+    _db.exec("ALTER TABLE trello_cards ADD COLUMN short_url TEXT NOT NULL DEFAULT ''")
+  }
 
   return _db
 }
@@ -157,6 +160,7 @@ export function upsertCards(boardId: string, cards: TrelloCard[]): void {
         closed: c.closed ? 1 : 0,
         dateLastActivity: c.dateLastActivity,
         pos: c.pos,
+        shortUrl: c.shortUrl,
         labelsJson: JSON.stringify(c.labels),
         membersJson: JSON.stringify(c.members)
       })
@@ -194,6 +198,7 @@ interface CardRow {
   name: string
   list_id: string
   pos: number
+  short_url: string
   labels_json: string
   members_json: string
   date_last_activity: string

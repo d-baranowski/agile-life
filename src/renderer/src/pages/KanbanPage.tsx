@@ -230,28 +230,45 @@ function DraggableCard({ card, index }: CardProps): JSX.Element {
         >
           <span className={styles.cardName}>{card.name}</span>
 
-          {card.labels.length > 0 && (
-            <div className={styles.labels}>
-              {card.labels.map((label) => (
-                <span
-                  key={label.id}
-                  className={styles.label}
-                  style={{ background: labelColor(label.color) }}
-                  title={label.name || label.color}
-                />
-              ))}
-            </div>
-          )}
+          <div className={styles.cardFooter}>
+            {card.labels.length > 0 && (
+              <div className={styles.labels}>
+                {card.labels.map((label) => (
+                  <span
+                    key={label.id}
+                    className={styles.label}
+                    style={{ background: labelColor(label.color) }}
+                    title={label.name || label.color}
+                  />
+                ))}
+              </div>
+            )}
 
-          {card.members.length > 0 && (
-            <div className={styles.members}>
-              {card.members.map((member) => (
-                <span key={member.id} className={styles.memberAvatar} title={member.fullName}>
-                  {member.fullName.charAt(0).toUpperCase()}
-                </span>
-              ))}
+            <div className={styles.cardActions}>
+              {card.members.length > 0 && (
+                <div className={styles.members}>
+                  {card.members.map((member) => (
+                    <span key={member.id} className={styles.memberAvatar} title={member.fullName}>
+                      {member.fullName.charAt(0).toUpperCase()}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {card.shortUrl && (
+                <a
+                  href={card.shortUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.trelloLink}
+                  title="Open in Trello"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  ↗
+                </a>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
     </Draggable>

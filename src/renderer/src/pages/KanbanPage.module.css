@@ -148,6 +148,42 @@
   line-height: 1.4;
 }
 
+/* ── Card footer (labels + actions row) ───────────────────────────────────── */
+
+.cardFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.trelloLink {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity var(--transition), color var(--transition);
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+
+.card:hover .trelloLink {
+  opacity: 1;
+}
+
+.trelloLink:hover {
+  color: var(--color-accent);
+  background: rgba(233, 69, 96, 0.1);
+}
+
 /* ── Labels ───────────────────────────────────────────────────────────────── */
 
 .labels {

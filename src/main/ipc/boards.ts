@@ -184,6 +184,7 @@ export function registerBoardHandlers(): void {
               name: c.name,
               listId: c.list_id,
               pos: c.pos,
+              shortUrl: c.short_url,
               labels: JSON.parse(c.labels_json),
               members: JSON.parse(c.members_json),
               dateLastActivity: c.date_last_activity
