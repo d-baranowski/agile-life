@@ -656,7 +656,7 @@ export default function SettingsPage({
               Restore Default
             </button>
           )}
-          <button className="btn-ghost" onClick={handleOpenLogFolder} disabled={logPathChanging}>
+          <button className="btn-ghost" onClick={handleOpenLogFolder}>
             📂 Open Log Folder
           </button>
           <button className="btn-primary" onClick={handleChooseLogPath} disabled={logPathChanging}>
