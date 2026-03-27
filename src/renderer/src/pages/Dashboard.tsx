@@ -23,7 +23,7 @@ export default function Dashboard({ board }: Props): JSX.Element {
     setLoading(false)
   }, [board.boardId])
 
-  // Load cached counts on board switch
+  // Load cached counts on board switch; also reset archive state
   useEffect(() => {
     setLoading(true)
     setError(null)

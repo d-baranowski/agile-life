@@ -6,17 +6,18 @@ PRAGMA foreign_keys = ON;
 -- One row per registered Trello board.
 -- Credentials, display settings, and sync bookkeeping all live here.
 CREATE TABLE IF NOT EXISTS board_configs (
-  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-  board_id           TEXT    NOT NULL UNIQUE,
-  board_name         TEXT    NOT NULL,
-  api_key            TEXT    NOT NULL,
-  api_token          TEXT    NOT NULL,
-  project_code       TEXT    NOT NULL DEFAULT '',
-  next_ticket_number INTEGER NOT NULL DEFAULT 1,
-  done_list_names    TEXT    NOT NULL DEFAULT '["Done"]',
-  last_synced_at     TEXT,
-  created_at         TEXT    NOT NULL DEFAULT (datetime('now')),
-  updated_at         TEXT    NOT NULL DEFAULT (datetime('now'))
+  id                              INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id                        TEXT    NOT NULL UNIQUE,
+  board_name                      TEXT    NOT NULL,
+  api_key                         TEXT    NOT NULL,
+  api_token                       TEXT    NOT NULL,
+  project_code                    TEXT    NOT NULL DEFAULT '',
+  next_ticket_number              INTEGER NOT NULL DEFAULT 1,
+  done_list_names                 TEXT    NOT NULL DEFAULT '["Done"]',
+  last_synced_at                  TEXT,
+  card_list_entries_initialized   INTEGER NOT NULL DEFAULT 0,
+  created_at                      TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at                      TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 -- One row per Trello list (column).
@@ -53,3 +54,19 @@ CREATE TABLE IF NOT EXISTS trello_cards (
 CREATE INDEX IF NOT EXISTS idx_cards_board ON trello_cards(board_id);
 CREATE INDEX IF NOT EXISTS idx_cards_list  ON trello_cards(list_id);
 CREATE INDEX IF NOT EXISTS idx_lists_board ON trello_lists(board_id);
+
+-- Records the most recent time each card entered each list (column).
+-- Updated on every sync by processing Trello card-movement actions.
+-- Used to measure how long a card has been in its current column and
+-- to determine eligibility for archiving.
+CREATE TABLE IF NOT EXISTS card_list_entries (
+  card_id    TEXT NOT NULL,
+  list_id    TEXT NOT NULL,
+  entered_at TEXT NOT NULL,
+  PRIMARY KEY (card_id, list_id),
+  FOREIGN KEY (card_id) REFERENCES trello_cards(id) ON DELETE CASCADE,
+  FOREIGN KEY (list_id) REFERENCES trello_lists(id) ON DELETE CASCADE
+);
+
+-- Extra index so queries filtering by list_id alone stay fast.
+CREATE INDEX IF NOT EXISTS idx_card_list_entries_list ON card_list_entries(list_id);

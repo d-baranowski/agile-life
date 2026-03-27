@@ -4,7 +4,14 @@
  */
 import { IPC_CHANNELS } from '@shared/ipc.types'
 import type { IpcResult } from '@shared/ipc.types'
-import type { BoardConfig, BoardConfigInput, SyncResult } from '@shared/board.types'
+import type {
+  BoardConfig,
+  BoardConfigInput,
+  SyncResult,
+  ArchiveResult,
+  DoneCardPreview,
+  DoneCardDebugInfo
+} from '@shared/board.types'
 import type { TrelloBoard } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import type {
@@ -33,7 +40,20 @@ export const api = {
 
   trello: {
     /** Syncs lists + cards for the board and returns a summary. */
-    sync: (boardId: string) => invoke<SyncResult>(IPC_CHANNELS.TRELLO_SYNC, boardId)
+    sync: (boardId: string) => invoke<SyncResult>(IPC_CHANNELS.TRELLO_SYNC, boardId),
+    /** Dry-run: returns cards that would be archived without touching Trello. */
+    previewArchiveDoneCards: (boardId: string, olderThanWeeks: number) =>
+      invoke<DoneCardPreview[]>(
+        IPC_CHANNELS.TRELLO_PREVIEW_ARCHIVE_DONE_CARDS,
+        boardId,
+        olderThanWeeks
+      ),
+    /** Debug: all done-column cards with raw timestamp data (no threshold). */
+    getDoneColumnDebug: (boardId: string) =>
+      invoke<DoneCardDebugInfo[]>(IPC_CHANNELS.TRELLO_GET_DONE_COLUMN_DEBUG, boardId),
+    /** Archives open cards in the "done" lists that have been in done for olderThanWeeks weeks. */
+    archiveDoneCards: (boardId: string, olderThanWeeks: number) =>
+      invoke<ArchiveResult>(IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS, boardId, olderThanWeeks)
   },
 
   analytics: {

@@ -90,3 +90,189 @@ td code {
   padding: 2px 6px;
   border-radius: 3px;
 }
+
+/* ── Archive ── */
+.archiveSuccess {
+  background: rgba(39, 174, 96, 0.15);
+  border: 1px solid rgba(39, 174, 96, 0.3);
+  color: #27ae60;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  margin: 12px 0;
+}
+
+.archiveControls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.weeksLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.weeksInput {
+  width: 64px;
+  text-align: center;
+}
+
+.syncingLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.centred {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-muted);
+  padding: 40px 0;
+  justify-content: center;
+}
+
+/* ── Preview section ── */
+.previewSection {
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+}
+
+.previewEmpty {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.previewCount {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+
+.previewList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.previewItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.previewCardName {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.previewCardMeta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.previewActions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ── Debug panel ── */
+.debugHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.debugTableWrap {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.debugTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.debugTable th {
+  text-align: left;
+  padding: 6px 10px;
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.debugTable td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.debugTable tr:last-child td {
+  border-bottom: none;
+}
+
+.debugTable tr:hover td {
+  background: var(--color-surface);
+}
+
+.debugCardName {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.debugAge {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.debugBadgeAction {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: rgba(39, 174, 96, 0.15);
+  color: #27ae60;
+  border: 1px solid rgba(39, 174, 96, 0.3);
+}
+
+.debugBadgeFallback {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: rgba(243, 156, 18, 0.15);
+  color: #d68910;
+  border: 1px solid rgba(243, 156, 18, 0.3);
+}
