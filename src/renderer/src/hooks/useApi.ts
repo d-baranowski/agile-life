@@ -11,7 +11,8 @@ import type {
   ArchiveResult,
   DoneCardPreview,
   DoneCardDebugInfo,
-  StoryPointRule
+  StoryPointRule,
+  SavedCredentials
 } from '@shared/board.types'
 import type { TrelloBoard, KanbanColumn, TrelloMember } from '@shared/trello.types'
 import type {
@@ -43,7 +44,9 @@ export const api = {
       invoke<BoardConfig>(IPC_CHANNELS.BOARDS_UPDATE, boardId, updates),
     delete: (boardId: string) => invoke<void>(IPC_CHANNELS.BOARDS_DELETE, boardId),
     fetchFromTrello: (apiKey: string, apiToken: string) =>
-      invoke<TrelloBoard[]>(IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO, apiKey, apiToken)
+      invoke<TrelloBoard[]>(IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO, apiKey, apiToken),
+    getSavedCredentials: () =>
+      invoke<SavedCredentials | null>(IPC_CHANNELS.BOARDS_GET_SAVED_CREDENTIALS)
   },
 
   trello: {
