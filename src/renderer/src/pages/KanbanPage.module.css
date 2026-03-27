@@ -700,3 +700,96 @@
   color: var(--color-accent);
   font-weight: 700;
 }
+
+/* ── Add card ─────────────────────────────────────────────────────────────── */
+
+.addCardBtn {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--color-border);
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    color var(--transition),
+    background var(--transition);
+  flex-shrink: 0;
+}
+
+.addCardBtn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2);
+}
+
+.addCardForm {
+  border-top: 1px solid var(--color-border);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.addCardTextarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-accent);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+}
+
+.addCardTextarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.addCardActions {
+  display: flex;
+  gap: 6px;
+}
+
+.addCardSubmit {
+  flex: 1;
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.addCardSubmit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.addCardCancel {
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    color var(--transition);
+}
+
+.addCardCancel:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+}

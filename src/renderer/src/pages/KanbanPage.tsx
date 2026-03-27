@@ -242,6 +242,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setShowTicketsModal(false)
         setEpicStoriesCard(null)
         setEpicDropdownCardId(null)
+        setAddCardState(null)
       }
     }
     window.addEventListener('keydown', handleKey)
@@ -355,6 +356,66 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     },
     [board.boardId, boardMembers, columns]
   )
+
+  // ── Create cards from pasted text ─────────────────────────────────────────
+  //
+  // Each non-empty line in the textarea becomes a separate card, created
+  // concurrently in the given list.  This supports the Excel paste workflow:
+  // copy a column of cells, paste into the textarea → one card per row.
+
+  const handleCreateCards = useCallback(
+    async (listId: string, text: string) => {
+      const names = text
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      if (names.length === 0) {
+        setAddCardState(null)
+        return
+      }
+
+      setAddCardState((prev) => (prev ? { ...prev, submitting: true } : null))
+
+      const results = await Promise.allSettled(
+        names.map((name) => api.trello.createCard(board.boardId, listId, name))
+      )
+
+      const created: KanbanCard[] = []
+      let failCount = 0
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value.success && result.value.data) {
+          created.push(result.value.data)
+        } else {
+          failCount++
+        }
+      }
+
+      if (created.length > 0) {
+        setColumns((prev) =>
+          prev.map((col) =>
+            col.id === listId ? { ...col, cards: [...col.cards, ...created] } : col
+          )
+        )
+      }
+
+      if (failCount > 0) {
+        setToastMessage(`${failCount} card(s) could not be created. Please try again.`)
+      }
+
+      setAddCardState(null)
+    },
+    [board.boardId]
+  )
+
+  // Focus the textarea when add-card form opens for a specific list.
+  // We derive a stable key from whether the form is open and which list it's for,
+  // so focus triggers on every fresh open (including re-opening the same column).
+  const addCardKey = addCardState === null ? null : addCardState.listId
+  useEffect(() => {
+    if (addCardKey !== null && addCardTextareaRef.current) {
+      addCardTextareaRef.current.focus()
+    }
+  }, [addCardKey])
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -521,6 +582,56 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                   </div>
                 )}
               </StrictModeDroppable>
+
+              {/* ── Add card area ── */}
+              {addCardState?.listId === column.id ? (
+                <div className={styles.addCardForm}>
+                  <textarea
+                    ref={addCardTextareaRef}
+                    className={styles.addCardTextarea}
+                    placeholder={
+                      'Enter card names — one per line.\nPaste from Excel to create multiple cards at once.'
+                    }
+                    value={addCardState.text}
+                    onChange={(e) =>
+                      setAddCardState((prev) => (prev ? { ...prev, text: e.target.value } : null))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault()
+                        handleCreateCards(column.id, addCardState.text)
+                      }
+                    }}
+                    rows={3}
+                    disabled={addCardState.submitting}
+                  />
+                  <div className={styles.addCardActions}>
+                    <button
+                      className={styles.addCardSubmit}
+                      onClick={() => handleCreateCards(column.id, addCardState.text)}
+                      disabled={addCardState.submitting || !addCardState.text.trim()}
+                    >
+                      {addCardState.submitting ? 'Adding…' : 'Add card(s)'}
+                    </button>
+                    <button
+                      className={styles.addCardCancel}
+                      onClick={() => setAddCardState(null)}
+                      disabled={addCardState.submitting}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className={styles.addCardBtn}
+                  onClick={() =>
+                    setAddCardState({ listId: column.id, text: '', submitting: false })
+                  }
+                >
+                  + Add a card
+                </button>
+              )}
             </div>
           ))}
         </div>
