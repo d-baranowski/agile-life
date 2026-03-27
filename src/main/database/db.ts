@@ -31,7 +31,6 @@ import sqlCardListEntriesSetFallback from './sql/card-list-entries/set-fallback.
 import sqlCardListEntriesClearForBoard from './sql/card-list-entries/clear-for-board.sql?raw'
 import sqlBoardsSetCardListEntriesInitialized from './sql/boards/set-card-list-entries-initialized.sql?raw'
 
-
 let _db: Database.Database | null = null
 
 // ─── Connection ────────────────────────────────────────────────────────────────
@@ -53,9 +52,9 @@ export function getDb(): Database.Database {
   // ── Column migrations ──────────────────────────────────────────────────────
   // CREATE TABLE IF NOT EXISTS won't add new columns to an existing table, so
   // we inspect the live schema and apply ALTER TABLE as needed.
-  const cardCols = (
-    _db.prepare('PRAGMA table_info(trello_cards)').all() as { name: string }[]
-  ).map((c) => c.name)
+  const cardCols = (_db.prepare('PRAGMA table_info(trello_cards)').all() as { name: string }[]).map(
+    (c) => c.name
+  )
   if (!cardCols.includes('pos')) {
     _db.exec('ALTER TABLE trello_cards ADD COLUMN pos REAL NOT NULL DEFAULT 0')
   }

@@ -131,8 +131,7 @@ export default function KanbanPage({ board }: Props): JSX.Element {
       // Trello and the local DB stay in sync after cross-column moves.
       const destCards = toCol.cards
       const prevCard = destination.index > 0 ? destCards[destination.index - 1] : null
-      const nextCard =
-        destination.index < destCards.length ? destCards[destination.index] : null
+      const nextCard = destination.index < destCards.length ? destCards[destination.index] : null
       const newPos =
         prevCard && nextCard
           ? (prevCard.pos + nextCard.pos) / 2
