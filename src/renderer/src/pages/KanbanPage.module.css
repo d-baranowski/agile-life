@@ -280,6 +280,25 @@
   margin: 0;
 }
 
+/* ── Epic filter select ───────────────────────────────────────────────────── */
+
+.epicFilterSelect {
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.82rem;
+  outline: none;
+  cursor: pointer;
+  max-width: 220px;
+  transition: border-color var(--transition);
+}
+
+.epicFilterSelect:focus {
+  border-color: var(--color-accent);
+}
+
 /* ── Number Tickets button ────────────────────────────────────────────────── */
 
 .numberTicketsBtn {

@@ -65,6 +65,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [error, setError] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [epicFilter, setEpicFilter] = useState<string>('') // '' = all, '__none__' = no epic, epicCardId = specific epic
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
   const contextMenuRef = useRef<HTMLDivElement>(null)
@@ -113,6 +114,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   // Load epic card options when this is a story board
   useEffect(() => {
+    setEpicFilter('')
     if (!isStoryBoard) return
     api.epics.getCards(board.boardId).then((result) => {
       if (result.success && result.data) setEpicCardOptions(result.data)
@@ -341,12 +343,19 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const filteredColumns = searchQuery.trim()
-    ? columns.map((col) => ({
-        ...col,
-        cards: col.cards.filter((card) => fuzzyMatch(searchQuery, `${card.name} ${card.desc}`))
-      }))
-    : columns
+  const filteredColumns =
+    searchQuery.trim() || epicFilter
+      ? columns.map((col) => ({
+          ...col,
+          cards: col.cards.filter((card) => {
+            if (searchQuery.trim() && !fuzzyMatch(searchQuery, `${card.name} ${card.desc}`))
+              return false
+            if (epicFilter === '__none__') return !card.epicCardId
+            if (epicFilter) return card.epicCardId === epicFilter
+            return true
+          })
+        }))
+      : columns
 
   if (loading) {
     return (
@@ -410,6 +419,23 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
+        {isStoryBoard && epicCardOptions.length > 0 && (
+          <select
+            className={styles.epicFilterSelect}
+            value={epicFilter}
+            onChange={(e) => setEpicFilter(e.target.value)}
+            title="Filter by epic"
+            aria-label="Filter cards by epic"
+          >
+            <option value="">⚡ All epics</option>
+            <option value="__none__">— No epic</option>
+            {epicCardOptions.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.name}
+              </option>
+            ))}
+          </select>
+        )}
         <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
           🎫 Number Tickets
         </button>
