@@ -11,6 +11,8 @@ import type {
   ArchiveResult,
   DoneCardPreview,
   DoneCardDebugInfo,
+  EpicCardOption,
+  EpicStory,
   StoryPointRule
 } from '@shared/board.types'
 import type { TrelloBoard, KanbanColumn, TrelloMember } from '@shared/trello.types'
@@ -34,7 +36,7 @@ import type {
   TicketTemplateInput,
   GenerateCardsResult
 } from '@shared/template.types'
-import type { DbPathInfo } from '@shared/settings.types'
+import type { DbPathInfo, LogPathInfo } from '@shared/settings.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return window.api.invoke(channel as Parameters<typeof window.api.invoke>[0], ...args) as Promise<
@@ -50,7 +52,9 @@ export const api = {
       invoke<BoardConfig>(IPC_CHANNELS.BOARDS_UPDATE, boardId, updates),
     delete: (boardId: string) => invoke<void>(IPC_CHANNELS.BOARDS_DELETE, boardId),
     fetchFromTrello: (apiKey: string, apiToken: string) =>
-      invoke<TrelloBoard[]>(IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO, apiKey, apiToken)
+      invoke<TrelloBoard[]>(IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO, apiKey, apiToken),
+    setEpicBoard: (storyBoardId: string, epicBoardId: string | null) =>
+      invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_EPIC_BOARD, storyBoardId, epicBoardId)
   },
 
   trello: {
@@ -173,5 +177,31 @@ export const api = {
     /** Generates Trello cards from all templates in a group. */
     generateCards: (boardId: string, groupId: number) =>
       invoke<GenerateCardsResult>(IPC_CHANNELS.TEMPLATES_GENERATE_CARDS, boardId, groupId)
+  },
+
+  logs: {
+    /** Returns the current log file path info (path, default path, isCustom). */
+    getPath: () => invoke<LogPathInfo>(IPC_CHANNELS.LOGS_GET_PATH),
+    /** Opens the log folder in the native file manager. */
+    openFolder: () => invoke<void>(IPC_CHANNELS.LOGS_OPEN_FOLDER),
+    /**
+     * Opens a native folder-picker dialog and moves log output to the chosen
+     * folder (as "main.log").  Pass `resetToDefault = true` to restore the
+     * electron-log default location.  Takes effect immediately.
+     */
+    setPath: (resetToDefault = false) =>
+      invoke<LogPathInfo>(IPC_CHANNELS.LOGS_SET_PATH, resetToDefault)
+  },
+
+  epics: {
+    /** Returns all open cards from the linked epic board for assignment. */
+    getCards: (storyBoardId: string) =>
+      invoke<EpicCardOption[]>(IPC_CHANNELS.EPICS_GET_CARDS, storyBoardId),
+    /** Assigns or clears the epic for a story card. */
+    setCardEpic: (boardId: string, cardId: string, epicCardId: string | null) =>
+      invoke<void>(IPC_CHANNELS.EPICS_SET_CARD_EPIC, boardId, cardId, epicCardId),
+    /** Returns all story cards assigned to the given epic card. */
+    getStories: (epicCardId: string) =>
+      invoke<EpicStory[]>(IPC_CHANNELS.EPICS_GET_STORIES, epicCardId)
   }
 }
