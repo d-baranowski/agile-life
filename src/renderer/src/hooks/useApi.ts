@@ -85,7 +85,7 @@ export const api = {
     /** Returns age in days for every open card. */
     cardAge: (boardId: string) => invoke<CardAgeStats[]>(IPC_CHANNELS.ANALYTICS_CARD_AGE, boardId),
     /** Returns story points completed per user per week for the past 12 months. */
-    weeklyHistory: (boardId: string, storyPointsConfig: StoryPointRule[]) =>
+    weeklyHistory: (boardId: string, storyPointsConfig: StoryPointRule[] = []) =>
       invoke<WeeklyHistory[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_HISTORY, boardId, storyPointsConfig)
   },
 
