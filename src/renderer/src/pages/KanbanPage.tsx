@@ -201,10 +201,6 @@ export default function KanbanPage({ board }: Props): JSX.Element {
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>📋 {board.boardName}</h1>
-      </div>
-
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className={styles.board}>
           {columns.map((column) => (
