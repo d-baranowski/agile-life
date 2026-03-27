@@ -1,3 +1,9 @@
+/** Maps a label name to a story-point value for analytics calculations. */
+export interface StoryPointRule {
+  labelName: string
+  points: number
+}
+
 export interface BoardConfig {
   id: number
   boardId: string
@@ -7,6 +13,7 @@ export interface BoardConfig {
   projectCode: string
   nextTicketNumber: number
   doneListNames: string[]
+  storyPointsConfig: StoryPointRule[]
   lastSyncedAt: string | null
   epicBoardId: string | null
   createdAt: string

@@ -12,6 +12,8 @@ import styles from './KanbanPage.module.css'
 interface Props {
   board: BoardConfig
   allBoards: BoardConfig[]
+  /** Incremented by App each time a Trello sync completes — triggers a data reload. */
+  syncVersion: number
 }
 
 interface ContextMenuState {
@@ -57,7 +59,7 @@ function moveCard(
 
 // ─── component ───────────────────────────────────────────────────────────────
 
-export default function KanbanPage({ board, allBoards }: Props): JSX.Element {
+export default function KanbanPage({ board, allBoards, syncVersion }: Props): JSX.Element {
   const [columns, setColumns] = useState<KanbanColumn[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -101,7 +103,7 @@ export default function KanbanPage({ board, allBoards }: Props): JSX.Element {
       setBoardMembers(membersResult.data)
     }
     setLoading(false)
-  }, [board.boardId])
+  }, [board.boardId, syncVersion])
 
   useEffect(() => {
     setLoading(true)

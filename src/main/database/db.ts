@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
-import type { BoardConfig, BoardConfigInput } from '@shared/board.types'
+import type { BoardConfig, BoardConfigInput, StoryPointRule } from '@shared/board.types'
 import { getDbPath } from '../settings/appSettings'
 import type { TrelloList, TrelloCard, TrelloAction, TrelloMember } from '@shared/trello.types'
 
@@ -91,6 +91,13 @@ export function getDb(): Database.Database {
   } catch {
     // Column already exists — nothing to do.
   }
+  try {
+    _db.exec(
+      'ALTER TABLE board_configs ADD COLUMN story_points_config TEXT NOT NULL DEFAULT \'[{"labelName":"Large","points":5},{"labelName":"Medium","points":3},{"labelName":"Small","points":1}]\''
+    )
+  } catch {
+    // Column already exists — nothing to do.
+  }
 
   // Ensure board_members table exists for existing databases that pre-date the
   // schema addition.  CREATE TABLE IF NOT EXISTS is idempotent and safe.
@@ -147,7 +154,8 @@ export function updateBoard(boardId: string, updates: Partial<BoardConfigInput>)
       apiToken: updates.apiToken ?? existing.apiToken,
       projectCode: (updates.projectCode ?? existing.projectCode).toUpperCase(),
       nextTicketNumber: updates.nextTicketNumber ?? existing.nextTicketNumber,
-      doneListNames: JSON.stringify(updates.doneListNames ?? existing.doneListNames)
+      doneListNames: JSON.stringify(updates.doneListNames ?? existing.doneListNames),
+      storyPointsConfig: JSON.stringify(updates.storyPointsConfig ?? existing.storyPointsConfig)
     })
 
   return getBoardById(boardId)!
@@ -318,6 +326,7 @@ export function getEpicCardsForBoard(storyBoardId: string): EpicCardRow[] {
 export function getStoriesForEpic(epicCardId: string): EpicStoryRow[] {
   return getDb().prepare(sqlKanbanGetStoriesForEpic).all(epicCardId) as EpicStoryRow[]
 }
+
 
 /** Mark a single card as archived in the local cache. */
 export function archiveCardLocally(cardId: string): void {
@@ -534,6 +543,11 @@ export function getDoneColumnDebug(
 type Row = Record<string, unknown>
 
 function rowToBoardConfig(row: Row): BoardConfig {
+  const defaultStoryPoints: StoryPointRule[] = [
+    { labelName: 'Large', points: 5 },
+    { labelName: 'Medium', points: 3 },
+    { labelName: 'Small', points: 1 }
+  ]
   return {
     id: row.id as number,
     boardId: row.board_id as string,
@@ -543,6 +557,9 @@ function rowToBoardConfig(row: Row): BoardConfig {
     projectCode: row.project_code as string,
     nextTicketNumber: row.next_ticket_number as number,
     doneListNames: JSON.parse(row.done_list_names as string),
+    storyPointsConfig: row.story_points_config
+      ? (JSON.parse(row.story_points_config as string) as StoryPointRule[])
+      : defaultStoryPoints,
     lastSyncedAt: (row.last_synced_at as string | null) ?? null,
     epicBoardId: (row.epic_board_id as string | null) ?? null,
     createdAt: row.created_at as string,

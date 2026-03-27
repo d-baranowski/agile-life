@@ -136,7 +136,9 @@ export default function App(): JSX.Element {
           </div>
         ) : (
           <>
-            {activeTab === 'kanban' && <KanbanPage board={selectedBoard} allBoards={boards} />}
+            {activeTab === 'kanban' && (
+              <KanbanPage board={selectedBoard} allBoards={boards} syncVersion={syncVersion} />
+            )}
             {activeTab === 'dashboard' && (
               <Dashboard board={selectedBoard} syncVersion={syncVersion} />
             )}
