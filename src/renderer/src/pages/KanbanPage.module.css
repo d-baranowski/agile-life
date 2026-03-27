@@ -653,3 +653,168 @@
   color: var(--color-accent);
   font-weight: 700;
 }
+
+/* ── Generate-from-Template Modal ────────────────────────────────────────── */
+
+.genModal {
+  position: relative;
+  background: var(--color-bg);
+  width: 100%;
+  max-width: 520px;
+  max-height: 80vh;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  align-self: center;
+}
+
+.genModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: var(--color-surface);
+}
+
+.genModalTitle {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.genModalBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.genModalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: var(--color-surface);
+}
+
+.genGroupRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.genLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.genSelect {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.genSelect:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.genPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.genPreviewTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.genPreviewLoading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.genPreviewList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.genPreviewItem {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+}
+
+.genPreviewCardTitle {
+  font-size: 13px;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.genPreviewMeta {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.genEmptyState {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+.genResultBanner {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.genResultSuccess {
+  background: rgba(39, 174, 96, 0.15);
+  border: 1px solid rgba(39, 174, 96, 0.3);
+  color: #27ae60;
+}
+
+.genResultError {
+  background: rgba(231, 76, 60, 0.15);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  color: var(--color-danger);
+}
+
+.genResultErrors {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+}

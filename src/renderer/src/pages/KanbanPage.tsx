@@ -3,6 +3,7 @@ import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
 import type { BoardConfig } from '@shared/board.types'
 import type { EpicCardOption, EpicStory } from '@shared/board.types'
 import type { KanbanColumn, KanbanCard, TrelloMember } from '@shared/trello.types'
+import type { TemplateGroup, TicketTemplate, GenerateCardsResult } from '@shared/template.types'
 import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
@@ -55,6 +56,30 @@ function moveCard(
     if (c.id === toColId) return { ...c, cards: newToCards }
     return c
   })
+}
+
+// ─── Placeholder resolver (mirrors server-side logic for preview) ─────────────
+
+function resolvePlaceholders(template: string, now: Date): string {
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+  const monthPadded = String(month).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const date = `${year}-${monthPadded}-${day}`
+  const startOfYear = new Date(year, 0, 1)
+  const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / 86_400_000)
+  const adjustedDow = (startOfYear.getDay() + 6) % 7
+  const week = String(Math.floor((dayOfYear + adjustedDow) / 7) + 1).padStart(2, '0')
+  const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ]
+  return template
+    .replace(/\{\{year\}\}/g, String(year))
+    .replace(/\{\{month\}\}/g, monthPadded)
+    .replace(/\{\{month_name\}\}/g, MONTH_NAMES[month - 1])
+    .replace(/\{\{week\}\}/g, week)
+    .replace(/\{\{date\}\}/g, date)
 }
 
 // ─── component ───────────────────────────────────────────────────────────────
@@ -220,6 +245,16 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
 
+  // Generate-from-template modal state
+  const [showGenModal, setShowGenModal] = useState(false)
+  const [genGroups, setGenGroups] = useState<TemplateGroup[]>([])
+  const [genGroupId, setGenGroupId] = useState<number | null>(null)
+  const [genTemplates, setGenTemplates] = useState<TicketTemplate[]>([])
+  const [genLoading, setGenLoading] = useState(false)
+  const [genGenerating, setGenGenerating] = useState(false)
+  const [genResult, setGenResult] = useState<GenerateCardsResult | null>(null)
+  const [genError, setGenError] = useState<string | null>(null)
+
   const handleOpenLogs = useCallback(() => {
     api.logs.openFolder()
   }, [])
@@ -231,11 +266,62 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setShowTicketsModal(false)
         setEpicStoriesCard(null)
         setEpicDropdownCardId(null)
+        setShowGenModal(false)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
+
+  // Open the generate-from-template modal and load groups
+  const handleOpenGenModal = useCallback(async () => {
+    setShowGenModal(true)
+    setGenGroupId(null)
+    setGenTemplates([])
+    setGenResult(null)
+    setGenError(null)
+    const result = await api.templates.getGroups(board.boardId)
+    if (result.success && result.data) {
+      setGenGroups(result.data)
+    } else {
+      setGenError(result.error ?? 'Failed to load template groups.')
+    }
+  }, [board.boardId])
+
+  // Load templates for the selected group (for preview)
+  const handleGenGroupChange = useCallback(
+    async (groupId: number) => {
+      setGenGroupId(groupId)
+      setGenResult(null)
+      setGenError(null)
+      setGenLoading(true)
+      const result = await api.templates.getTemplates(board.boardId, groupId)
+      setGenLoading(false)
+      if (result.success && result.data) {
+        setGenTemplates(result.data)
+      } else {
+        setGenError(result.error ?? 'Failed to load templates.')
+      }
+    },
+    [board.boardId]
+  )
+
+  // Generate cards from the selected group
+  const handleGenerateFromModal = useCallback(async () => {
+    if (genGroupId === null) return
+    setGenGenerating(true)
+    setGenResult(null)
+    setGenError(null)
+    const result = await api.templates.generateCards(board.boardId, genGroupId)
+    setGenGenerating(false)
+    if (result.success && result.data) {
+      setGenResult(result.data)
+      // Reload board data so newly created cards appear without a full sync
+      loadBoardData()
+    } else {
+      setGenError(result.error ?? 'Failed to generate cards.')
+    }
+  }, [board.boardId, genGroupId, loadBoardData])
 
   // Open epic stories modal (double-click on epic board card)
   const handleOpenEpicStories = useCallback(async (cardId: string, cardName: string) => {
@@ -400,6 +486,9 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
             🎫 Number Tickets
           </button>
+          <button className={styles.numberTicketsBtn} onClick={handleOpenGenModal}>
+            📋 Generate from Template
+          </button>
         </div>
         <div className={styles.emptyState}>
           <p>No data yet.</p>
@@ -442,6 +531,9 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         )}
         <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
           🎫 Number Tickets
+        </button>
+        <button className={styles.numberTicketsBtn} onClick={handleOpenGenModal}>
+          📋 Generate from Template
         </button>
       </div>
       <DragDropContext onDragEnd={handleDragEnd}>
@@ -590,6 +682,126 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Generate from Template Modal ── */}
+      {showGenModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowGenModal(false)}>
+          <div className={styles.genModal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.genModalHeader}>
+              <h2 className={styles.genModalTitle}>📋 Generate from Template</h2>
+              <button
+                className={styles.modalClose}
+                onClick={() => setShowGenModal(false)}
+                title="Close (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className={styles.genModalBody}>
+              {genGroups.length === 0 ? (
+                <p className={styles.genEmptyState}>
+                  No template groups found for this board. Create groups in the Templates tab first.
+                </p>
+              ) : (
+                <>
+                  <div className={styles.genGroupRow}>
+                    <label className={styles.genLabel}>Template group</label>
+                    <select
+                      className={styles.genSelect}
+                      value={genGroupId ?? ''}
+                      onChange={(e) => handleGenGroupChange(Number(e.target.value))}
+                    >
+                      <option value="">— Select a group —</option>
+                      {genGroups.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {genGroupId !== null && (
+                    <div className={styles.genPreview}>
+                      <div className={styles.genPreviewTitle}>Preview</div>
+                      {genLoading ? (
+                        <div className={styles.genPreviewLoading}>
+                          <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                          <span>Loading…</span>
+                        </div>
+                      ) : genTemplates.length === 0 ? (
+                        <p className={styles.genEmptyState}>
+                          This group has no templates. Add templates in the Templates tab.
+                        </p>
+                      ) : (
+                        <ul className={styles.genPreviewList}>
+                          {genTemplates.map((t) => (
+                            <li key={t.id} className={styles.genPreviewItem}>
+                              <span className={styles.genPreviewCardTitle}>
+                                {resolvePlaceholders(t.titleTemplate, new Date())}
+                              </span>
+                              <span className={styles.genPreviewMeta}>→ {t.listName}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {genResult && (
+                    <div
+                      className={`${styles.genResultBanner} ${genResult.failed === 0 ? styles.genResultSuccess : styles.genResultError}`}
+                    >
+                      {genResult.created} card{genResult.created !== 1 ? 's' : ''} created
+                      {genResult.failed > 0 && `, ${genResult.failed} failed`}.
+                      {genResult.errors.length > 0 && (
+                        <ul className={styles.genResultErrors}>
+                          {genResult.errors.map((e, i) => (
+                            <li key={i}>{e}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {genError && (
+                    <div className={`${styles.genResultBanner} ${styles.genResultError}`}>
+                      {genError}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className={styles.genModalFooter}>
+              <button className="btn-secondary" onClick={() => setShowGenModal(false)}>
+                Close
+              </button>
+              {genGroups.length > 0 && (
+                <button
+                  className="btn-primary"
+                  onClick={handleGenerateFromModal}
+                  disabled={
+                    genGroupId === null ||
+                    genTemplates.length === 0 ||
+                    genLoading ||
+                    genGenerating
+                  }
+                >
+                  {genGenerating ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />
+                      Generating…
+                    </span>
+                  ) : (
+                    '▶ Generate cards'
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
