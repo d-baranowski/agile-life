@@ -20,6 +20,10 @@ import sqlListsMarkAllRemoved from './sql/lists/mark-all-removed.sql?raw'
 import sqlCardsUpsert from './sql/cards/upsert.sql?raw'
 import sqlCardsMarkRemoved from './sql/cards/mark-removed.sql?raw'
 import sqlCardsMarkAllRemoved from './sql/cards/mark-all-removed.sql?raw'
+import sqlKanbanGetLists from './sql/kanban/get-lists.sql?raw'
+import sqlKanbanGetCards from './sql/kanban/get-cards.sql?raw'
+import sqlKanbanMoveCard from './sql/kanban/move-card.sql?raw'
+import sqlCardsUpdatePos from './sql/cards/update-pos.sql?raw'
 import sqlCardsGetDoneOlderThan from './sql/cards/get-done-cards-older-than.sql?raw'
 import sqlCardsGetDoneColumnDebug from './sql/cards/get-done-column-debug.sql?raw'
 import sqlCardListEntriesUpsert from './sql/card-list-entries/upsert.sql?raw'
@@ -46,6 +50,20 @@ export function getDb(): Database.Database {
   _db.exec(schemaSql)
 
   // ── Column migrations ──────────────────────────────────────────────────────
+  // CREATE TABLE IF NOT EXISTS won't add new columns to an existing table, so
+  // we inspect the live schema and apply ALTER TABLE as needed.
+  const cardCols = (_db.prepare('PRAGMA table_info(trello_cards)').all() as { name: string }[]).map(
+    (c) => c.name
+  )
+  if (!cardCols.includes('pos')) {
+    _db.exec('ALTER TABLE trello_cards ADD COLUMN pos REAL NOT NULL DEFAULT 0')
+  }
+  if (!cardCols.includes('short_url')) {
+    _db.exec("ALTER TABLE trello_cards ADD COLUMN short_url TEXT NOT NULL DEFAULT ''")
+  }
+  if (!cardCols.includes('desc')) {
+    _db.exec("ALTER TABLE trello_cards ADD COLUMN desc TEXT NOT NULL DEFAULT ''")
+  }
   // SQLite has no "ADD COLUMN IF NOT EXISTS", so we try and ignore the error
   // if the column already exists (e.g. new installs where schema.sql created it).
   try {
@@ -157,8 +175,11 @@ export function upsertCards(boardId: string, cards: TrelloCard[]): void {
         boardId,
         listId: c.idList,
         name: c.name,
+        desc: c.desc,
         closed: c.closed ? 1 : 0,
         dateLastActivity: c.dateLastActivity,
+        pos: c.pos,
+        shortUrl: c.shortUrl,
         labelsJson: JSON.stringify(c.labels),
         membersJson: JSON.stringify(c.members)
       })
@@ -181,6 +202,43 @@ export function markRemovedCards(boardId: string, freshCardIds: string[]): void 
 /** Stamp the board row with the current UTC time after a successful sync. */
 export function updateBoardSyncTime(boardId: string): void {
   getDb().prepare(sqlBoardsUpdateSyncTime).run(boardId)
+}
+
+// ─── Kanban ────────────────────────────────────────────────────────────────────
+
+interface ListRow {
+  id: string
+  name: string
+  pos: number
+}
+
+interface CardRow {
+  id: string
+  name: string
+  desc: string
+  list_id: string
+  pos: number
+  short_url: string
+  labels_json: string
+  members_json: string
+  date_last_activity: string
+}
+
+export function getListsForBoard(boardId: string): ListRow[] {
+  return getDb().prepare(sqlKanbanGetLists).all(boardId) as ListRow[]
+}
+
+export function getCardsForBoard(boardId: string): CardRow[] {
+  return getDb().prepare(sqlKanbanGetCards).all(boardId) as CardRow[]
+}
+
+export function moveCardToList(cardId: string, toListId: string, pos: number): void {
+  getDb().prepare(sqlKanbanMoveCard).run({ cardId, toListId, pos })
+}
+
+/** Update only the position of a card (used when reordering within a column). */
+export function updateCardPos(cardId: string, pos: number): void {
+  getDb().prepare(sqlCardsUpdatePos).run({ cardId, pos })
 }
 
 // ─── Actions ───────────────────────────────────────────────────────────────────

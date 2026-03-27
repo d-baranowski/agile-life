@@ -138,6 +138,25 @@ export class TrelloClient {
   }
 
   /**
+   * Moves a card to a different list via the Trello API.
+   * Pass `pos` to also set the card's position within the target list.
+   */
+  async moveCard(cardId: string, toListId: string, pos?: number): Promise<TrelloCard> {
+    const body: Record<string, unknown> = { idList: toListId }
+    if (pos !== undefined) body.pos = pos
+    const { data } = await this.http.put<TrelloCard>(`/cards/${cardId}`, body)
+    return data
+  }
+
+  /**
+   * Updates a card's position within its current list via the Trello API.
+   */
+  async reorderCard(cardId: string, pos: number): Promise<TrelloCard> {
+    const { data } = await this.http.put<TrelloCard>(`/cards/${cardId}`, { pos })
+    return data
+  }
+
+  /**
    * Archives (closes) a card on Trello.
    */
   async archiveCard(cardId: string): Promise<TrelloCard> {
