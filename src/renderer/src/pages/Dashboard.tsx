@@ -276,6 +276,14 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
           )}
 
           {/* ── Tickets Completed per User ── */}
+          {sortedUsers.length === 0 && columns.length > 0 && (
+            <p className={`text-muted ${styles.analyticsHint}`}>
+              No completions recorded in the last 7 days. Done list names configured as:{' '}
+              <strong>{board.doneListNames.map((n) => `"${n}"`).join(', ')}</strong>. Update{' '}
+              <strong>Done List Names</strong> in ⚙️&nbsp;Settings if this doesn&apos;t match your
+              board.
+            </p>
+          )}
           {sortedUsers.length > 0 && (
             <section>
               <h2 className={styles.sectionTitle}>Tickets Completed per User (last 7 days)</h2>
@@ -348,7 +356,17 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
             </div>
             {allHistoryWeeks.length === 0 ? (
               <p className="text-muted">
-                No historical data yet. Sync your board to populate this chart.
+                {columns.length > 0 ? (
+                  <>
+                    No analytics data yet. Analytics counts cards moved to your done list&nbsp;—
+                    currently configured as:{' '}
+                    <strong>{board.doneListNames.map((n) => `"${n}"`).join(', ')}</strong>. If your
+                    done column has a different name (e.g. &quot;Released&quot;), update{' '}
+                    <strong>Done List Names</strong> in ⚙️&nbsp;Settings.
+                  </>
+                ) : (
+                  'No historical data yet. Click ↻ Fetch from Trello to import your board data.'
+                )}
               </p>
             ) : (
               <div className={styles.chartWrap}>

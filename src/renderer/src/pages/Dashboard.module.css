@@ -489,3 +489,8 @@
   min-width: 160px;
   text-align: center;
 }
+
+.analyticsHint {
+  margin: 0;
+  font-size: 13px;
+}
