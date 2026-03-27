@@ -38,6 +38,7 @@ export const IPC_CHANNELS = {
   // Logging
   LOGS_GET_PATH: 'logs:getPath',
   LOGS_OPEN_FOLDER: 'logs:openFolder',
+  LOGS_SET_PATH: 'logs:setPath',
 
   // Kanban board view
   TRELLO_GET_BOARD_DATA: 'trello:getBoardData',

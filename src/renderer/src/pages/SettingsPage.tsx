@@ -6,7 +6,7 @@ import type {
   DoneCardDebugInfo,
   StoryPointRule
 } from '@shared/board.types'
-import type { DbPathInfo } from '@shared/settings.types'
+import type { DbPathInfo, LogPathInfo } from '@shared/settings.types'
 import { api } from '../hooks/useApi'
 import styles from './SettingsPage.module.css'
 
@@ -61,9 +61,16 @@ export default function SettingsPage({
   const [dbPathError, setDbPathError] = useState<string | null>(null)
   const [dbPathChanged, setDbPathChanged] = useState(false)
 
+  const [logPathInfo, setLogPathInfo] = useState<LogPathInfo | null>(null)
+  const [logPathChanging, setLogPathChanging] = useState(false)
+  const [logPathError, setLogPathError] = useState<string | null>(null)
+
   useEffect(() => {
     api.settings.getDbPath().then((result) => {
       if (result.success && result.data) setDbPathInfo(result.data)
+    })
+    api.logs.getPath().then((result) => {
+      if (result.success && result.data) setLogPathInfo(result.data)
     })
   }, [])
 
@@ -220,6 +227,34 @@ export default function SettingsPage({
     } else {
       setDbPathError(result.error ?? 'Failed to reset database location.')
     }
+  }
+
+  const handleChooseLogPath = async () => {
+    setLogPathChanging(true)
+    setLogPathError(null)
+    const result = await api.logs.setPath(false)
+    setLogPathChanging(false)
+    if (result.success && result.data) {
+      setLogPathInfo(result.data)
+    } else {
+      setLogPathError(result.error ?? 'Failed to change log location.')
+    }
+  }
+
+  const handleResetLogPath = async () => {
+    setLogPathChanging(true)
+    setLogPathError(null)
+    const result = await api.logs.setPath(true)
+    setLogPathChanging(false)
+    if (result.success && result.data) {
+      setLogPathInfo(result.data)
+    } else {
+      setLogPathError(result.error ?? 'Failed to reset log location.')
+    }
+  }
+
+  const handleOpenLogFolder = async () => {
+    await api.logs.openFolder()
   }
 
   return (
@@ -592,6 +627,40 @@ export default function SettingsPage({
           )}
           <button className="btn-primary" onClick={handleChooseDbPath} disabled={dbPathChanging}>
             {dbPathChanging ? 'Choosing…' : '📂 Choose Location'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Logs ── */}
+      <div className="card">
+        <h2 className={styles.cardTitle}>Logs</h2>
+        {logPathError && <div className={styles.errorBanner}>{logPathError}</div>}
+        <div className={styles.form}>
+          <label className={styles.label}>
+            Log File Location
+            <span className={styles.hint}>
+              Structured application logs written by electron-log.
+              {logPathInfo?.isCustom ? ' (custom)' : ' (default)'}
+            </span>
+            <input
+              type="text"
+              readOnly
+              value={logPathInfo?.currentPath ?? '…'}
+              style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+            />
+          </label>
+        </div>
+        <div className={styles.actions}>
+          {logPathInfo?.isCustom && (
+            <button className="btn-ghost" onClick={handleResetLogPath} disabled={logPathChanging}>
+              Restore Default
+            </button>
+          )}
+          <button className="btn-ghost" onClick={handleOpenLogFolder} disabled={logPathChanging}>
+            📂 Open Log Folder
+          </button>
+          <button className="btn-primary" onClick={handleChooseLogPath} disabled={logPathChanging}>
+            {logPathChanging ? 'Choosing…' : '📁 Choose Location'}
           </button>
         </div>
       </div>

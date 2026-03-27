@@ -1,10 +1,10 @@
 import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
-import log from '../logger'
 
 interface AppSettings {
   dbPath?: string
+  logPath?: string
 }
 
 function getSettingsPath(): string {
@@ -17,7 +17,8 @@ function readSettings(): AppSettings {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as AppSettings
   } catch (err) {
-    log.error('[appSettings] Failed to parse settings file, using defaults:', err)
+    // Use console.error here — logger may not be initialized yet at this point.
+    console.error('[appSettings] Failed to parse settings file, using defaults:', err)
     return {}
   }
 }
@@ -46,6 +47,25 @@ export function setDbPath(newPath: string | null): void {
     delete settings.dbPath
   } else {
     settings.dbPath = newPath
+  }
+  writeSettings(settings)
+}
+
+/**
+ * Returns the persisted custom log file path, or `null` if the default
+ * electron-log location should be used.
+ */
+export function getLogPath(): string | null {
+  return readSettings().logPath ?? null
+}
+
+/** Persists a custom log file path.  Pass `null` to restore the electron-log default. */
+export function setLogPath(newPath: string | null): void {
+  const settings = readSettings()
+  if (newPath === null) {
+    delete settings.logPath
+  } else {
+    settings.logPath = newPath
   }
   writeSettings(settings)
 }

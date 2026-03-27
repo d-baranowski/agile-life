@@ -27,7 +27,7 @@ import type {
   UnnumberedCard,
   ApplyNumberingResult
 } from '@shared/ticket.types'
-import type { DbPathInfo } from '@shared/settings.types'
+import type { DbPathInfo, LogPathInfo } from '@shared/settings.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return window.api.invoke(channel as Parameters<typeof window.api.invoke>[0], ...args) as Promise<
@@ -139,9 +139,16 @@ export const api = {
   },
 
   logs: {
-    /** Returns the absolute path of the current log file. */
-    getPath: () => invoke<string>(IPC_CHANNELS.LOGS_GET_PATH),
+    /** Returns the current log file path info (path, default path, isCustom). */
+    getPath: () => invoke<LogPathInfo>(IPC_CHANNELS.LOGS_GET_PATH),
     /** Opens the log folder in the native file manager. */
-    openFolder: () => invoke<void>(IPC_CHANNELS.LOGS_OPEN_FOLDER)
+    openFolder: () => invoke<void>(IPC_CHANNELS.LOGS_OPEN_FOLDER),
+    /**
+     * Opens a native folder-picker dialog and moves log output to the chosen
+     * folder (as "main.log").  Pass `resetToDefault = true` to restore the
+     * electron-log default location.  Takes effect immediately.
+     */
+    setPath: (resetToDefault = false) =>
+      invoke<LogPathInfo>(IPC_CHANNELS.LOGS_SET_PATH, resetToDefault)
   }
 }
