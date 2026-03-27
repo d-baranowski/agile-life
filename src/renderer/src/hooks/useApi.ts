@@ -10,7 +10,8 @@ import type {
   SyncResult,
   ArchiveResult,
   DoneCardPreview,
-  DoneCardDebugInfo
+  DoneCardDebugInfo,
+  StoryPointRule
 } from '@shared/board.types'
 import type { TrelloBoard, KanbanColumn } from '@shared/trello.types'
 import type {
@@ -83,9 +84,9 @@ export const api = {
       invoke<LabelUserStats[]>(IPC_CHANNELS.ANALYTICS_LABEL_USER_STATS, boardId),
     /** Returns age in days for every open card. */
     cardAge: (boardId: string) => invoke<CardAgeStats[]>(IPC_CHANNELS.ANALYTICS_CARD_AGE, boardId),
-    /** Returns tickets completed per user per week for the past 12 months. */
-    weeklyHistory: (boardId: string) =>
-      invoke<WeeklyHistory[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_HISTORY, boardId)
+    /** Returns story points completed per user per week for the past 12 months. */
+    weeklyHistory: (boardId: string, storyPointsConfig: StoryPointRule[]) =>
+      invoke<WeeklyHistory[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_HISTORY, boardId, storyPointsConfig)
   },
 
   tickets: {
