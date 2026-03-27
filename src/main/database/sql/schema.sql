@@ -98,3 +98,14 @@ CREATE TABLE IF NOT EXISTS card_list_entries (
 
 -- Extra index so queries filtering by list_id alone stay fast.
 CREATE INDEX IF NOT EXISTS idx_card_list_entries_list ON card_list_entries(list_id);
+
+-- Board members cached from Trello.
+-- Upserted on every sync so the context menu can show all assignable members.
+CREATE TABLE IF NOT EXISTS board_members (
+  id        TEXT NOT NULL,
+  board_id  TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  username  TEXT NOT NULL,
+  PRIMARY KEY (id, board_id),
+  FOREIGN KEY (board_id) REFERENCES board_configs(board_id) ON DELETE CASCADE
+);

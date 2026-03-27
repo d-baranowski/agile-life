@@ -12,7 +12,7 @@ import type {
   DoneCardPreview,
   DoneCardDebugInfo
 } from '@shared/board.types'
-import type { TrelloBoard, KanbanColumn } from '@shared/trello.types'
+import type { TrelloBoard, KanbanColumn, TrelloMember } from '@shared/trello.types'
 import type {
   ColumnCount,
   WeeklyUserStats,
@@ -66,6 +66,21 @@ export const api = {
     /** Debug: all done-column cards with raw timestamp data (no threshold). */
     getDoneColumnDebug: (boardId: string) =>
       invoke<DoneCardDebugInfo[]>(IPC_CHANNELS.TRELLO_GET_DONE_COLUMN_DEBUG, boardId),
+    /** Archives a single card on Trello and removes it from the local cache. */
+    archiveCard: (boardId: string, cardId: string) =>
+      invoke<void>(IPC_CHANNELS.TRELLO_ARCHIVE_CARD, boardId, cardId),
+    /** Returns the cached list of board members from the last sync. */
+    getBoardMembers: (boardId: string) =>
+      invoke<TrelloMember[]>(IPC_CHANNELS.TRELLO_GET_BOARD_MEMBERS, boardId),
+    /** Adds or removes a member assignment on a card and returns the updated member list. */
+    assignCardMember: (boardId: string, cardId: string, memberId: string, assign: boolean) =>
+      invoke<TrelloMember[]>(
+        IPC_CHANNELS.TRELLO_ASSIGN_CARD_MEMBER,
+        boardId,
+        cardId,
+        memberId,
+        assign
+      ),
     /** Archives open cards in the "done" lists that have been in done for olderThanWeeks weeks. */
     archiveDoneCards: (boardId: string, olderThanWeeks: number) =>
       invoke<ArchiveResult>(IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS, boardId, olderThanWeeks)
