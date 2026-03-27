@@ -1,0 +1,166 @@
+import axios from 'axios';
+const TRELLO_BASE_URL = 'https://api.trello.com/1';
+/**
+ * Thin wrapper around the Trello REST API.
+ * Each instance is scoped to a single (apiKey, apiToken) pair.
+ */
+export class TrelloClient {
+    apiKey;
+    apiToken;
+    http;
+    constructor(apiKey, apiToken) {
+        this.apiKey = apiKey;
+        this.apiToken = apiToken;
+        this.http = axios.create({
+            baseURL: TRELLO_BASE_URL,
+            params: { key: this.apiKey, token: this.apiToken }
+        });
+    }
+    // ─── Boards ─────────────────────────────────────────────────────────────────
+    async getBoard(boardId) {
+        const { data } = await this.http.get(`/boards/${boardId}`, {
+            params: { fields: 'id,name,desc,url,closed,prefs' }
+        });
+        return data;
+    }
+    async getMemberBoards() {
+        const { data } = await this.http.get('/members/me/boards', {
+            params: { filter: 'open', fields: 'id,name,desc,url,closed' }
+        });
+        return data;
+    }
+    // ─── Lists ───────────────────────────────────────────────────────────────────
+    async getLists(boardId) {
+        const { data } = await this.http.get(`/boards/${boardId}/lists`, {
+            params: { filter: 'open', fields: 'id,name,idBoard,closed,pos' }
+        });
+        return data;
+    }
+    // ─── Cards ───────────────────────────────────────────────────────────────────
+    async getCards(boardId) {
+        const { data } = await this.http.get(`/boards/${boardId}/cards`, {
+            params: {
+                filter: 'open',
+                fields: 'id,name,desc,idBoard,idList,idLabels,idMembers,labels,closed,dateLastActivity,due,dueComplete,pos,shortUrl,url',
+                members: 'true',
+                member_fields: 'id,fullName,username,avatarUrl'
+            }
+        });
+        return data;
+    }
+    /**
+     * Fetch all cards including archived ones (needed for historical analytics).
+     */
+    async getAllCards(boardId) {
+        const { data } = await this.http.get(`/boards/${boardId}/cards`, {
+            params: {
+                filter: 'all',
+                fields: 'id,name,desc,idBoard,idList,idLabels,idMembers,labels,closed,dateLastActivity,due,dueComplete,pos,shortUrl,url',
+                members: 'true',
+                member_fields: 'id,fullName,username,avatarUrl'
+            }
+        });
+        return data;
+    }
+    // ─── Members ─────────────────────────────────────────────────────────────────
+    async getMembers(boardId) {
+        const { data } = await this.http.get(`/boards/${boardId}/members`, {
+            params: { fields: 'id,fullName,username,avatarUrl' }
+        });
+        return data;
+    }
+    // ─── Actions ─────────────────────────────────────────────────────────────────
+    /**
+     * Fetches card movement actions from a board.
+     * Pages through all results (Trello returns max 1000 per call).
+     */
+    async getActions(boardId, options = {}) {
+        const allActions = [];
+        let before = options.before;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            const params = {
+                filter: 'updateCard:idList,createCard,convertToCardFromCheckItem',
+                limit: 1000,
+                fields: 'id,type,date,data,memberCreator'
+            };
+            if (options.since)
+                params.since = options.since;
+            if (before)
+                params.before = before;
+            const { data } = await this.http.get(`/boards/${boardId}/actions`, {
+                params
+            });
+            allActions.push(...data);
+            if (data.length < 1000)
+                break;
+            before = data[data.length - 1].id;
+        }
+        return allActions;
+    }
+    // ─── Card Mutation ───────────────────────────────────────────────────────────
+    /**
+     * Updates a card's name via the Trello API.
+     */
+    async updateCardName(cardId, name) {
+        const { data } = await this.http.put(`/cards/${cardId}`, { name });
+        return data;
+    }
+    /**
+     * Moves a card to a different list via the Trello API.
+     * Pass `pos` to also set the card's position within the target list.
+     */
+    async moveCard(cardId, toListId, pos) {
+        const body = { idList: toListId };
+        if (pos !== undefined)
+            body.pos = pos;
+        const { data } = await this.http.put(`/cards/${cardId}`, body);
+        return data;
+    }
+    /**
+     * Updates a card's position within its current list via the Trello API.
+     */
+    async reorderCard(cardId, pos) {
+        const { data } = await this.http.put(`/cards/${cardId}`, { pos });
+        return data;
+    }
+    /**
+     * Archives (closes) a card on Trello.
+     */
+    async archiveCard(cardId) {
+        const { data } = await this.http.put(`/cards/${cardId}`, { closed: true });
+        return data;
+    }
+    /**
+     * Creates a new card on Trello in the specified list.
+     */
+    async createCard(listId, name, desc) {
+        const body = { idList: listId, name };
+        if (desc)
+            body.desc = desc;
+        const { data } = await this.http.post('/cards', body);
+        return data;
+    }
+    /**
+     * Adds a member to a card on Trello.
+     */
+    async addCardMember(cardId, memberId) {
+        await this.http.post(`/cards/${cardId}/idMembers`, { value: memberId });
+    }
+    /**
+     * Removes a member from a card on Trello.
+     */
+    async removeCardMember(cardId, memberId) {
+        await this.http.delete(`/cards/${cardId}/idMembers/${memberId}`);
+    }
+    // ─── Credentials Validation ──────────────────────────────────────────────────
+    async validateCredentials() {
+        try {
+            const { data } = await this.http.get('/members/me', { params: { fields: 'fullName' } });
+            return { valid: true, memberName: data.fullName };
+        }
+        catch {
+            return { valid: false };
+        }
+    }
+}
