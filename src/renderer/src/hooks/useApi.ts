@@ -11,6 +11,8 @@ import type {
   ArchiveResult,
   DoneCardPreview,
   DoneCardDebugInfo,
+  EpicCardOption,
+  EpicStory,
   StoryPointRule
 } from '@shared/board.types'
 import type { TrelloBoard, KanbanColumn, TrelloMember } from '@shared/trello.types'
@@ -43,7 +45,9 @@ export const api = {
       invoke<BoardConfig>(IPC_CHANNELS.BOARDS_UPDATE, boardId, updates),
     delete: (boardId: string) => invoke<void>(IPC_CHANNELS.BOARDS_DELETE, boardId),
     fetchFromTrello: (apiKey: string, apiToken: string) =>
-      invoke<TrelloBoard[]>(IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO, apiKey, apiToken)
+      invoke<TrelloBoard[]>(IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO, apiKey, apiToken),
+    setEpicBoard: (storyBoardId: string, epicBoardId: string | null) =>
+      invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_EPIC_BOARD, storyBoardId, epicBoardId)
   },
 
   trello: {
@@ -150,5 +154,17 @@ export const api = {
      */
     setPath: (resetToDefault = false) =>
       invoke<LogPathInfo>(IPC_CHANNELS.LOGS_SET_PATH, resetToDefault)
+  },
+
+  epics: {
+    /** Returns all open cards from the linked epic board for assignment. */
+    getCards: (storyBoardId: string) =>
+      invoke<EpicCardOption[]>(IPC_CHANNELS.EPICS_GET_CARDS, storyBoardId),
+    /** Assigns or clears the epic for a story card. */
+    setCardEpic: (boardId: string, cardId: string, epicCardId: string | null) =>
+      invoke<void>(IPC_CHANNELS.EPICS_SET_CARD_EPIC, boardId, cardId, epicCardId),
+    /** Returns all story cards assigned to the given epic card. */
+    getStories: (epicCardId: string) =>
+      invoke<EpicStory[]>(IPC_CHANNELS.EPICS_GET_STORIES, epicCardId)
   }
 }

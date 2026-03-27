@@ -141,7 +141,7 @@ export default function App(): JSX.Element {
         ) : (
           <>
             {activeTab === 'kanban' && (
-              <KanbanPage board={selectedBoard} syncVersion={syncVersion} />
+              <KanbanPage board={selectedBoard} allBoards={boards} syncVersion={syncVersion} />
             )}
             {activeTab === 'dashboard' && (
               <Dashboard board={selectedBoard} syncVersion={syncVersion} />
@@ -149,6 +149,7 @@ export default function App(): JSX.Element {
             {activeTab === 'settings' && (
               <SettingsPage
                 board={selectedBoard}
+                allBoards={boards}
                 onBoardUpdated={(updated) =>
                   setBoards((prev) =>
                     prev.map((b) => (b.boardId === updated.boardId ? updated : b))
