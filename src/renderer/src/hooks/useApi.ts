@@ -14,6 +14,12 @@ import type {
 } from '@shared/board.types'
 import type { TrelloBoard } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
+import type {
+  TicketNumberingConfig,
+  UnnumberedCard,
+  ApplyNumberingResult
+} from '@shared/ticket.types'
+import type { DbPathInfo } from '@shared/settings.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return window.api.invoke(channel as Parameters<typeof window.api.invoke>[0], ...args) as Promise<
@@ -54,5 +60,31 @@ export const api = {
     /** Returns card counts per open column, read from local cache. */
     columnCounts: (boardId: string) =>
       invoke<ColumnCount[]>(IPC_CHANNELS.ANALYTICS_COLUMN_COUNTS, boardId)
+  },
+
+  tickets: {
+    getConfig: (boardId: string) =>
+      invoke<TicketNumberingConfig>(IPC_CHANNELS.TICKETS_GET_CONFIG, boardId),
+    previewUnnumbered: (boardId: string) =>
+      invoke<UnnumberedCard[]>(IPC_CHANNELS.TICKETS_PREVIEW_UNNUMBERED, boardId),
+    applyNumbering: (boardId: string) =>
+      invoke<ApplyNumberingResult>(IPC_CHANNELS.TICKETS_APPLY_NUMBERING, boardId),
+    applySingleCard: (boardId: string, cardId: string, newName: string) =>
+      invoke<void>(IPC_CHANNELS.TICKETS_APPLY_SINGLE_CARD, boardId, cardId, newName),
+    updateConfig: (boardId: string, updates: { projectCode?: string; nextTicketNumber?: number }) =>
+      invoke<void>(IPC_CHANNELS.TICKETS_UPDATE_CONFIG, boardId, updates)
+  },
+
+  settings: {
+    /** Returns the current database file path and whether it is a custom path. */
+    getDbPath: () => invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_GET_DB_PATH),
+    /**
+     * Opens a native save dialog so the user can choose a new database
+     * location, copies the existing DB file there, and persists the choice.
+     * Pass `resetToDefault = true` to restore the built-in userData path.
+     * Changes take effect after restarting the app.
+     */
+    setDbPath: (resetToDefault = false) =>
+      invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_SET_DB_PATH, resetToDefault)
   }
 }
