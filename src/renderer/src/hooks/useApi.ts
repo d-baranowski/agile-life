@@ -45,8 +45,8 @@ export const api = {
     getBoardData: (boardId: string) =>
       invoke<KanbanColumn[]>(IPC_CHANNELS.TRELLO_GET_BOARD_DATA, boardId),
     /** Moves a card to a different list on Trello and updates the local cache. */
-    moveCard: (boardId: string, cardId: string, toListId: string) =>
-      invoke<void>(IPC_CHANNELS.TRELLO_MOVE_CARD, boardId, cardId, toListId),
+    moveCard: (boardId: string, cardId: string, toListId: string, pos: number) =>
+      invoke<void>(IPC_CHANNELS.TRELLO_MOVE_CARD, boardId, cardId, toListId, pos),
     /** Updates the position of a card on Trello and in the local cache. */
     updateCardPos: (boardId: string, cardId: string, pos: number) =>
       invoke<void>(IPC_CHANNELS.TRELLO_UPDATE_CARD_POS, boardId, cardId, pos),

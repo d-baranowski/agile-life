@@ -272,15 +272,21 @@ export function registerBoardHandlers(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.TRELLO_MOVE_CARD,
-    async (_e, boardId: string, cardId: string, toListId: string): Promise<IpcResult<void>> => {
+    async (
+      _e,
+      boardId: string,
+      cardId: string,
+      toListId: string,
+      pos: number
+    ): Promise<IpcResult<void>> => {
       try {
         const config = getBoardById(boardId)
         if (!config) return { success: false, error: `Board not found: ${boardId}` }
 
         const client = new TrelloClient(config.apiKey, config.apiToken)
-        await client.moveCard(cardId, toListId)
+        await client.moveCard(cardId, toListId, pos)
 
-        moveCardToList(cardId, toListId)
+        moveCardToList(cardId, toListId, pos)
 
         return { success: true }
       } catch (err) {

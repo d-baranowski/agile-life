@@ -124,11 +124,42 @@ export default function KanbanPage({ board }: Props): JSX.Element {
       }
 
       // Move to a different column
+      const toCol = columns.find((c) => c.id === toColId)
+      if (!toCol) return
+
+      // Compute a stable pos for the new position in the target column so
+      // Trello and the local DB stay in sync after cross-column moves.
+      const destCards = toCol.cards
+      const prevCard = destination.index > 0 ? destCards[destination.index - 1] : null
+      const nextCard =
+        destination.index < destCards.length ? destCards[destination.index] : null
+      const newPos =
+        prevCard && nextCard
+          ? (prevCard.pos + nextCard.pos) / 2
+          : prevCard
+            ? prevCard.pos + 65536
+            : nextCard
+              ? nextCard.pos / 2
+              : 65536
+
       const prevColumns = columns
-      setColumns((prev) => moveCard(prev, fromColId, toColId, source.index, destination.index))
+      // Optimistically update UI: move card into new column with the computed pos
+      setColumns((prev) => {
+        const cols = moveCard(prev, fromColId, toColId, source.index, destination.index)
+        return cols.map((c) =>
+          c.id === toColId
+            ? {
+                ...c,
+                cards: c.cards.map((card, i) =>
+                  i === destination.index ? { ...card, pos: newPos } : card
+                )
+              }
+            : c
+        )
+      })
 
       // ── Sync to Trello ──
-      const syncResult = await api.trello.moveCard(board.boardId, draggableId, toColId)
+      const syncResult = await api.trello.moveCard(board.boardId, draggableId, toColId, newPos)
       if (!syncResult.success) {
         // Revert optimistic update and show error
         setColumns(prevColumns)
@@ -173,9 +204,6 @@ export default function KanbanPage({ board }: Props): JSX.Element {
     <div className={styles.container}>
       <div className={styles.header}>
         <h1 className={styles.title}>📋 {board.boardName}</h1>
-        <button className="btn-secondary" onClick={loadBoardData}>
-          ↻ Refresh
-        </button>
       </div>
 
       <DragDropContext onDragEnd={handleDragEnd}>

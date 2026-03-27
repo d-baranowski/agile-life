@@ -228,8 +228,8 @@ export function getCardsForBoard(boardId: string): CardRow[] {
   return getDb().prepare(sqlKanbanGetCards).all(boardId) as CardRow[]
 }
 
-export function moveCardToList(cardId: string, toListId: string): void {
-  getDb().prepare(sqlKanbanMoveCard).run({ cardId, toListId })
+export function moveCardToList(cardId: string, toListId: string, pos: number): void {
+  getDb().prepare(sqlKanbanMoveCard).run({ cardId, toListId, pos })
 }
 
 /** Update only the position of a card (used when reordering within a column). */
