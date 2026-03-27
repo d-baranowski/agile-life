@@ -64,7 +64,7 @@
     "vite": "^5.1.4"
   },
   "build": {
-    "appId": "com.agilelife.app",
+    "appId": "com.inspiration-particle.agile-life",
     "productName": "Agile Life",
     "directories": {
       "buildResources": "resources"
