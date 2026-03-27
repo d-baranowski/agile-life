@@ -13,7 +13,7 @@ function TemplateForm({ initial, groupId, boardId: _boardId, lists, onSave, onCa
     const [name, setName] = useState(initial?.name ?? '');
     const [titleTemplate, setTitleTemplate] = useState(initial?.titleTemplate ?? '');
     const [descTemplate, setDescTemplate] = useState(initial?.descTemplate ?? '');
-    const [listId, setListId] = useState(initial?.listId ?? (lists[0]?.id ?? ''));
+    const [listId, setListId] = useState(initial?.listId ?? lists[0]?.id ?? '');
     const handleSubmit = () => {
         const selectedList = lists.find((l) => l.id === listId);
         onSave({
@@ -28,9 +28,7 @@ function TemplateForm({ initial, groupId, boardId: _boardId, lists, onSave, onCa
     };
     return (<div className={styles.overlay}>
       <div className={styles.modal}>
-        <div className={styles.modalTitle}>
-          {initial ? 'Edit Template' : 'New Template'}
-        </div>
+        <div className={styles.modalTitle}>{initial ? 'Edit Template' : 'New Template'}</div>
 
         {error && <div className={`${styles.resultBanner} ${styles.error}`}>{error}</div>}
 

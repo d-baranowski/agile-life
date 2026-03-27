@@ -139,7 +139,12 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
       apiToken: normalizedApiToken,
       projectCode: projectCode.toUpperCase(),
       nextTicketNumber: 1,
-      doneListNames: parsedDoneNames.length > 0 ? parsedDoneNames : ['Done']
+      doneListNames: parsedDoneNames.length > 0 ? parsedDoneNames : ['Done'],
+      storyPointsConfig: [
+        { labelName: 'Large', points: 5 },
+        { labelName: 'Medium', points: 3 },
+        { labelName: 'Small', points: 1 }
+      ]
     })
 
     setLoading(false)

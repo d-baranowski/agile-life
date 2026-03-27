@@ -144,6 +144,7 @@ export default function App(): JSX.Element {
             {activeTab === 'dashboard' && (
               <Dashboard board={selectedBoard} syncVersion={syncVersion} />
             )}
+            {activeTab === 'templates' && <TemplatesPage board={selectedBoard} />}
             {activeTab === 'settings' && (
               <SettingsPage
                 board={selectedBoard}

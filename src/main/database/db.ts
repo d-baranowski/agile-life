@@ -4,7 +4,12 @@ import path from 'path'
 import type { BoardConfig, BoardConfigInput, StoryPointRule } from '@shared/board.types'
 import { getDbPath } from '../settings/appSettings'
 import type { TrelloList, TrelloCard, TrelloAction, TrelloMember } from '@shared/trello.types'
-import type { TemplateGroup, TicketTemplate, TemplateGroupInput, TicketTemplateInput } from '@shared/template.types'
+import type {
+  TemplateGroup,
+  TicketTemplate,
+  TemplateGroupInput,
+  TicketTemplateInput
+} from '@shared/template.types'
 
 // ─── SQL imports ───────────────────────────────────────────────────────────────
 import schemaSql from './sql/schema.sql?raw'
@@ -516,9 +521,7 @@ function rowToBoardConfig(row: Row): BoardConfig {
 // ─── Template Groups ───────────────────────────────────────────────────────────
 
 export function getTemplateGroups(boardId: string): TemplateGroup[] {
-  return (
-    getDb().prepare(sqlTemplatesGetGroups).all({ boardId }) as Row[]
-  ).map(rowToTemplateGroup)
+  return (getDb().prepare(sqlTemplatesGetGroups).all({ boardId }) as Row[]).map(rowToTemplateGroup)
 }
 
 export function createTemplateGroup(boardId: string, input: TemplateGroupInput): TemplateGroup {
@@ -535,9 +538,7 @@ export function updateTemplateGroup(
   id: number,
   input: TemplateGroupInput
 ): boolean {
-  const result = getDb()
-    .prepare(sqlTemplatesUpdateGroup)
-    .run({ id, boardId, name: input.name })
+  const result = getDb().prepare(sqlTemplatesUpdateGroup).run({ id, boardId, name: input.name })
   return result.changes > 0
 }
 
@@ -549,15 +550,12 @@ export function deleteTemplateGroup(boardId: string, id: number): boolean {
 // ─── Ticket Templates ──────────────────────────────────────────────────────────
 
 export function getTemplatesByGroup(boardId: string, groupId: number): TicketTemplate[] {
-  return (
-    getDb().prepare(sqlTemplatesGetByGroup).all({ boardId, groupId }) as Row[]
-  ).map(rowToTicketTemplate)
+  return (getDb().prepare(sqlTemplatesGetByGroup).all({ boardId, groupId }) as Row[]).map(
+    rowToTicketTemplate
+  )
 }
 
-export function createTicketTemplate(
-  boardId: string,
-  input: TicketTemplateInput
-): TicketTemplate {
+export function createTicketTemplate(boardId: string, input: TicketTemplateInput): TicketTemplate {
   const db = getDb()
   const result = db.prepare(sqlTemplatesInsert).run({
     boardId,

@@ -167,11 +167,7 @@ export class TrelloClient {
   /**
    * Creates a new card on Trello in the specified list.
    */
-  async createCard(
-    listId: string,
-    name: string,
-    desc?: string
-  ): Promise<TrelloCard> {
+  async createCard(listId: string, name: string, desc?: string): Promise<TrelloCard> {
     const body: Record<string, unknown> = { idList: listId, name }
     if (desc) body.desc = desc
     const { data } = await this.http.post<TrelloCard>('/cards', body)

@@ -107,7 +107,12 @@ export default function BoardRegistration({ onBoardAdded, onCancel }) {
             apiToken: normalizedApiToken,
             projectCode: projectCode.toUpperCase(),
             nextTicketNumber: 1,
-            doneListNames: parsedDoneNames.length > 0 ? parsedDoneNames : ['Done']
+            doneListNames: parsedDoneNames.length > 0 ? parsedDoneNames : ['Done'],
+            storyPointsConfig: [
+                { labelName: 'Large', points: 5 },
+                { labelName: 'Medium', points: 3 },
+                { labelName: 'Small', points: 1 }
+            ]
         });
         setLoading(false);
         if (!result.success || !result.data) {

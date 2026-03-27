@@ -412,9 +412,7 @@ export function createTemplateGroup(boardId, input) {
     return rowToTemplateGroup(row);
 }
 export function updateTemplateGroup(boardId, id, input) {
-    const result = getDb()
-        .prepare(sqlTemplatesUpdateGroup)
-        .run({ id, boardId, name: input.name });
+    const result = getDb().prepare(sqlTemplatesUpdateGroup).run({ id, boardId, name: input.name });
     return result.changes > 0;
 }
 export function deleteTemplateGroup(boardId, id) {

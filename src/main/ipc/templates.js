@@ -20,8 +20,18 @@ function resolvePlaceholders(template, now) {
     const weekNumber = Math.floor((dayOfYear + adjustedDow) / 7) + 1;
     const week = String(weekNumber).padStart(2, '0');
     const MONTH_NAMES = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December'
     ];
     const monthName = MONTH_NAMES[month - 1];
     return template
@@ -152,9 +162,7 @@ export function registerTemplateHandlers() {
             for (const tmpl of templates) {
                 try {
                     const title = resolvePlaceholders(tmpl.titleTemplate, now);
-                    const desc = tmpl.descTemplate
-                        ? resolvePlaceholders(tmpl.descTemplate, now)
-                        : undefined;
+                    const desc = tmpl.descTemplate ? resolvePlaceholders(tmpl.descTemplate, now) : undefined;
                     const card = await client.createCard(tmpl.listId, title, desc);
                     // Persist to local cache so the kanban board reflects the new card
                     // immediately (without needing a full sync).

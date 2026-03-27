@@ -6,6 +6,7 @@ import Toast from './components/Toast';
 import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/SettingsPage';
 import KanbanPage from './pages/KanbanPage';
+import TemplatesPage from './pages/TemplatesPage';
 import styles from './App.module.css';
 export default function App() {
     const [boards, setBoards] = useState([]);
@@ -98,6 +99,7 @@ export default function App() {
           </div>) : (<>
             {activeTab === 'kanban' && (<KanbanPage board={selectedBoard} syncVersion={syncVersion}/>)}
             {activeTab === 'dashboard' && (<Dashboard board={selectedBoard} syncVersion={syncVersion}/>)}
+            {activeTab === 'templates' && <TemplatesPage board={selectedBoard}/>}
             {activeTab === 'settings' && (<SettingsPage board={selectedBoard} onBoardUpdated={(updated) => setBoards((prev) => prev.map((b) => (b.boardId === updated.boardId ? updated : b)))} onBoardDeleted={handleBoardDeleted}/>)}
           </>)}
       </main>

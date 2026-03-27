@@ -10,7 +10,6 @@ import type { KanbanColumn } from '@shared/trello.types'
 import type {
   TemplateGroup,
   TicketTemplate,
-  TemplateGroupInput,
   TicketTemplateInput,
   GenerateCardsResult
 } from '@shared/template.types'
@@ -52,7 +51,7 @@ function TemplateForm({
   const [name, setName] = useState(initial?.name ?? '')
   const [titleTemplate, setTitleTemplate] = useState(initial?.titleTemplate ?? '')
   const [descTemplate, setDescTemplate] = useState(initial?.descTemplate ?? '')
-  const [listId, setListId] = useState(initial?.listId ?? (lists[0]?.id ?? ''))
+  const [listId, setListId] = useState(initial?.listId ?? lists[0]?.id ?? '')
 
   const handleSubmit = () => {
     const selectedList = lists.find((l) => l.id === listId)
@@ -70,9 +69,7 @@ function TemplateForm({
   return (
     <div className={styles.overlay}>
       <div className={styles.modal}>
-        <div className={styles.modalTitle}>
-          {initial ? 'Edit Template' : 'New Template'}
-        </div>
+        <div className={styles.modalTitle}>{initial ? 'Edit Template' : 'New Template'}</div>
 
         {error && <div className={`${styles.resultBanner} ${styles.error}`}>{error}</div>}
 
@@ -325,7 +322,11 @@ export default function TemplatesPage({ board }: Props): JSX.Element {
               }}
               autoFocus
             />
-            <button className="btn-primary" style={{ fontSize: 12, padding: '4px 10px' }} onClick={handleCreateGroup}>
+            <button
+              className="btn-primary"
+              style={{ fontSize: 12, padding: '4px 10px' }}
+              onClick={handleCreateGroup}
+            >
               Add
             </button>
           </div>

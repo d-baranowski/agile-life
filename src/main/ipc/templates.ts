@@ -42,8 +42,18 @@ function resolvePlaceholders(template: string, now: Date): string {
   const week = String(weekNumber).padStart(2, '0')
 
   const MONTH_NAMES = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
   ]
   const monthName = MONTH_NAMES[month - 1]
 
@@ -127,11 +137,7 @@ export function registerTemplateHandlers(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.TEMPLATES_GET,
-    async (
-      _e,
-      boardId: string,
-      groupId: number
-    ): Promise<IpcResult<TicketTemplate[]>> => {
+    async (_e, boardId: string, groupId: number): Promise<IpcResult<TicketTemplate[]>> => {
       try {
         return { success: true, data: getTemplatesByGroup(boardId, groupId) }
       } catch (err) {
@@ -144,11 +150,7 @@ export function registerTemplateHandlers(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.TEMPLATES_CREATE,
-    async (
-      _e,
-      boardId: string,
-      input: TicketTemplateInput
-    ): Promise<IpcResult<TicketTemplate>> => {
+    async (_e, boardId: string, input: TicketTemplateInput): Promise<IpcResult<TicketTemplate>> => {
       try {
         if (!input.titleTemplate?.trim()) {
           return { success: false, error: 'Title template is required.' }
@@ -208,11 +210,7 @@ export function registerTemplateHandlers(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.TEMPLATES_GENERATE_CARDS,
-    async (
-      _e,
-      boardId: string,
-      groupId: number
-    ): Promise<IpcResult<GenerateCardsResult>> => {
+    async (_e, boardId: string, groupId: number): Promise<IpcResult<GenerateCardsResult>> => {
       try {
         const board = getBoardById(boardId)
         if (!board) return { success: false, error: `Board not found: ${boardId}` }
@@ -231,9 +229,7 @@ export function registerTemplateHandlers(): void {
         for (const tmpl of templates) {
           try {
             const title = resolvePlaceholders(tmpl.titleTemplate, now)
-            const desc = tmpl.descTemplate
-              ? resolvePlaceholders(tmpl.descTemplate, now)
-              : undefined
+            const desc = tmpl.descTemplate ? resolvePlaceholders(tmpl.descTemplate, now) : undefined
 
             const card = await client.createCard(tmpl.listId, title, desc)
 
