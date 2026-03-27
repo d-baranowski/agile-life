@@ -19,7 +19,8 @@ import type {
   WeeklyUserStats,
   LabelUserStats,
   CardAgeStats,
-  WeeklyHistory
+  WeeklyHistory,
+  StoryPointsUserStats
 } from '@shared/analytics.types'
 import type {
   TicketNumberingConfig,
@@ -86,7 +87,14 @@ export const api = {
     cardAge: (boardId: string) => invoke<CardAgeStats[]>(IPC_CHANNELS.ANALYTICS_CARD_AGE, boardId),
     /** Returns story points completed per user per week for the past 12 months. */
     weeklyHistory: (boardId: string, storyPointsConfig: StoryPointRule[] = []) =>
-      invoke<WeeklyHistory[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_HISTORY, boardId, storyPointsConfig)
+      invoke<WeeklyHistory[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_HISTORY, boardId, storyPointsConfig),
+    /** Returns story points completed per user in the last 7 days. */
+    storyPoints7d: (boardId: string, storyPointsConfig: StoryPointRule[] = []) =>
+      invoke<StoryPointsUserStats[]>(
+        IPC_CHANNELS.ANALYTICS_STORY_POINTS_7D,
+        boardId,
+        storyPointsConfig
+      )
   },
 
   tickets: {

@@ -4,7 +4,8 @@ import type {
   ColumnCount,
   WeeklyUserStats,
   LabelUserStats,
-  WeeklyHistory
+  WeeklyHistory,
+  StoryPointsUserStats
 } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
 import styles from './Dashboard.module.css'
@@ -66,6 +67,7 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
   const [weeklyStats, setWeeklyStats] = useState<WeeklyUserStats[]>([])
   const [labelStats, setLabelStats] = useState<LabelUserStats[]>([])
   const [historyStats, setHistoryStats] = useState<WeeklyHistory[]>([])
+  const [storyPointStats, setStoryPointStats] = useState<StoryPointsUserStats[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [historyOffset, setHistoryOffset] = useState(0)
@@ -74,11 +76,12 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
     setLoading(true)
     setError(null)
 
-    const [colResult, weeklyResult, labelResult, historyResult] = await Promise.all([
+    const [colResult, weeklyResult, labelResult, historyResult, spResult] = await Promise.all([
       api.analytics.columnCounts(board.boardId),
       api.analytics.weeklyUserStats(board.boardId),
       api.analytics.labelUserStats(board.boardId),
-      api.analytics.weeklyHistory(board.boardId, board.storyPointsConfig)
+      api.analytics.weeklyHistory(board.boardId, board.storyPointsConfig),
+      api.analytics.storyPoints7d(board.boardId, board.storyPointsConfig)
     ])
 
     if (colResult.success && colResult.data) setColumns(colResult.data)
@@ -88,6 +91,7 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
     if (labelResult.success) setLabelStats(labelResult.data ?? [])
     else setError((prev) => prev ?? labelResult.error ?? 'Failed to load label stats.')
     if (historyResult.success) setHistoryStats(historyResult.data ?? [])
+    if (spResult.success) setStoryPointStats(spResult.data ?? [])
 
     setLoading(false)
   }, [board.boardId, board.storyPointsConfig])
@@ -285,6 +289,30 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
                         <div className={styles.barFill} style={{ width: `${pct}%` }} />
                       </div>
                       <span className={styles.userCount}>{count}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* ── Story Points Completed per User (last 7 days) ── */}
+          {storyPointStats.length > 0 && (
+            <section>
+              <h2 className={styles.sectionTitle}>
+                {'Story Points Completed per User (last 7 days)'}
+              </h2>
+              <div className={styles.userList}>
+                {storyPointStats.map((row) => {
+                  const maxSp = storyPointStats[0].storyPoints || 1
+                  const pct = (row.storyPoints / maxSp) * 100
+                  return (
+                    <div key={row.userId ?? 'unassigned'} className={styles.userRow}>
+                      <span className={styles.userName}>{row.userName}</span>
+                      <div className={styles.barWrap}>
+                        <div className={styles.barFill} style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className={styles.userCount}>{row.storyPoints}</span>
                     </div>
                   )
                 })}
