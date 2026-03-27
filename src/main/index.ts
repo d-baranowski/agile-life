@@ -1,14 +1,18 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import log from './logger'
 import { registerBoardHandlers } from './ipc/boards'
 import { registerAnalyticsHandlers } from './ipc/analytics'
 import { registerTicketHandlers } from './ipc/tickets'
 import { registerSettingsHandlers } from './ipc/settings'
+import { registerLogHandlers } from './ipc/logs'
 import icon from '../../resources/icon.png?asset'
 
 // Ensure the Dock / taskbar always shows "Agile Life", not the Electron binary name
 app.setName('Agile Life')
+
+log.info('Agile Life starting up')
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -56,6 +60,7 @@ app.whenReady().then(() => {
   registerAnalyticsHandlers()
   registerTicketHandlers()
   registerSettingsHandlers()
+  registerLogHandlers()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

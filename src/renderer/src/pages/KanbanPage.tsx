@@ -220,6 +220,10 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
 
+  const handleOpenLogs = useCallback(() => {
+    api.logs.openFolder()
+  }, [])
+
   // Close modals on Escape key
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -519,7 +523,11 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         </div>
       )}
 
-      <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
+      <Toast
+        message={toastMessage}
+        onDismiss={() => setToastMessage(null)}
+        onOpenLogs={handleOpenLogs}
+      />
 
       {ticketsModal}
 

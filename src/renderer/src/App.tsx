@@ -66,6 +66,10 @@ export default function App(): JSX.Element {
     setSyncing(false)
   }
 
+  const handleOpenLogs = useCallback(() => {
+    api.logs.openFolder()
+  }, [])
+
   if (loading) {
     return (
       <div className={styles.loadingScreen}>
@@ -158,7 +162,7 @@ export default function App(): JSX.Element {
         )}
       </main>
 
-      <Toast message={syncError} onDismiss={() => setSyncError(null)} />
+      <Toast message={syncError} onDismiss={() => setSyncError(null)} onOpenLogs={handleOpenLogs} />
     </div>
   )
 }
