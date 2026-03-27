@@ -4,6 +4,7 @@ import { IPC_CHANNELS } from '@shared/ipc.types'
 import type { IpcResult } from '@shared/ipc.types'
 import type { DbPathInfo } from '@shared/settings.types'
 import { getDbPath, getDefaultDbPath, setDbPath } from '../settings/appSettings'
+import log from '../logger'
 
 export function registerSettingsHandlers(): void {
   // ── Get DB path info ────────────────────────────────────────────────────────
@@ -12,6 +13,9 @@ export function registerSettingsHandlers(): void {
     try {
       const defaultPath = getDefaultDbPath()
       const currentPath = getDbPath()
+      log.debug(
+        `[settings] getDbPath currentPath="${currentPath}" isCustom=${currentPath !== defaultPath}`
+      )
       return {
         success: true,
         data: {
@@ -21,6 +25,7 @@ export function registerSettingsHandlers(): void {
         }
       }
     } catch (err) {
+      log.error('[settings] getDbPath failed:', err)
       return { success: false, error: String(err) }
     }
   })
@@ -32,6 +37,7 @@ export function registerSettingsHandlers(): void {
     async (_e, resetToDefault: boolean): Promise<IpcResult<DbPathInfo>> => {
       try {
         if (resetToDefault) {
+          log.info('[settings] setDbPath: resetting to default')
           setDbPath(null)
         } else {
           const { canceled, filePath } = await dialog.showSaveDialog({
@@ -43,6 +49,7 @@ export function registerSettingsHandlers(): void {
           })
 
           if (canceled || !filePath) {
+            log.info('[settings] setDbPath: dialog cancelled')
             const defaultPath = getDefaultDbPath()
             const currentPath = getDbPath()
             return {
@@ -58,13 +65,14 @@ export function registerSettingsHandlers(): void {
               fs.copyFileSync(currentPath, filePath)
             }
           } else {
-            console.warn(
-              '[settings] Current database file not found at',
+            log.warn(
+              '[settings] setDbPath: current database file not found at',
               currentPath,
               '— new location will start with an empty database.'
             )
           }
 
+          log.info(`[settings] setDbPath: new path="${filePath}"`)
           setDbPath(filePath)
         }
 
@@ -75,6 +83,7 @@ export function registerSettingsHandlers(): void {
           data: { currentPath, defaultPath, isCustom: currentPath !== defaultPath }
         }
       } catch (err) {
+        log.error('[settings] setDbPath failed:', err)
         return { success: false, error: String(err) }
       }
     }
