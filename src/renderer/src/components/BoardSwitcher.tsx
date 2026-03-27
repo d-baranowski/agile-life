@@ -16,6 +16,9 @@ export default function BoardSwitcher({
 }: Props): JSX.Element {
   return (
     <div className={styles.container}>
+      <button className={`btn-secondary ${styles.addBtn}`} onClick={onAddNew} title="Add board">
+        +
+      </button>
       <select
         className={styles.select}
         value={selectedBoardId ?? ''}
@@ -34,9 +37,6 @@ export default function BoardSwitcher({
           ))
         )}
       </select>
-      <button className={`btn-secondary ${styles.addBtn}`} onClick={onAddNew} title="Add board">
-        +
-      </button>
     </div>
   )
 }

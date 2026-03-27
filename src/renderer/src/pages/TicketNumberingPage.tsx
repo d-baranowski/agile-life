@@ -50,6 +50,9 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
       setConfig(result.data)
       setProjectCode(result.data.projectCode)
       setNextTicketNumber(result.data.nextTicketNumber)
+      setConfigError(null)
+    } else if (!result.success) {
+      setConfigError(result.error ?? 'Failed to load configuration.')
     }
   }, [board.boardId])
 

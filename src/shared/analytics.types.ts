@@ -6,7 +6,7 @@ export interface ColumnCount {
 
 export interface WeeklyUserStats {
   week: string
-  userId: string
+  userId: string | null
   userName: string
   closedCount: number
 }
@@ -14,7 +14,7 @@ export interface WeeklyUserStats {
 export interface LabelUserStats {
   labelName: string
   labelColor: string
-  userId: string
+  userId: string | null
   userName: string
   closedCount: number
 }
@@ -25,4 +25,12 @@ export interface CardAgeStats {
   listName: string
   ageInDays: number
   assignees: string[]
+}
+
+/** One data-point in the 12-month completion history: one row per (week, user). */
+export interface WeeklyHistory {
+  week: string
+  userId: string | null
+  userName: string
+  closedCount: number
 }

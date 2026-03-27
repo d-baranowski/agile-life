@@ -12,8 +12,14 @@ import type {
   DoneCardPreview,
   DoneCardDebugInfo
 } from '@shared/board.types'
-import type { TrelloBoard } from '@shared/trello.types'
-import type { ColumnCount } from '@shared/analytics.types'
+import type { TrelloBoard, KanbanColumn } from '@shared/trello.types'
+import type {
+  ColumnCount,
+  WeeklyUserStats,
+  LabelUserStats,
+  CardAgeStats,
+  WeeklyHistory
+} from '@shared/analytics.types'
 import type {
   TicketNumberingConfig,
   UnnumberedCard,
@@ -41,6 +47,15 @@ export const api = {
   trello: {
     /** Syncs lists + cards for the board and returns a summary. */
     sync: (boardId: string) => invoke<SyncResult>(IPC_CHANNELS.TRELLO_SYNC, boardId),
+    /** Returns columns with their cards from the local SQLite cache. */
+    getBoardData: (boardId: string) =>
+      invoke<KanbanColumn[]>(IPC_CHANNELS.TRELLO_GET_BOARD_DATA, boardId),
+    /** Moves a card to a different list on Trello and updates the local cache. */
+    moveCard: (boardId: string, cardId: string, toListId: string, pos: number) =>
+      invoke<void>(IPC_CHANNELS.TRELLO_MOVE_CARD, boardId, cardId, toListId, pos),
+    /** Updates the position of a card on Trello and in the local cache. */
+    updateCardPos: (boardId: string, cardId: string, pos: number) =>
+      invoke<void>(IPC_CHANNELS.TRELLO_UPDATE_CARD_POS, boardId, cardId, pos),
     /** Dry-run: returns cards that would be archived without touching Trello. */
     previewArchiveDoneCards: (boardId: string, olderThanWeeks: number) =>
       invoke<DoneCardPreview[]>(
@@ -59,7 +74,18 @@ export const api = {
   analytics: {
     /** Returns card counts per open column, read from local cache. */
     columnCounts: (boardId: string) =>
-      invoke<ColumnCount[]>(IPC_CHANNELS.ANALYTICS_COLUMN_COUNTS, boardId)
+      invoke<ColumnCount[]>(IPC_CHANNELS.ANALYTICS_COLUMN_COUNTS, boardId),
+    /** Returns cards closed per user in the last 7 days, grouped by ISO week. */
+    weeklyUserStats: (boardId: string) =>
+      invoke<WeeklyUserStats[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_USER_STATS, boardId),
+    /** Returns closed cards grouped by label + user in the last 7 days. */
+    labelUserStats: (boardId: string) =>
+      invoke<LabelUserStats[]>(IPC_CHANNELS.ANALYTICS_LABEL_USER_STATS, boardId),
+    /** Returns age in days for every open card. */
+    cardAge: (boardId: string) => invoke<CardAgeStats[]>(IPC_CHANNELS.ANALYTICS_CARD_AGE, boardId),
+    /** Returns tickets completed per user per week for the past 12 months. */
+    weeklyHistory: (boardId: string) =>
+      invoke<WeeklyHistory[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_HISTORY, boardId)
   },
 
   tickets: {

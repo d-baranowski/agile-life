@@ -21,6 +21,7 @@ export const IPC_CHANNELS = {
   ANALYTICS_WEEKLY_USER_STATS: 'analytics:weeklyUserStats',
   ANALYTICS_LABEL_USER_STATS: 'analytics:labelUserStats',
   ANALYTICS_CARD_AGE: 'analytics:cardAge',
+  ANALYTICS_WEEKLY_HISTORY: 'analytics:weeklyHistory',
 
   // Ticket numbering
   TICKETS_GET_CONFIG: 'tickets:getConfig',
@@ -31,7 +32,12 @@ export const IPC_CHANNELS = {
 
   // App-level settings
   SETTINGS_GET_DB_PATH: 'settings:getDbPath',
-  SETTINGS_SET_DB_PATH: 'settings:setDbPath'
+  SETTINGS_SET_DB_PATH: 'settings:setDbPath',
+
+  // Kanban board view
+  TRELLO_GET_BOARD_DATA: 'trello:getBoardData',
+  TRELLO_MOVE_CARD: 'trello:moveCard',
+  TRELLO_UPDATE_CARD_POS: 'trello:updateCardPos'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

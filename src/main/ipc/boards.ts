@@ -9,7 +9,7 @@ import type {
   DoneCardPreview,
   DoneCardDebugInfo
 } from '@shared/board.types'
-import type { TrelloBoard } from '@shared/trello.types'
+import type { TrelloBoard, KanbanColumn } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import {
   getAllBoards,
@@ -22,6 +22,12 @@ import {
   upsertCards,
   markRemovedCards,
   updateBoardSyncTime,
+  getListsForBoard,
+  getCardsForBoard,
+  moveCardToList,
+  updateCardPos,
+  upsertActions,
+  getLatestActionDate,
   upsertCardListEntry,
   setCardListEntryFallback,
   isCardListEntriesInitialized,
@@ -133,9 +139,24 @@ export function registerBoardHandlers(): void {
 
         const client = new TrelloClient(config.apiKey, config.apiToken)
 
-        const [freshLists, freshCards] = await Promise.all([
+        // ── Action fetch strategy ─────────────────────────────────────────────
+        // For trello_actions (analytics): use the most recent stored action date
+        // as `since`. Returns null when the table is empty → fetches full history.
+        // This is independent of card_list_entries_initialized so that users who
+        // already had card_list_entries populated by the archive feature still get
+        // a full history fetch for analytics on their first sync.
+        const latestActionDate = getLatestActionDate(boardId)
+
+        // For card_list_entries (archive-age tracking): check the dedicated flag.
+        const needsFullHistory = !isCardListEntriesInitialized(boardId)
+        if (needsFullHistory) {
+          clearCardListEntriesForBoard(boardId)
+        }
+
+        const [freshLists, freshCards, actions] = await Promise.all([
           client.getLists(boardId),
-          client.getCards(boardId)
+          client.getAllCards(boardId),
+          client.getActions(boardId, { since: latestActionDate ?? undefined })
         ])
 
         upsertLists(boardId, freshLists)
@@ -150,26 +171,12 @@ export function registerBoardHandlers(): void {
           freshCards.map((c) => c.id)
         )
 
-        // Fetch card-movement actions.
-        // On the first sync (or after an upgrade from a version that lacked this
-        // flag): clear any stale entries and fetch the full board history so
-        // entered_at reflects real Trello action dates, not today.
-        // Subsequent syncs only fetch actions since last_synced_at.
-        const needsFullHistory = !isCardListEntriesInitialized(boardId)
-        if (needsFullHistory) {
-          clearCardListEntriesForBoard(boardId)
-        }
-        const actions = await client.getActions(
-          boardId,
-          needsFullHistory ? {} : { since: config.lastSyncedAt ?? undefined }
-        )
+        // Persist all actions to trello_actions for analytics queries.
+        upsertActions(boardId, actions)
 
-        // Upsert an entry for every action that placed a card in a list.
-        // MAX() semantics in the SQL mean the most-recent move-into-column wins,
-        // which is correct for tracking "when did the card last enter this column".
-        // We silently skip actions that reference cards or lists not present in
-        // the local DB (e.g. historically archived/deleted cards and lists) — they
-        // are irrelevant for archiving and would violate the FK constraints.
+        // Upsert card_list_entries for archive-age tracking.
+        // MAX() semantics keep the most-recent move-into-column.
+        // FK violations (archived/deleted cards or lists) are silently skipped.
         for (const action of actions) {
           const cardId = action.data.card?.id
           if (!cardId) continue
@@ -187,11 +194,11 @@ export function registerBoardHandlers(): void {
           }
         }
 
-        // Fallback: for cards with no action entry at all (predating Trello's
-        // action history retention), use date_last_activity as a lower-bound.
+        // Fallback: for cards with no action history at all (older than Trello's
+        // retention window), insert date_last_activity as a lower-bound.
         setCardListEntryFallback(boardId)
 
-        // Mark this board as fully initialized so future syncs are incremental.
+        // Mark board as initialized so future syncs are incremental.
         setCardListEntriesInitialized(boardId)
 
         updateBoardSyncTime(boardId)
@@ -218,6 +225,97 @@ export function registerBoardHandlers(): void {
       try {
         const rows = getDb().prepare(sqlColumnCounts).all(boardId) as ColumnCount[]
         return { success: true, data: rows }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Kanban board data (reads from local cache) ───────────────────────────────
+  //
+  // Returns lists with their cards grouped, for rendering the kanban view.
+  // Always reads from the local SQLite cache — call TRELLO_SYNC first.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_GET_BOARD_DATA,
+    async (_e, boardId: string): Promise<IpcResult<KanbanColumn[]>> => {
+      try {
+        const lists = getListsForBoard(boardId)
+        const cards = getCardsForBoard(boardId)
+
+        const columns: KanbanColumn[] = lists.map((list) => ({
+          id: list.id,
+          name: list.name,
+          pos: list.pos,
+          cards: cards
+            .filter((c) => c.list_id === list.id)
+            .map((c) => ({
+              id: c.id,
+              name: c.name,
+              desc: c.desc,
+              listId: c.list_id,
+              pos: c.pos,
+              shortUrl: c.short_url,
+              labels: JSON.parse(c.labels_json),
+              members: JSON.parse(c.members_json),
+              dateLastActivity: c.date_last_activity
+            }))
+        }))
+
+        return { success: true, data: columns }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Move card (optimistic — caller has already updated the UI) ───────────────
+  //
+  // Calls the Trello API to move the card, then updates the local SQLite cache.
+  // On any error the renderer must revert its optimistic update.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_MOVE_CARD,
+    async (
+      _e,
+      boardId: string,
+      cardId: string,
+      toListId: string,
+      pos: number
+    ): Promise<IpcResult<void>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        await client.moveCard(cardId, toListId, pos)
+
+        moveCardToList(cardId, toListId, pos)
+
+        return { success: true }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Update card position (calls Trello API + persists to local DB) ──────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_UPDATE_CARD_POS,
+    async (_e, boardId: string, cardId: string, pos: number): Promise<IpcResult<void>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+
+        // Persist locally first so the UI state is always consistent,
+        // even if the Trello API call fails.
+        updateCardPos(cardId, pos)
+
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        await client.reorderCard(cardId, pos)
+
+        return { success: true }
       } catch (err) {
         return { success: false, error: String(err) }
       }
