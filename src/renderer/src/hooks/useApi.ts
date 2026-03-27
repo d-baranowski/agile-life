@@ -149,6 +149,9 @@ export const api = {
     /** Assigns or clears the epic for a story card. */
     setCardEpic: (boardId: string, cardId: string, epicCardId: string | null) =>
       invoke<void>(IPC_CHANNELS.EPICS_SET_CARD_EPIC, boardId, cardId, epicCardId),
+    /** Assigns or clears the epic for multiple story cards in a single operation. */
+    setBulkCardEpic: (boardId: string, cardIds: string[], epicCardId: string | null) =>
+      invoke<void>(IPC_CHANNELS.EPICS_SET_BULK_CARD_EPIC, boardId, cardIds, epicCardId),
     /** Returns all story cards assigned to the given epic card. */
     getStories: (epicCardId: string) =>
       invoke<EpicStory[]>(IPC_CHANNELS.EPICS_GET_STORIES, epicCardId)

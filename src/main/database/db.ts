@@ -317,6 +317,17 @@ export function setCardEpic(cardId: string, epicCardId: string | null): void {
   getDb().prepare(sqlCardsSetEpic).run({ cardId, epicCardId })
 }
 
+/** Set the epic card reference on multiple story cards in a single transaction. */
+export function setBulkCardEpic(cardIds: string[], epicCardId: string | null): void {
+  const db = getDb()
+  const stmt = db.prepare(sqlCardsSetEpic)
+  db.transaction((ids: string[]) => {
+    for (const cardId of ids) {
+      stmt.run({ cardId, epicCardId })
+    }
+  })(cardIds)
+}
+
 /** Returns open cards from the epic board linked to the given story board. */
 export function getEpicCardsForBoard(storyBoardId: string): EpicCardRow[] {
   return getDb().prepare(sqlKanbanGetEpicCards).all(storyBoardId) as EpicCardRow[]

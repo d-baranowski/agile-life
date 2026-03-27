@@ -45,6 +45,7 @@ import {
   getDb,
   setEpicBoard,
   setCardEpic,
+  setBulkCardEpic,
   getEpicCardsForBoard,
   getStoriesForEpic
 } from '../database/db'
@@ -430,6 +431,23 @@ export function registerBoardHandlers(): void {
     ): Promise<IpcResult<void>> => {
       try {
         setCardEpic(cardId, epicCardId)
+        return { success: true }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.EPICS_SET_BULK_CARD_EPIC,
+    async (
+      _e,
+      _boardId: string,
+      cardIds: string[],
+      epicCardId: string | null
+    ): Promise<IpcResult<void>> => {
+      try {
+        setBulkCardEpic(cardIds, epicCardId)
         return { success: true }
       } catch (err) {
         return { success: false, error: String(err) }

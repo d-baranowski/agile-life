@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
 import type { BoardConfig } from '@shared/board.types'
 import type { EpicCardOption, EpicStory } from '@shared/board.types'
@@ -70,6 +70,11 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
   const contextMenuRef = useRef<HTMLDivElement>(null)
 
+  // Multi-select state (story boards only)
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
+  const [bulkEpicDropdownOpen, setBulkEpicDropdownOpen] = useState(false)
+  const bulkEpicDropdownRef = useRef<HTMLDivElement>(null)
+
   // Is this board a story board (has a linked epic board)?
   const isStoryBoard = !!board.epicBoardId
   // Is this board acting as an epic board for some other board?
@@ -109,6 +114,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   useEffect(() => {
     setLoading(true)
     setError(null)
+    setSelectedCardIds(new Set())
     loadBoardData()
   }, [loadBoardData])
 
@@ -227,6 +233,8 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setShowTicketsModal(false)
         setEpicStoriesCard(null)
         setEpicDropdownCardId(null)
+        setBulkEpicDropdownOpen(false)
+        setSelectedCardIds(new Set())
       }
     }
     window.addEventListener('keydown', handleKey)
@@ -265,6 +273,61 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     },
     [board.boardId, epicCardOptions]
   )
+
+  // Toggle selection of a single card
+  const handleToggleSelectCard = useCallback((cardId: string) => {
+    setSelectedCardIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(cardId)) {
+        next.delete(cardId)
+      } else {
+        next.add(cardId)
+      }
+      return next
+    })
+  }, [])
+
+  // Assign or clear an epic for all currently selected cards
+  const handleBulkSetEpic = useCallback(
+    async (epicCardId: string | null) => {
+      setBulkEpicDropdownOpen(false)
+      const cardIds = Array.from(selectedCardIds)
+      const epicName = epicCardId
+        ? (epicCardOptions.find((o) => o.id === epicCardId)?.name ?? null)
+        : null
+      // Optimistic update
+      setColumns((prev) =>
+        prev.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) =>
+            selectedCardIds.has(c.id) ? { ...c, epicCardId, epicCardName: epicName } : c
+          )
+        }))
+      )
+      setSelectedCardIds(new Set())
+      const result = await api.epics.setBulkCardEpic(board.boardId, cardIds, epicCardId)
+      if (!result.success) {
+        loadBoardData()
+        setToastMessage(result.error ?? 'Failed to update epic. Please try again.')
+      }
+    },
+    [board.boardId, selectedCardIds, epicCardOptions, loadBoardData]
+  )
+
+  // Close bulk epic dropdown on outside click
+  useEffect(() => {
+    if (!bulkEpicDropdownOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (
+        bulkEpicDropdownRef.current &&
+        !bulkEpicDropdownRef.current.contains(e.target as Node)
+      ) {
+        setBulkEpicDropdownOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', handleClick)
+    return () => window.removeEventListener('mousedown', handleClick)
+  }, [bulkEpicDropdownOpen])
 
   // Close context menu on Escape or click outside
   useEffect(() => {
@@ -356,6 +419,8 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           })
         }))
       : columns
+
+  const selectedCardCount = useMemo(() => selectedCardIds.size, [selectedCardIds])
 
   if (loading) {
     return (
