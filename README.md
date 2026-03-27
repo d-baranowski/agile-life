@@ -1,5 +1,7 @@
 # Agile Life
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/0633e1a8201c4ef4ab65ad1ec1d69cf3)](https://app.codacy.com/gh/d-baranowski/agile-life?utm_source=github.com&utm_medium=referral&utm_content=d-baranowski/agile-life&utm_campaign=Badge_Grade)
+
 A local Electron desktop app that connects to your Trello boards, syncs card data into a local SQLite database, and displays live per-column card counts — with JIRA-style ticket numbering planned for a future milestone.
 
 ## Prerequisites
