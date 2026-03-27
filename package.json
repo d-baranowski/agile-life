@@ -18,6 +18,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "jest",
+    "audit:ci": "pnpm audit --audit-level moderate",
     "postinstall": "electron-builder install-app-deps",
     "prepare": "husky"
   },
