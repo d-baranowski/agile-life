@@ -189,6 +189,10 @@ export default function KanbanPage({ board, syncVersion }: Props): JSX.Element {
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
 
+  const handleOpenLogs = useCallback(() => {
+    api.logs.openFolder()
+  }, [])
+
   // Close modal on Escape key
   useEffect(() => {
     if (!showTicketsModal) return
@@ -419,7 +423,11 @@ export default function KanbanPage({ board, syncVersion }: Props): JSX.Element {
         </div>
       )}
 
-      <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
+      <Toast
+        message={toastMessage}
+        onDismiss={() => setToastMessage(null)}
+        onOpenLogs={handleOpenLogs}
+      />
 
       {ticketsModal}
     </div>

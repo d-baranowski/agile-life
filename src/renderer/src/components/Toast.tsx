@@ -4,9 +4,10 @@ import styles from './Toast.module.css'
 interface Props {
   message: string | null
   onDismiss: () => void
+  onOpenLogs?: () => void
 }
 
-export default function Toast({ message, onDismiss }: Props): JSX.Element | null {
+export default function Toast({ message, onDismiss, onOpenLogs }: Props): JSX.Element | null {
   useEffect(() => {
     if (!message) return
     const timer = setTimeout(onDismiss, 5000)
@@ -18,6 +19,11 @@ export default function Toast({ message, onDismiss }: Props): JSX.Element | null
   return (
     <div className={styles.toast} role="alert">
       <span className={styles.toastMessage}>{message}</span>
+      {onOpenLogs && (
+        <button className={styles.toastLogsBtn} onClick={onOpenLogs} aria-label="Open log folder">
+          📂 Logs
+        </button>
+      )}
       <button className={styles.toastClose} onClick={onDismiss} aria-label="Dismiss">
         ✕
       </button>

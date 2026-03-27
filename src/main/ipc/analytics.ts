@@ -26,6 +26,7 @@ import sqlLabelUserStats from '../database/sql/analytics/label-user-stats.sql?ra
 import sqlCardAge from '../database/sql/analytics/card-age.sql?raw'
 import sqlWeeklyHistoryRaw from '../database/sql/analytics/weekly-history-raw.sql?raw'
 import sqlStoryPoints7dRaw from '../database/sql/analytics/story-points-7d-raw.sql?raw'
+import log from '../logger'
 
 type Row = Record<string, unknown>
 
@@ -77,8 +78,10 @@ export function registerAnalyticsHandlers(): void {
     async (_e, boardId: string): Promise<IpcResult<WeeklyUserStats[]>> => {
       try {
         const rows = getDb().prepare(sqlWeeklyUserStats).all(boardId, boardId) as WeeklyUserStats[]
+        log.debug(`[analytics] weeklyUserStats boardId=${boardId} → ${rows.length} row(s)`)
         return { success: true, data: rows }
       } catch (err) {
+        log.error(`[analytics] weeklyUserStats failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -94,8 +97,10 @@ export function registerAnalyticsHandlers(): void {
     async (_e, boardId: string): Promise<IpcResult<LabelUserStats[]>> => {
       try {
         const rows = getDb().prepare(sqlLabelUserStats).all(boardId, boardId) as LabelUserStats[]
+        log.debug(`[analytics] labelUserStats boardId=${boardId} → ${rows.length} row(s)`)
         return { success: true, data: rows }
       } catch (err) {
+        log.error(`[analytics] labelUserStats failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -119,8 +124,10 @@ export function registerAnalyticsHandlers(): void {
             assignees: members.map((m) => m.fullName)
           } satisfies CardAgeStats
         })
+        log.debug(`[analytics] cardAge boardId=${boardId} → ${rows.length} card(s)`)
         return { success: true, data: rows }
       } catch (err) {
+        log.error(`[analytics] cardAge failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -166,8 +173,10 @@ export function registerAnalyticsHandlers(): void {
         }
 
         const data = [...aggregated.values()].sort((a, b) => a.week.localeCompare(b.week))
+        log.debug(`[analytics] weeklyHistory boardId=${boardId} → ${data.length} row(s)`)
         return { success: true, data }
       } catch (err) {
+        log.error(`[analytics] weeklyHistory failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -210,8 +219,10 @@ export function registerAnalyticsHandlers(): void {
         }
 
         const data = [...aggregated.values()].sort((a, b) => b.storyPoints - a.storyPoints)
+        log.debug(`[analytics] storyPoints7d boardId=${boardId} → ${data.length} user(s)`)
         return { success: true, data }
       } catch (err) {
+        log.error(`[analytics] storyPoints7d failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }

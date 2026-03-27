@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import log from '../logger'
 
 interface AppSettings {
   dbPath?: string
@@ -16,7 +17,7 @@ function readSettings(): AppSettings {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as AppSettings
   } catch (err) {
-    console.error('[appSettings] Failed to parse settings file, using defaults:', err)
+    log.error('[appSettings] Failed to parse settings file, using defaults:', err)
     return {}
   }
 }

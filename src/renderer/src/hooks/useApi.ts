@@ -136,5 +136,12 @@ export const api = {
      */
     setDbPath: (resetToDefault = false) =>
       invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_SET_DB_PATH, resetToDefault)
+  },
+
+  logs: {
+    /** Returns the absolute path of the current log file. */
+    getPath: () => invoke<string>(IPC_CHANNELS.LOGS_GET_PATH),
+    /** Opens the log folder in the native file manager. */
+    openFolder: () => invoke<void>(IPC_CHANNELS.LOGS_OPEN_FOLDER)
   }
 }
