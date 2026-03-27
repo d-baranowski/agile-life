@@ -1,12 +1,27 @@
 -- Returns closed card counts grouped by label and assignee in the last 7 days.
--- Uses card assignees (members_json on trello_cards) instead of the action creator.
+-- Only cards whose most recent list-change action moved them to a "done" list
+-- are included; cards moved back out of done are excluded.
 -- Cards with no labels are excluded (json_each returns no rows for empty arrays).
 -- Cards with no assigned members appear under "Unassigned" per label.
--- Uses LEFT JOIN so that recently-archived cards not yet re-synced still count.
-WITH done_cards AS (
+WITH
+-- For each card, find the date of its most recent list-change action.
+latest_list_action AS (
+  SELECT
+    card_id,
+    MAX(action_date) AS latest_date
+  FROM trello_actions
+  WHERE board_id = ?
+    AND list_after_name IS NOT NULL
+    AND list_after_name != ''
+  GROUP BY card_id
+),
+-- Keep only cards whose most-recent move was TO a done list within 7 days.
+done_cards AS (
   SELECT DISTINCT
     a.card_id
   FROM trello_actions a
+  JOIN latest_list_action lla
+    ON lla.card_id = a.card_id AND lla.latest_date = a.action_date
   JOIN board_configs bc ON bc.board_id = a.board_id
   WHERE a.board_id = ?
     AND a.action_date >= datetime('now', '-7 days')
@@ -50,4 +65,3 @@ GROUP BY
   json_extract(jl.value, '$.color')
 
 ORDER BY closedCount DESC, labelName, userName
-

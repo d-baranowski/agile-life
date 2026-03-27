@@ -76,7 +76,7 @@ export function registerAnalyticsHandlers(): void {
     IPC_CHANNELS.ANALYTICS_WEEKLY_USER_STATS,
     async (_e, boardId: string): Promise<IpcResult<WeeklyUserStats[]>> => {
       try {
-        const rows = getDb().prepare(sqlWeeklyUserStats).all(boardId) as WeeklyUserStats[]
+        const rows = getDb().prepare(sqlWeeklyUserStats).all(boardId, boardId) as WeeklyUserStats[]
         return { success: true, data: rows }
       } catch (err) {
         return { success: false, error: String(err) }
@@ -93,7 +93,7 @@ export function registerAnalyticsHandlers(): void {
     IPC_CHANNELS.ANALYTICS_LABEL_USER_STATS,
     async (_e, boardId: string): Promise<IpcResult<LabelUserStats[]>> => {
       try {
-        const rows = getDb().prepare(sqlLabelUserStats).all(boardId) as LabelUserStats[]
+        const rows = getDb().prepare(sqlLabelUserStats).all(boardId, boardId) as LabelUserStats[]
         return { success: true, data: rows }
       } catch (err) {
         return { success: false, error: String(err) }
@@ -141,7 +141,9 @@ export function registerAnalyticsHandlers(): void {
       storyPointsConfig: StoryPointRule[]
     ): Promise<IpcResult<WeeklyHistory[]>> => {
       try {
-        const rawRows = getDb().prepare(sqlWeeklyHistoryRaw).all(boardId) as RawHistoryRow[]
+        const rawRows = getDb()
+          .prepare(sqlWeeklyHistoryRaw)
+          .all(boardId, boardId) as RawHistoryRow[]
 
         // Aggregate story points per (week, userId)
         const aggregated = new Map<
@@ -185,7 +187,9 @@ export function registerAnalyticsHandlers(): void {
       storyPointsConfig: StoryPointRule[]
     ): Promise<IpcResult<StoryPointsUserStats[]>> => {
       try {
-        const rawRows = getDb().prepare(sqlStoryPoints7dRaw).all(boardId) as RawStoryPointRow[]
+        const rawRows = getDb()
+          .prepare(sqlStoryPoints7dRaw)
+          .all(boardId, boardId) as RawStoryPointRow[]
 
         const aggregated = new Map<
           string,

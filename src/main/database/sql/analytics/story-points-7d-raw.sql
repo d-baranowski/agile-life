@@ -1,11 +1,25 @@
--- Returns one row per (card, member) for cards moved to a "done" list
--- in the past 7 days, including labels_json so the caller can compute
--- story points per card.  Cards with no assigned members appear as a single
--- "Unassigned" row.
-WITH done_cards AS (
+-- Returns one row per (card, member) for cards whose most recent list-change
+-- action moved them to a "done" list within the past 7 days.
+-- Cards that have since been moved out of a done list are excluded.
+WITH
+-- For each card, find the date of its most recent list-change action.
+latest_list_action AS (
+  SELECT
+    card_id,
+    MAX(action_date) AS latest_date
+  FROM trello_actions
+  WHERE board_id = ?
+    AND list_after_name IS NOT NULL
+    AND list_after_name != ''
+  GROUP BY card_id
+),
+-- Keep only cards whose most-recent move was TO a done list within 7 days.
+done_cards AS (
   SELECT DISTINCT
     a.card_id
   FROM trello_actions a
+  JOIN latest_list_action lla
+    ON lla.card_id = a.card_id AND lla.latest_date = a.action_date
   JOIN board_configs bc ON bc.board_id = a.board_id
   WHERE a.board_id = ?
     AND a.action_date >= datetime('now', '-7 days')
