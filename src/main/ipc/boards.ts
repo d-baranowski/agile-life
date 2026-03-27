@@ -704,7 +704,12 @@ export function registerBoardHandlers(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.TRELLO_CREATE_CARD,
-    async (_e, boardId: string, listId: string, name: string): Promise<IpcResult<KanbanColumn['cards'][number]>> => {
+    async (
+      _e,
+      boardId: string,
+      listId: string,
+      name: string
+    ): Promise<IpcResult<KanbanColumn['cards'][number]>> => {
       try {
         const config = getBoardById(boardId)
         if (!config) {
