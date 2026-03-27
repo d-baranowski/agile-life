@@ -349,3 +349,97 @@
   color: #d68910;
   border: 1px solid rgba(243, 156, 18, 0.3);
 }
+
+/* ── Per-user bar chart ── */
+.userList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.userRow {
+  display: grid;
+  grid-template-columns: 180px 1fr 48px;
+  align-items: center;
+  gap: 12px;
+}
+
+.userName {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.barWrap {
+  height: 8px;
+  background: var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.userCount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-accent);
+  text-align: right;
+}
+
+/* ── Label drill-down ── */
+.labelList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.labelGroup {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.labelHeader {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.labelDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.labelName {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.labelTotal {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* ── Chart ── */
+.chartWrap {
+  height: 320px;
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}

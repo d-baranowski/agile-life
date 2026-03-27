@@ -7,16 +7,15 @@ import Toast from './components/Toast'
 import Dashboard from './pages/Dashboard'
 import SettingsPage from './pages/SettingsPage'
 import KanbanPage from './pages/KanbanPage'
-import AnalyticsPage from './pages/AnalyticsPage'
 import TicketNumberingPage from './pages/TicketNumberingPage'
 import styles from './App.module.css'
 
-type Tab = 'dashboard' | 'kanban' | 'analytics' | 'tickets' | 'settings'
+type Tab = 'kanban' | 'dashboard' | 'tickets' | 'settings'
 
 export default function App(): JSX.Element {
   const [boards, setBoards] = useState<BoardConfig[]>([])
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard')
+  const [activeTab, setActiveTab] = useState<Tab>('kanban')
   const [showRegistration, setShowRegistration] = useState(false)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
@@ -106,15 +105,14 @@ export default function App(): JSX.Element {
           </button>
         </div>
         <nav className={styles.nav}>
-          {(['dashboard', 'kanban', 'analytics', 'tickets', 'settings'] as Tab[]).map((tab) => (
+          {(['kanban', 'dashboard', 'tickets', 'settings'] as Tab[]).map((tab) => (
             <button
               key={tab}
               className={`${styles.navBtn} ${activeTab === tab ? styles.navBtnActive : ''}`}
               onClick={() => setActiveTab(tab)}
             >
-              {tab === 'dashboard' && '📊 '}
               {tab === 'kanban' && '📋 '}
-              {tab === 'analytics' && '📈 '}
+              {tab === 'dashboard' && '📊 '}
               {tab === 'tickets' && '🎫 '}
               {tab === 'settings' && '⚙️ '}
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -140,11 +138,10 @@ export default function App(): JSX.Element {
           </div>
         ) : (
           <>
+            {activeTab === 'kanban' && <KanbanPage board={selectedBoard} />}
             {activeTab === 'dashboard' && (
               <Dashboard board={selectedBoard} syncVersion={syncVersion} />
             )}
-            {activeTab === 'kanban' && <KanbanPage board={selectedBoard} />}
-            {activeTab === 'analytics' && <AnalyticsPage board={selectedBoard} />}
             {activeTab === 'tickets' && <TicketNumberingPage board={selectedBoard} />}
             {activeTab === 'settings' && (
               <SettingsPage
