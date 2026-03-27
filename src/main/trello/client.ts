@@ -164,6 +164,20 @@ export class TrelloClient {
     return data
   }
 
+  /**
+   * Adds a member to a card on Trello.
+   */
+  async addCardMember(cardId: string, memberId: string): Promise<void> {
+    await this.http.post(`/cards/${cardId}/idMembers`, { value: memberId })
+  }
+
+  /**
+   * Removes a member from a card on Trello.
+   */
+  async removeCardMember(cardId: string, memberId: string): Promise<void> {
+    await this.http.delete(`/cards/${cardId}/idMembers/${memberId}`)
+  }
+
   // ─── Credentials Validation ──────────────────────────────────────────────────
 
   async validateCredentials(): Promise<{ valid: boolean; memberName?: string }> {
