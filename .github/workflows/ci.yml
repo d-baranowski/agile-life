@@ -114,4 +114,4 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
       - name: Run audit
-        run: pnpm audit --audit-level moderate
+        run: pnpm audit --audit-level high
