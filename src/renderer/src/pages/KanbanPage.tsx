@@ -5,6 +5,7 @@ import type { KanbanColumn, KanbanCard } from '@shared/trello.types'
 import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
+import TicketNumberingPage from './TicketNumberingPage'
 import styles from './KanbanPage.module.css'
 
 interface Props {
