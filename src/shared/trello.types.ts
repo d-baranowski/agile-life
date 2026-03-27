@@ -65,6 +65,7 @@ export interface KanbanCard {
   dateLastActivity: string
   epicCardId: string | null
   epicCardName: string | null
+  enteredAt: string | null
 }
 
 export interface KanbanColumn {

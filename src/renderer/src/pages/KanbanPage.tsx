@@ -1046,18 +1046,29 @@ function DraggableCard({
                 </div>
               )}
 
-              {card.shortUrl && (
-                <a
-                  href={card.shortUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.trelloLink}
-                  title="Open in Trello"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  ↗
-                </a>
-              )}
+              <div className={styles.cardMeta}>
+                {card.enteredAt && (
+                  <span
+                    className={styles.columnAge}
+                    title={`In this column since ${new Date(card.enteredAt).toLocaleString()}`}
+                  >
+                    {formatAge(card.enteredAt)}
+                  </span>
+                )}
+
+                {card.shortUrl && (
+                  <a
+                    href={card.shortUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.trelloLink}
+                    title="Open in Trello"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    ↗
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1097,4 +1108,19 @@ function fuzzyMatch(needle: string, haystack: string): boolean {
     if (h[i] === n[ni]) ni++
   }
   return ni === nLen
+}
+
+// ─── age formatting ───────────────────────────────────────────────────────────
+
+/** Returns a compact human-readable age string for the given ISO timestamp (e.g. "3d", "2h", "45m"). */
+function formatAge(isoDate: string): string {
+  const ms = Date.now() - new Date(isoDate).getTime()
+  if (ms < 0) return '—'
+  const minutes = Math.floor(ms / 60_000)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  if (days < 365) return `${days}d`
+  return `${Math.floor(days / 365)}y`
 }
