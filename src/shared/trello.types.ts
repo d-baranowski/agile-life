@@ -63,6 +63,8 @@ export interface KanbanCard {
   labels: TrelloLabel[]
   members: TrelloMember[]
   dateLastActivity: string
+  epicCardId: string | null
+  epicCardName: string | null
 }
 
 export interface KanbanColumn {

@@ -280,6 +280,25 @@
   margin: 0;
 }
 
+/* ── Epic filter select ───────────────────────────────────────────────────── */
+
+.epicFilterSelect {
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.82rem;
+  outline: none;
+  cursor: pointer;
+  max-width: 220px;
+  transition: border-color var(--transition);
+}
+
+.epicFilterSelect:focus {
+  border-color: var(--color-accent);
+}
+
 /* ── Number Tickets button ────────────────────────────────────────────────── */
 
 .numberTicketsBtn {
@@ -303,7 +322,238 @@
   background: var(--color-surface-2);
 }
 
-/* ── Ticket Numbering full-screen modal ───────────────────────────────────── */
+/* ── Epic board badge on card ────────────────────────────────────────────── */
+
+.epicBoardHint {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+/* ── Epic label / assignment on story card ───────────────────────────────── */
+
+.epicRow {
+  position: relative;
+}
+
+.epicChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(147, 112, 219, 0.2);
+  border: 1px solid rgba(147, 112, 219, 0.45);
+  color: #9370db;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+}
+
+.epicChip:hover {
+  background: rgba(147, 112, 219, 0.32);
+  border-color: rgba(147, 112, 219, 0.7);
+}
+
+.epicChipEmpty {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    color var(--transition);
+  opacity: 0;
+}
+
+.card:hover .epicChipEmpty {
+  opacity: 1;
+}
+
+.epicChipEmpty:hover {
+  border-color: rgba(147, 112, 219, 0.5);
+  color: #9370db;
+}
+
+.epicDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  min-width: 200px;
+  max-width: 260px;
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.epicDropdownItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition);
+  gap: 2px;
+}
+
+.epicDropdownItem:last-child {
+  border-bottom: none;
+}
+
+.epicDropdownItem:hover {
+  background: var(--color-surface-2);
+}
+
+.epicDropdownItemActive {
+  background: rgba(147, 112, 219, 0.12);
+  color: #9370db;
+}
+
+.epicDropdownName {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.epicDropdownList {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+}
+
+/* ── Epic Stories Modal ───────────────────────────────────────────────────── */
+
+.epicModal {
+  position: relative;
+  background: var(--color-bg);
+  width: 100%;
+  max-width: 680px;
+  max-height: 80vh;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.epicModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: var(--color-surface);
+}
+
+.epicModalTitle {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.epicModalBody {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 24px;
+  color: var(--color-text-muted);
+}
+
+.epicEmptyState {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+.epicStoriesList {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 8px;
+}
+
+.epicStoryItem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  align-items: center;
+}
+
+.epicStoryMeta {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.epicStoryName {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.epicStoryBoard {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #9370db;
+  background: rgba(147, 112, 219, 0.15);
+  border: 1px solid rgba(147, 112, 219, 0.3);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.epicStoryList {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.epicStoryItem .trelloLink {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: center;
+  opacity: 1;
+  font-size: 0.8rem;
+}
 
 .modalOverlay {
   position: fixed;

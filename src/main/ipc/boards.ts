@@ -7,7 +7,9 @@ import type {
   SyncResult,
   ArchiveResult,
   DoneCardPreview,
-  DoneCardDebugInfo
+  DoneCardDebugInfo,
+  EpicCardOption,
+  EpicStory
 } from '@shared/board.types'
 import type { TrelloBoard, KanbanColumn, TrelloMember } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
@@ -40,7 +42,11 @@ import {
   clearCardListEntriesForBoard,
   getDoneCardsOlderThan,
   getDoneColumnDebug,
-  getDb
+  getDb,
+  setEpicBoard,
+  setCardEpic,
+  getEpicCardsForBoard,
+  getStoriesForEpic
 } from '../database/db'
 import { TrelloClient } from '../trello/client'
 import sqlColumnCounts from '../database/sql/analytics/column-counts.sql?raw'
@@ -266,7 +272,9 @@ export function registerBoardHandlers(): void {
               shortUrl: c.short_url,
               labels: JSON.parse(c.labels_json),
               members: JSON.parse(c.members_json),
-              dateLastActivity: c.date_last_activity
+              dateLastActivity: c.date_last_activity,
+              epicCardId: c.epic_card_id,
+              epicCardName: c.epic_card_name
             }))
         }))
 
@@ -371,6 +379,82 @@ export function registerBoardHandlers(): void {
         if (!config) return { success: false, error: `Board not found: ${boardId}` }
         const rows = getDoneColumnDebug(boardId, config.doneListNames)
         return { success: true, data: rows }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Epic / Story board linking ───────────────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.BOARDS_SET_EPIC_BOARD,
+    async (
+      _e,
+      storyBoardId: string,
+      epicBoardId: string | null
+    ): Promise<IpcResult<BoardConfig>> => {
+      try {
+        const updated = setEpicBoard(storyBoardId, epicBoardId)
+        return { success: true, data: updated }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.EPICS_GET_CARDS,
+    async (_e, storyBoardId: string): Promise<IpcResult<EpicCardOption[]>> => {
+      try {
+        const rows = getEpicCardsForBoard(storyBoardId)
+        const options: EpicCardOption[] = rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          listName: r.list_name
+        }))
+        return { success: true, data: options }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.EPICS_SET_CARD_EPIC,
+    async (
+      _e,
+      _boardId: string,
+      cardId: string,
+      epicCardId: string | null
+    ): Promise<IpcResult<void>> => {
+      try {
+        setCardEpic(cardId, epicCardId)
+        return { success: true }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.EPICS_GET_STORIES,
+    async (_e, epicCardId: string): Promise<IpcResult<EpicStory[]>> => {
+      try {
+        const rows = getStoriesForEpic(epicCardId)
+        const stories: EpicStory[] = rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          desc: r.desc,
+          listId: r.list_id,
+          listName: r.list_name,
+          boardName: r.board_name,
+          pos: r.pos,
+          shortUrl: r.short_url,
+          labelsJson: r.labels_json,
+          membersJson: r.members_json
+        }))
+        return { success: true, data: stories }
       } catch (err) {
         return { success: false, error: String(err) }
       }

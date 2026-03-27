@@ -12,12 +12,14 @@ import styles from './SettingsPage.module.css'
 
 interface Props {
   board: BoardConfig
+  allBoards: BoardConfig[]
   onBoardUpdated: (board: BoardConfig) => void
   onBoardDeleted: (boardId: string) => void
 }
 
 export default function SettingsPage({
   board,
+  allBoards,
   onBoardUpdated,
   onBoardDeleted
 }: Props): JSX.Element {
@@ -66,6 +68,9 @@ export default function SettingsPage({
       if (result.success && result.data) setDbPathInfo(result.data)
     })
   }, [])
+
+  const [epicBoardSaving, setEpicBoardSaving] = useState(false)
+  const [epicBoardError, setEpicBoardError] = useState<string | null>(null)
 
   const doneListLabel = (board.doneListNames ?? ['Done']).join(', ')
 
@@ -134,6 +139,18 @@ export default function SettingsPage({
       setDebugError(result.error ?? 'Failed to load debug data.')
     }
     setDebugLoading(false)
+  }
+
+  const handleSetEpicBoard = async (epicBoardId: string | null): Promise<void> => {
+    setEpicBoardSaving(true)
+    setEpicBoardError(null)
+    const result = await api.boards.setEpicBoard(board.boardId, epicBoardId)
+    setEpicBoardSaving(false)
+    if (result.success && result.data) {
+      onBoardUpdated(result.data)
+    } else {
+      setEpicBoardError(result.error ?? 'Failed to update epic board.')
+    }
   }
 
   const handleSave = async () => {
@@ -252,6 +269,46 @@ export default function SettingsPage({
             {saving ? 'Saving…' : '✓ Save Settings'}
           </button>
         </div>
+      </div>
+
+      {/* ── Epic Board ── */}
+      <div className="card">
+        <h2 className={styles.cardTitle}>Epic Board</h2>
+        <p className={styles.hint}>
+          Link another board as the <strong>Epic Board</strong> for this board. Cards from the epic
+          board can then be assigned as epics for cards on this board. On the epic board,
+          double-click any card to see all stories assigned to it.
+        </p>
+        {epicBoardError && <div className={styles.errorBanner}>{epicBoardError}</div>}
+        <div className={styles.form}>
+          <label className={styles.label}>
+            Epic Board
+            <select
+              value={board.epicBoardId ?? ''}
+              onChange={(e) => handleSetEpicBoard(e.target.value || null)}
+              disabled={epicBoardSaving}
+            >
+              <option value="">— None —</option>
+              {allBoards
+                .filter((b) => b.boardId !== board.boardId)
+                .map((b) => (
+                  <option key={b.boardId} value={b.boardId}>
+                    {b.boardName}
+                  </option>
+                ))}
+            </select>
+          </label>
+        </div>
+        {board.epicBoardId && (
+          <p className={styles.hint}>
+            ✓ Epics are sourced from{' '}
+            <strong>
+              {allBoards.find((b) => b.boardId === board.epicBoardId)?.boardName ??
+                board.epicBoardId}
+            </strong>
+            .
+          </p>
+        )}
       </div>
 
       {/* ── Story Points ── */}
