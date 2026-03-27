@@ -23,6 +23,7 @@ import {
   markRemovedCards,
   updateBoardSyncTime,
   upsertActions,
+  getLatestActionDate,
   upsertCardListEntry,
   setCardListEntryFallback,
   isCardListEntriesInitialized,
@@ -134,8 +135,15 @@ export function registerBoardHandlers(): void {
 
         const client = new TrelloClient(config.apiKey, config.apiToken)
 
-        // Determine whether a full or incremental action fetch is needed.
-        // Full fetch on first sync (card_list_entries_initialized = 0).
+        // ── Action fetch strategy ─────────────────────────────────────────────
+        // For trello_actions (analytics): use the most recent stored action date
+        // as `since`. Returns null when the table is empty → fetches full history.
+        // This is independent of card_list_entries_initialized so that users who
+        // already had card_list_entries populated by the archive feature still get
+        // a full history fetch for analytics on their first sync.
+        const latestActionDate = getLatestActionDate(boardId)
+
+        // For card_list_entries (archive-age tracking): check the dedicated flag.
         const needsFullHistory = !isCardListEntriesInitialized(boardId)
         if (needsFullHistory) {
           clearCardListEntriesForBoard(boardId)
@@ -144,10 +152,7 @@ export function registerBoardHandlers(): void {
         const [freshLists, freshCards, actions] = await Promise.all([
           client.getLists(boardId),
           client.getAllCards(boardId),
-          client.getActions(
-            boardId,
-            needsFullHistory ? {} : { since: config.lastSyncedAt ?? undefined }
-          )
+          client.getActions(boardId, { since: latestActionDate ?? undefined })
         ])
 
         upsertLists(boardId, freshLists)
