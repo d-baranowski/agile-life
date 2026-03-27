@@ -103,11 +103,11 @@ export function getDb(): Database.Database {
   // Boards added before this migration store api_key / api_token as plaintext.
   // Detect them by the absence of the "enc:" prefix and re-write them using
   // encryptCredential so that all stored values are consistently encrypted.
-  const plainBoards = (_db
+  const plainBoards = _db
     .prepare(
       "SELECT board_id, api_key, api_token FROM board_configs WHERE api_key NOT LIKE 'enc:%' OR api_token NOT LIKE 'enc:%'"
     )
-    .all() as Array<{ board_id: string; api_key: string; api_token: string }>)
+    .all() as Array<{ board_id: string; api_key: string; api_token: string }>
   const encStmt = _db.prepare(
     'UPDATE board_configs SET api_key = ?, api_token = ? WHERE board_id = ?'
   )
