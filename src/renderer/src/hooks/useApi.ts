@@ -15,7 +15,7 @@ import type {
   EpicStory,
   StoryPointRule
 } from '@shared/board.types'
-import type { TrelloBoard, KanbanColumn, TrelloMember } from '@shared/trello.types'
+import type { TrelloBoard, KanbanColumn, TrelloMember, TrelloLabel } from '@shared/trello.types'
 import type {
   ColumnCount,
   WeeklyUserStats,
@@ -176,7 +176,10 @@ export const api = {
       invoke<void>(IPC_CHANNELS.TEMPLATES_DELETE, boardId, id),
     /** Generates Trello cards from all templates in a group. */
     generateCards: (boardId: string, groupId: number) =>
-      invoke<GenerateCardsResult>(IPC_CHANNELS.TEMPLATES_GENERATE_CARDS, boardId, groupId)
+      invoke<GenerateCardsResult>(IPC_CHANNELS.TEMPLATES_GENERATE_CARDS, boardId, groupId),
+    /** Returns distinct labels seen on cards for the board (from cached card data). */
+    getBoardLabels: (boardId: string) =>
+      invoke<TrelloLabel[]>(IPC_CHANNELS.TEMPLATES_GET_BOARD_LABELS, boardId)
   },
 
   logs: {

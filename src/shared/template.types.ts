@@ -31,6 +31,10 @@ export interface TicketTemplate {
   listId: string
   /** Display name of the target list (cached for readability). */
   listName: string
+  /** Trello label IDs to apply when the card is generated. */
+  labelIds: string[]
+  /** Epic card ID to assign when the card is generated (null = no epic). */
+  epicCardId: string | null
   position: number
   createdAt: string
   updatedAt: string
@@ -47,6 +51,10 @@ export interface TicketTemplateInput {
   descTemplate?: string
   listId: string
   listName: string
+  /** Trello label IDs to apply when the card is generated. */
+  labelIds?: string[]
+  /** Epic card ID to assign when the card is generated (null = no epic). */
+  epicCardId?: string | null
   position?: number
 }
 

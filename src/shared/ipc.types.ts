@@ -41,6 +41,7 @@ export const IPC_CHANNELS = {
   TEMPLATES_UPDATE: 'templates:update',
   TEMPLATES_DELETE: 'templates:delete',
   TEMPLATES_GENERATE_CARDS: 'templates:generateCards',
+  TEMPLATES_GET_BOARD_LABELS: 'templates:getBoardLabels',
 
   // App-level settings
   SETTINGS_GET_DB_PATH: 'settings:getDbPath',

@@ -8,6 +8,7 @@ import type {
   TicketTemplateInput,
   GenerateCardsResult
 } from '@shared/template.types'
+import type { TrelloLabel } from '@shared/trello.types'
 import {
   getTemplateGroups,
   createTemplateGroup,
@@ -18,6 +19,8 @@ import {
   updateTicketTemplate,
   deleteTicketTemplate,
   getBoardById,
+  getBoardLabels,
+  setCardEpic,
   upsertCards
 } from '../database/db'
 import { TrelloClient } from '../trello/client'
@@ -231,7 +234,12 @@ export function registerTemplateHandlers(): void {
             const title = resolvePlaceholders(tmpl.titleTemplate, now)
             const desc = tmpl.descTemplate ? resolvePlaceholders(tmpl.descTemplate, now) : undefined
 
-            const card = await client.createCard(tmpl.listId, title, desc)
+            const card = await client.createCard(tmpl.listId, title, desc, tmpl.labelIds)
+
+            // Assign the epic card if configured on the template.
+            if (tmpl.epicCardId) {
+              setCardEpic(card.id, tmpl.epicCardId)
+            }
 
             // Persist to local cache so the kanban board reflects the new card
             // immediately (without needing a full sync).
@@ -245,6 +253,19 @@ export function registerTemplateHandlers(): void {
         }
 
         return { success: true, data: { created, failed, errors } }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── TEMPLATES_GET_BOARD_LABELS ─────────────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.TEMPLATES_GET_BOARD_LABELS,
+    async (_e, boardId: string): Promise<IpcResult<TrelloLabel[]>> => {
+      try {
+        return { success: true, data: getBoardLabels(boardId) }
       } catch (err) {
         return { success: false, error: String(err) }
       }

@@ -5,8 +5,8 @@
  * Right panel: templates in the selected group + "Generate cards" button.
  */
 import { useState, useEffect, useCallback } from 'react'
-import type { BoardConfig } from '@shared/board.types'
-import type { KanbanColumn } from '@shared/trello.types'
+import type { BoardConfig, EpicCardOption } from '@shared/board.types'
+import type { KanbanColumn, TrelloLabel } from '@shared/trello.types'
 import type {
   TemplateGroup,
   TicketTemplate,
@@ -25,6 +25,25 @@ interface Props {
 const PLACEHOLDER_HINT =
   'Supported placeholders: {{year}}, {{month}}, {{month_name}}, {{week}}, {{date}}'
 
+// ─── Label color helper ────────────────────────────────────────────────────────
+
+const TRELLO_COLORS: Record<string, string> = {
+  green: '#61bd4f',
+  yellow: '#f2d600',
+  orange: '#ff9f1a',
+  red: '#eb5a46',
+  purple: '#c377e0',
+  blue: '#0079bf',
+  sky: '#00c2e0',
+  lime: '#51e898',
+  pink: '#ff78cb',
+  black: '#344563'
+}
+
+function labelColor(color: string): string {
+  return TRELLO_COLORS[color] ?? '#b3bac5'
+}
+
 // ─── Template form modal ───────────────────────────────────────────────────────
 
 interface TemplateFormProps {
@@ -32,6 +51,8 @@ interface TemplateFormProps {
   groupId: number
   boardId: string
   lists: KanbanColumn[]
+  boardLabels: TrelloLabel[]
+  epicCards: EpicCardOption[]
   onSave: (input: TicketTemplateInput) => void
   onCancel: () => void
   saving: boolean
@@ -43,6 +64,8 @@ function TemplateForm({
   groupId,
   boardId: _boardId,
   lists,
+  boardLabels,
+  epicCards,
   onSave,
   onCancel,
   saving,
@@ -52,6 +75,15 @@ function TemplateForm({
   const [titleTemplate, setTitleTemplate] = useState(initial?.titleTemplate ?? '')
   const [descTemplate, setDescTemplate] = useState(initial?.descTemplate ?? '')
   const [listId, setListId] = useState(initial?.listId ?? lists[0]?.id ?? '')
+  const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>(initial?.labelIds ?? [])
+  // Empty string maps to the "— None —" select option; converted to null on save.
+  const [epicCardId, setEpicCardId] = useState<string>(initial?.epicCardId ?? '')
+
+  const toggleLabel = (id: string) => {
+    setSelectedLabelIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
 
   const handleSubmit = () => {
     const selectedList = lists.find((l) => l.id === listId)
@@ -62,6 +94,8 @@ function TemplateForm({
       descTemplate: descTemplate.trim(),
       listId,
       listName: selectedList?.name ?? '',
+      labelIds: selectedLabelIds,
+      epicCardId: epicCardId !== '' ? epicCardId : null,
       position: initial?.position ?? 0
     })
   }
@@ -121,6 +155,44 @@ function TemplateForm({
           </select>
         </div>
 
+        {boardLabels.length > 0 && (
+          <div className={styles.formField}>
+            <label className={styles.formLabel}>Labels (optional)</label>
+            <div className={styles.labelPicker}>
+              {boardLabels.map((label) => (
+                <button
+                  key={label.id}
+                  type="button"
+                  className={`${styles.labelChip} ${selectedLabelIds.includes(label.id) ? styles.labelChipSelected : ''}`}
+                  style={{ backgroundColor: labelColor(label.color) }}
+                  onClick={() => toggleLabel(label.id)}
+                  title={label.name || label.color}
+                >
+                  {label.name || label.color}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {epicCards.length > 0 && (
+          <div className={styles.formField}>
+            <label className={styles.formLabel}>Epic (optional)</label>
+            <select
+              className={styles.formSelect}
+              value={epicCardId}
+              onChange={(e) => setEpicCardId(e.target.value)}
+            >
+              <option value="">— None —</option>
+              {epicCards.map((e) => (
+                <option key={e.id} value={e.id}>
+                  [{e.listName}] {e.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className={styles.modalFooter}>
           <button className="btn-secondary" onClick={onCancel} disabled={saving}>
             Cancel
@@ -145,6 +217,8 @@ export default function TemplatesPage({ board }: Props): JSX.Element {
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [templates, setTemplates] = useState<TicketTemplate[]>([])
   const [lists, setLists] = useState<KanbanColumn[]>([])
+  const [boardLabels, setBoardLabels] = useState<TrelloLabel[]>([])
+  const [epicCards, setEpicCards] = useState<EpicCardOption[]>([])
 
   // Group editing
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null)
@@ -177,6 +251,21 @@ export default function TemplatesPage({ board }: Props): JSX.Element {
     }
   }, [board.boardId])
 
+  const loadBoardLabels = useCallback(async () => {
+    const result = await api.templates.getBoardLabels(board.boardId)
+    if (result.success && result.data) {
+      setBoardLabels(result.data)
+    }
+  }, [board.boardId])
+
+  const loadEpicCards = useCallback(async () => {
+    if (!board.epicBoardId) return
+    const result = await api.epics.getCards(board.boardId)
+    if (result.success && result.data) {
+      setEpicCards(result.data)
+    }
+  }, [board.boardId, board.epicBoardId])
+
   const loadTemplates = useCallback(async () => {
     if (selectedGroupId === null) {
       setTemplates([])
@@ -196,7 +285,9 @@ export default function TemplatesPage({ board }: Props): JSX.Element {
     setGenerateError(null)
     loadGroups()
     loadLists()
-  }, [loadGroups, loadLists])
+    loadBoardLabels()
+    loadEpicCards()
+  }, [loadGroups, loadLists, loadBoardLabels, loadEpicCards])
 
   useEffect(() => {
     loadTemplates()
@@ -498,6 +589,8 @@ export default function TemplatesPage({ board }: Props): JSX.Element {
           groupId={selectedGroupId!}
           boardId={board.boardId}
           lists={lists}
+          boardLabels={boardLabels}
+          epicCards={epicCards}
           onSave={handleSaveTemplate}
           onCancel={() => {
             setShowTemplateForm(false)

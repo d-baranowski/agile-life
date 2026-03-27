@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import type { BoardConfig, BoardConfigInput, StoryPointRule } from '@shared/board.types'
 import { getDbPath } from '../settings/appSettings'
-import type { TrelloList, TrelloCard, TrelloAction, TrelloMember } from '@shared/trello.types'
+import type { TrelloList, TrelloCard, TrelloAction, TrelloMember, TrelloLabel } from '@shared/trello.types'
 import type {
   TemplateGroup,
   TicketTemplate,
@@ -109,6 +109,16 @@ export function getDb(): Database.Database {
     _db.exec(
       'ALTER TABLE board_configs ADD COLUMN story_points_config TEXT NOT NULL DEFAULT \'[{"labelName":"Large","points":5},{"labelName":"Medium","points":3},{"labelName":"Small","points":1}]\''
     )
+  } catch {
+    // Column already exists — nothing to do.
+  }
+  try {
+    _db.exec("ALTER TABLE ticket_templates ADD COLUMN label_ids TEXT NOT NULL DEFAULT '[]'")
+  } catch {
+    // Column already exists — nothing to do.
+  }
+  try {
+    _db.exec('ALTER TABLE ticket_templates ADD COLUMN epic_card_id TEXT DEFAULT NULL')
   } catch {
     // Column already exists — nothing to do.
   }
@@ -243,8 +253,8 @@ export function upsertCards(boardId: string, cards: TrelloCard[]): void {
         dateLastActivity: c.dateLastActivity,
         pos: c.pos,
         shortUrl: c.shortUrl,
-        labelsJson: JSON.stringify(c.labels),
-        membersJson: JSON.stringify(c.members)
+        labelsJson: JSON.stringify(c.labels ?? []),
+        membersJson: JSON.stringify(c.members ?? [])
       })
     }
   })(cards)
@@ -627,12 +637,14 @@ export function createTicketTemplate(boardId: string, input: TicketTemplateInput
     descTemplate: input.descTemplate ?? '',
     listId: input.listId,
     listName: input.listName,
+    labelIds: JSON.stringify(input.labelIds ?? []),
+    epicCardId: input.epicCardId ?? null,
     position: input.position ?? 0
   })
   const row = db
     .prepare(
       `SELECT id, board_id, group_id, name, title_template, desc_template,
-              list_id, list_name, position, created_at, updated_at
+              list_id, list_name, label_ids, epic_card_id, position, created_at, updated_at
        FROM ticket_templates WHERE id = ?`
     )
     .get(result.lastInsertRowid) as Row
@@ -654,6 +666,8 @@ export function updateTicketTemplate(
       descTemplate: input.descTemplate ?? '',
       listId: input.listId,
       listName: input.listName,
+      labelIds: JSON.stringify(input.labelIds ?? []),
+      epicCardId: input.epicCardId ?? null,
       position: input.position ?? 0
     })
   return result.changes > 0
@@ -686,8 +700,36 @@ function rowToTicketTemplate(row: Row): TicketTemplate {
     descTemplate: (row.desc_template as string) ?? '',
     listId: row.list_id as string,
     listName: row.list_name as string,
+    labelIds: row.label_ids ? (JSON.parse(row.label_ids as string) as string[]) : [],
+    epicCardId: (row.epic_card_id as string | null) ?? null,
     position: row.position as number,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   }
+}
+
+/**
+ * Returns distinct Trello labels seen on cards for the given board.
+ * Aggregated from the labels_json column of cached cards — requires at
+ * least one sync to have run.
+ */
+export function getBoardLabels(boardId: string): TrelloLabel[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT labels_json FROM trello_cards
+       WHERE board_id = ? AND labels_json IS NOT NULL AND labels_json != '[]'`
+    )
+    .all(boardId) as { labels_json: string }[]
+  const labelsMap = new Map<string, TrelloLabel>()
+  for (const r of rows) {
+    try {
+      const labels: TrelloLabel[] = JSON.parse(r.labels_json)
+      for (const l of labels) {
+        labelsMap.set(l.id, l)
+      }
+    } catch {
+      // Skip unparseable rows.
+    }
+  }
+  return [...labelsMap.values()]
 }

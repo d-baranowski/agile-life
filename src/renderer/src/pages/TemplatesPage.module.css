@@ -294,6 +294,35 @@
   gap: 8px;
 }
 
+/* ── Label picker ── */
+
+.labelPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.labelChip {
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  border: 2px solid transparent;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.1s, border-color 0.1s;
+}
+
+.labelChip:hover {
+  opacity: 0.85;
+}
+
+.labelChipSelected {
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
 /* ── Result banner ── */
 
 .resultBanner {
