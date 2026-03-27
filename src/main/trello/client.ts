@@ -153,6 +153,14 @@ export class TrelloClient {
     return data
   }
 
+  /**
+   * Archives (closes) a card on Trello.
+   */
+  async archiveCard(cardId: string): Promise<TrelloCard> {
+    const { data } = await this.http.put<TrelloCard>(`/cards/${cardId}`, { closed: true })
+    return data
+  }
+
   // ─── Credentials Validation ──────────────────────────────────────────────────
 
   async validateCredentials(): Promise<{ valid: boolean; memberName?: string }> {

@@ -24,6 +24,13 @@ import sqlKanbanGetLists from './sql/kanban/get-lists.sql?raw'
 import sqlKanbanGetCards from './sql/kanban/get-cards.sql?raw'
 import sqlKanbanMoveCard from './sql/kanban/move-card.sql?raw'
 import sqlCardsUpdatePos from './sql/cards/update-pos.sql?raw'
+import sqlCardsGetDoneOlderThan from './sql/cards/get-done-cards-older-than.sql?raw'
+import sqlCardsGetDoneColumnDebug from './sql/cards/get-done-column-debug.sql?raw'
+import sqlCardListEntriesUpsert from './sql/card-list-entries/upsert.sql?raw'
+import sqlCardListEntriesSetFallback from './sql/card-list-entries/set-fallback.sql?raw'
+import sqlCardListEntriesClearForBoard from './sql/card-list-entries/clear-for-board.sql?raw'
+import sqlBoardsSetCardListEntriesInitialized from './sql/boards/set-card-list-entries-initialized.sql?raw'
+
 
 let _db: Database.Database | null = null
 
@@ -43,7 +50,7 @@ export function getDb(): Database.Database {
   _db = new Database(dbPath)
   _db.exec(schemaSql)
 
-  // ── Migrations for existing databases ──────────────────────────────────────
+  // ── Column migrations ──────────────────────────────────────────────────────
   // CREATE TABLE IF NOT EXISTS won't add new columns to an existing table, so
   // we inspect the live schema and apply ALTER TABLE as needed.
   const cardCols = (
@@ -54,6 +61,15 @@ export function getDb(): Database.Database {
   }
   if (!cardCols.includes('short_url')) {
     _db.exec("ALTER TABLE trello_cards ADD COLUMN short_url TEXT NOT NULL DEFAULT ''")
+  }
+  // SQLite has no "ADD COLUMN IF NOT EXISTS", so we try and ignore the error
+  // if the column already exists (e.g. new installs where schema.sql created it).
+  try {
+    _db.exec(
+      'ALTER TABLE board_configs ADD COLUMN card_list_entries_initialized INTEGER NOT NULL DEFAULT 0'
+    )
+  } catch {
+    // Column already exists — nothing to do.
   }
 
   return _db
@@ -219,6 +235,116 @@ export function moveCardToList(cardId: string, toListId: string): void {
 /** Update only the position of a card (used when reordering within a column). */
 export function updateCardPos(cardId: string, pos: number): void {
   getDb().prepare(sqlCardsUpdatePos).run({ cardId, pos })
+}
+
+// ─── Card List Entries ─────────────────────────────────────────────────────────
+
+/**
+ * Upsert the timestamp when a card entered a list.
+ * MAX() keeps the most-recent value so that re-processing the same events is
+ * safe — only a newer timestamp can overwrite an existing one.  This means the
+ * table must be cleared (clearCardListEntriesForBoard) before re-running a
+ * full-history fetch so stale "today" rows can't block historical dates.
+ */
+export function upsertCardListEntry(cardId: string, listId: string, enteredAt: string): void {
+  getDb().prepare(sqlCardListEntriesUpsert).run({ cardId, listId, enteredAt })
+}
+
+/**
+ * Delete all card_list_entries rows for the given board.
+ * Called before a full-history rebuild to ensure stale rows written by old
+ * code (e.g. entered_at = now()) can't survive and block correct timestamps.
+ */
+export function clearCardListEntriesForBoard(boardId: string): void {
+  getDb().prepare(sqlCardListEntriesClearForBoard).run({ boardId })
+}
+
+/**
+ * Returns true when the card_list_entries table for this board has been
+ * fully initialized from Trello's action history.
+ * A board starts with card_list_entries_initialized = 0 (the default),
+ * including boards upgraded from a version that lacked this column.
+ * The sync flow sets it to 1 after a successful full-history fetch.
+ */
+export function isCardListEntriesInitialized(boardId: string): boolean {
+  const row = getDb()
+    .prepare(`SELECT card_list_entries_initialized FROM board_configs WHERE board_id = ?`)
+    .get(boardId) as { card_list_entries_initialized: number } | undefined
+  return (row?.card_list_entries_initialized ?? 0) === 1
+}
+
+/**
+ * Mark the board's card_list_entries as fully initialized.
+ * Called after a successful full-history action fetch so subsequent syncs
+ * only need to fetch incremental actions.
+ */
+export function setCardListEntriesInitialized(boardId: string): void {
+  getDb().prepare(sqlBoardsSetCardListEntriesInitialized).run({ boardId })
+}
+
+/**
+ * For open cards that still have no card_list_entries row for their current
+ * list after processing all available Trello actions (e.g. cards created
+ * before Trello started recording actions), inserts a fallback row using
+ * date_last_activity as a conservative lower-bound.
+ *
+ * Only inserts when no row already exists (NOT EXISTS guard) — cards with a
+ * real action-based entry are left untouched.
+ */
+export function setCardListEntryFallback(boardId: string): void {
+  getDb().prepare(sqlCardListEntriesSetFallback).run({ boardId })
+}
+
+/**
+ * Returns all open cards that live in one of the given done-list names and
+ * that have been in the done column since before the supplied ISO-8601 cutoff.
+ */
+export function getDoneCardsOlderThan(
+  boardId: string,
+  doneListNames: string[],
+  cutoffDate: string
+): { id: string; name: string; listId: string; listName: string; enteredDoneAt: string }[] {
+  return getDb()
+    .prepare(sqlCardsGetDoneOlderThan)
+    .all({
+      boardId,
+      doneListNames: JSON.stringify(doneListNames),
+      cutoffDate
+    }) as { id: string; name: string; listId: string; listName: string; enteredDoneAt: string }[]
+}
+
+/**
+ * Diagnostic query: returns ALL open cards in the done column(s) with raw
+ * timestamp data so the UI can show what is actually stored.
+ */
+export function getDoneColumnDebug(
+  boardId: string,
+  doneListNames: string[]
+): {
+  id: string
+  name: string
+  listId: string
+  listName: string
+  enteredDoneAt: string
+  dateLastActivity: string
+  cardSyncedAt: string
+  hasActionEntry: 0 | 1
+}[] {
+  return getDb()
+    .prepare(sqlCardsGetDoneColumnDebug)
+    .all({
+      boardId,
+      doneListNames: JSON.stringify(doneListNames)
+    }) as {
+    id: string
+    name: string
+    listId: string
+    listName: string
+    enteredDoneAt: string
+    dateLastActivity: string
+    cardSyncedAt: string
+    hasActionEntry: 0 | 1
+  }[]
 }
 
 // ─── Row Mapper ────────────────────────────────────────────────────────────────
