@@ -15,7 +15,8 @@ import type {
   WeeklyUserStats,
   LabelUserStats,
   CardAgeStats,
-  WeeklyHistory
+  WeeklyHistory,
+  StoryPointsUserStats
 } from '@shared/analytics.types'
 import type { TrelloMember, TrelloLabel } from '@shared/trello.types'
 import type { StoryPointRule } from '@shared/board.types'
@@ -24,11 +25,19 @@ import sqlWeeklyUserStats from '../database/sql/analytics/weekly-user-stats.sql?
 import sqlLabelUserStats from '../database/sql/analytics/label-user-stats.sql?raw'
 import sqlCardAge from '../database/sql/analytics/card-age.sql?raw'
 import sqlWeeklyHistoryRaw from '../database/sql/analytics/weekly-history-raw.sql?raw'
+import sqlStoryPoints7dRaw from '../database/sql/analytics/story-points-7d-raw.sql?raw'
 
 type Row = Record<string, unknown>
 
 interface RawHistoryRow {
   week: string
+  userId: string | null
+  userName: string
+  cardId: string
+  labelsJson: string
+}
+
+interface RawStoryPointRow {
   userId: string | null
   userName: string
   cardId: string
@@ -155,6 +164,48 @@ export function registerAnalyticsHandlers(): void {
         }
 
         const data = [...aggregated.values()].sort((a, b) => a.week.localeCompare(b.week))
+        return { success: true, data }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Story points per user (last 7 days) ────────────────────────────────────
+  //
+  // Returns story points completed per user in the last 7 days.  Each card's
+  // point value is determined by matching its labels against the caller-supplied
+  // storyPointsConfig rules.  Cards with no matching label count as 1 point.
+
+  ipcMain.handle(
+    IPC_CHANNELS.ANALYTICS_STORY_POINTS_7D,
+    async (
+      _e,
+      boardId: string,
+      storyPointsConfig: StoryPointRule[]
+    ): Promise<IpcResult<StoryPointsUserStats[]>> => {
+      try {
+        const rawRows = getDb().prepare(sqlStoryPoints7dRaw).all(boardId) as RawStoryPointRow[]
+
+        const aggregated = new Map<
+          string,
+          { userId: string | null; userName: string; storyPoints: number }
+        >()
+
+        for (const row of rawRows) {
+          const pts = cardStoryPoints(row.labelsJson, storyPointsConfig)
+          const key = row.userId ?? '__unassigned__'
+          if (!aggregated.has(key)) {
+            aggregated.set(key, {
+              userId: row.userId,
+              userName: row.userName,
+              storyPoints: 0
+            })
+          }
+          aggregated.get(key)!.storyPoints += pts
+        }
+
+        const data = [...aggregated.values()].sort((a, b) => b.storyPoints - a.storyPoints)
         return { success: true, data }
       } catch (err) {
         return { success: false, error: String(err) }
