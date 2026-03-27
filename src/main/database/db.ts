@@ -321,6 +321,8 @@ export function setCardEpic(cardId: string, epicCardId: string | null): void {
 export function setBulkCardEpic(cardIds: string[], epicCardId: string | null): void {
   const db = getDb()
   const stmt = db.prepare(sqlCardsSetEpic)
+  // db.transaction() returns a function; calling it with cardIds runs all
+  // stmt.run() calls atomically inside a single SQLite transaction.
   db.transaction((ids: string[]) => {
     for (const cardId of ids) {
       stmt.run({ cardId, epicCardId })
