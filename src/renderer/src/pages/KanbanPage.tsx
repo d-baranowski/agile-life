@@ -170,6 +170,18 @@ export default function KanbanPage({ board }: Props): JSX.Element {
     [board.boardId, columns]
   )
 
+  const [showTicketsModal, setShowTicketsModal] = useState(false)
+
+  // Close modal on Escape key
+  useEffect(() => {
+    if (!showTicketsModal) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowTicketsModal(false)
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [showTicketsModal])
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const filteredColumns = searchQuery.trim()
@@ -196,14 +208,37 @@ export default function KanbanPage({ board }: Props): JSX.Element {
     )
   }
 
+  const ticketsModal = showTicketsModal ? (
+    <div className={styles.modalOverlay} onClick={() => setShowTicketsModal(false)}>
+      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+        <button
+          className={styles.modalClose}
+          onClick={() => setShowTicketsModal(false)}
+          title="Close (Esc)"
+        >
+          ✕
+        </button>
+        <TicketNumberingPage board={board} />
+      </div>
+    </div>
+  ) : null
+
   if (columns.length === 0) {
     return (
-      <div className={styles.emptyState}>
-        <p>No data yet.</p>
-        <p className="text-muted">
-          Click <strong>↻ Fetch from Trello</strong> in the top bar to import this board&apos;s
-          data.
-        </p>
+      <div className={styles.container}>
+        <div className={styles.searchBar}>
+          <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
+            🎫 Number Tickets
+          </button>
+        </div>
+        <div className={styles.emptyState}>
+          <p>No data yet.</p>
+          <p className="text-muted">
+            Click <strong>↻ Fetch from Trello</strong> in the top bar to import this board&apos;s
+            data.
+          </p>
+        </div>
+        {ticketsModal}
       </div>
     )
   }
@@ -218,6 +253,9 @@ export default function KanbanPage({ board }: Props): JSX.Element {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
+        <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
+          🎫 Number Tickets
+        </button>
       </div>
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className={styles.board}>
@@ -248,6 +286,8 @@ export default function KanbanPage({ board }: Props): JSX.Element {
       </DragDropContext>
 
       <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
+
+      {ticketsModal}
     </div>
   )
 }
