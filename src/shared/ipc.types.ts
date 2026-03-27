@@ -38,6 +38,9 @@ export const IPC_CHANNELS = {
   TRELLO_GET_BOARD_DATA: 'trello:getBoardData',
   TRELLO_MOVE_CARD: 'trello:moveCard',
   TRELLO_UPDATE_CARD_POS: 'trello:updateCardPos',
+  TRELLO_ARCHIVE_CARD: 'trello:archiveCard',
+  TRELLO_GET_BOARD_MEMBERS: 'trello:getBoardMembers',
+  TRELLO_ASSIGN_CARD_MEMBER: 'trello:assignCardMember',
 
   // Epic / Story board linking
   BOARDS_SET_EPIC_BOARD: 'boards:setEpicBoard',

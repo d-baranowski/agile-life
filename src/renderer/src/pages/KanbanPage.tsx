@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
 import type { BoardConfig } from '@shared/board.types'
 import type { EpicCardOption, EpicStory } from '@shared/board.types'
-import type { KanbanColumn, KanbanCard } from '@shared/trello.types'
+import type { KanbanColumn, KanbanCard, TrelloMember } from '@shared/trello.types'
 import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
@@ -12,6 +12,12 @@ import styles from './KanbanPage.module.css'
 interface Props {
   board: BoardConfig
   allBoards: BoardConfig[]
+}
+
+interface ContextMenuState {
+  x: number
+  y: number
+  card: KanbanCard
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -57,6 +63,9 @@ export default function KanbanPage({ board, allBoards }: Props): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
+  const contextMenuRef = useRef<HTMLDivElement>(null)
 
   // Is this board a story board (has a linked epic board)?
   const isStoryBoard = !!board.epicBoardId
@@ -78,12 +87,18 @@ export default function KanbanPage({ board, allBoards }: Props): JSX.Element {
   const [epicDropdownCardId, setEpicDropdownCardId] = useState<string | null>(null)
 
   const loadBoardData = useCallback(async () => {
-    const result = await api.trello.getBoardData(board.boardId)
-    if (result.success && result.data) {
-      setColumns(result.data)
+    const [dataResult, membersResult] = await Promise.all([
+      api.trello.getBoardData(board.boardId),
+      api.trello.getBoardMembers(board.boardId)
+    ])
+    if (dataResult.success && dataResult.data) {
+      setColumns(dataResult.data)
       setError(null)
     } else {
-      setError(result.error ?? 'Failed to load board data.')
+      setError(dataResult.error ?? 'Failed to load board data.')
+    }
+    if (membersResult.success && membersResult.data) {
+      setBoardMembers(membersResult.data)
     }
     setLoading(false)
   }, [board.boardId])
@@ -247,6 +262,81 @@ export default function KanbanPage({ board, allBoards }: Props): JSX.Element {
     [board.boardId, epicCardOptions]
   )
 
+  // Close context menu on Escape or click outside
+  useEffect(() => {
+    if (!contextMenu) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null)
+    }
+    const handleClick = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    window.addEventListener('mousedown', handleClick)
+    return () => {
+      window.removeEventListener('keydown', handleKey)
+      window.removeEventListener('mousedown', handleClick)
+    }
+  }, [contextMenu])
+
+  const handleArchiveCard = useCallback(
+    async (cardId: string) => {
+      setContextMenu(null)
+      // Optimistically remove the card from the UI
+      const prevColumns = columns
+      setColumns((prev) =>
+        prev.map((col) => ({ ...col, cards: col.cards.filter((c) => c.id !== cardId) }))
+      )
+      const result = await api.trello.archiveCard(board.boardId, cardId)
+      if (!result.success) {
+        setColumns(prevColumns)
+        setToastMessage(result.error ?? 'Failed to archive card. Please try again.')
+      }
+    },
+    [board.boardId, columns]
+  )
+
+  const handleToggleMember = useCallback(
+    async (cardId: string, memberId: string, assign: boolean) => {
+      setContextMenu(null)
+
+      // Optimistically update the member list in the UI
+      const prevColumns = columns
+      setColumns((prev) =>
+        prev.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) => {
+            if (c.id !== cardId) return c
+            const updatedMembers = assign
+              ? c.members.some((m) => m.id === memberId)
+                ? c.members
+                : [...c.members, ...boardMembers.filter((m) => m.id === memberId)]
+              : c.members.filter((m) => m.id !== memberId)
+            return { ...c, members: updatedMembers }
+          })
+        }))
+      )
+
+      const result = await api.trello.assignCardMember(board.boardId, cardId, memberId, assign)
+      if (result.success && result.data) {
+        // Reconcile with the authoritative response from the server
+        setColumns((prev) =>
+          prev.map((col) => ({
+            ...col,
+            cards: col.cards.map((c) => (c.id === cardId ? { ...c, members: result.data! } : c))
+          }))
+        )
+      } else {
+        // Revert optimistic update on failure
+        setColumns(prevColumns)
+        setToastMessage(result.error ?? 'Failed to update member assignment. Please try again.')
+      }
+    },
+    [board.boardId, boardMembers, columns]
+  )
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const filteredColumns = searchQuery.trim()
@@ -352,6 +442,10 @@ export default function KanbanPage({ board, allBoards }: Props): JSX.Element {
                         onToggleEpicDropdown={(cardId) =>
                           setEpicDropdownCardId((prev) => (prev === cardId ? null : cardId))
                         }
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          setContextMenu({ x: e.clientX, y: e.clientY, card })
+                        }}
                       />
                     ))}
                     {provided.placeholder}
@@ -362,6 +456,40 @@ export default function KanbanPage({ board, allBoards }: Props): JSX.Element {
           ))}
         </div>
       </DragDropContext>
+
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className={styles.contextMenu}
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            className={styles.contextMenuItem}
+            onClick={() => handleArchiveCard(contextMenu.card.id)}
+          >
+            🗄️ Archive card
+          </button>
+          {boardMembers.length > 0 && (
+            <>
+              <div className={styles.contextMenuDivider} />
+              <div className={styles.contextMenuLabel}>Assign to:</div>
+              {boardMembers.map((member) => {
+                const assigned = contextMenu.card.members.some((m) => m.id === member.id)
+                return (
+                  <button
+                    key={member.id}
+                    className={styles.contextMenuItem}
+                    onClick={() => handleToggleMember(contextMenu.card.id, member.id, !assigned)}
+                  >
+                    <span className={styles.contextMenuCheck}>{assigned ? '✓' : ''}</span>
+                    {member.fullName}
+                  </button>
+                )
+              })}
+            </>
+          )}
+        </div>
+      )}
 
       <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
 
@@ -445,6 +573,7 @@ interface CardProps {
   onOpenEpicStories: (cardId: string, cardName: string) => void
   onSetCardEpic: (cardId: string, epicCardId: string | null) => void
   onToggleEpicDropdown: (cardId: string) => void
+  onContextMenu: (e: React.MouseEvent) => void
 }
 
 function DraggableCard({
@@ -456,7 +585,8 @@ function DraggableCard({
   epicDropdownCardId,
   onOpenEpicStories,
   onSetCardEpic,
-  onToggleEpicDropdown
+  onToggleEpicDropdown,
+  onContextMenu
 }: CardProps): JSX.Element {
   const lastClickRef = useRef<number>(0)
 
@@ -470,6 +600,7 @@ function DraggableCard({
     lastClickRef.current = now
   }
 
+
   return (
     <Draggable draggableId={card.id} index={index}>
       {(provided, snapshot) => (
@@ -479,6 +610,7 @@ function DraggableCard({
           {...provided.dragHandleProps}
           className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''}`}
           onClick={handleClick}
+          onContextMenu={onContextMenu}
           title={isEpicBoard ? 'Double-click to see stories in this epic' : undefined}
         >
           <span className={styles.cardName}>{card.name}</span>

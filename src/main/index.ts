@@ -44,7 +44,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   // Set app user model id for Windows
-  electronApp.setAppUserModelId('com.agilelife.app')
+  electronApp.setAppUserModelId('com.inspiration-particle.agile-life')
 
   // On macOS, BrowserWindow.icon does not change the Dock icon — set it explicitly
   if (process.platform === 'darwin' && app.dock) {

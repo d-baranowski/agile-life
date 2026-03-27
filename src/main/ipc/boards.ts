@@ -11,7 +11,7 @@ import type {
   EpicCardOption,
   EpicStory
 } from '@shared/board.types'
-import type { TrelloBoard, KanbanColumn } from '@shared/trello.types'
+import type { TrelloBoard, KanbanColumn, TrelloMember } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import {
   getAllBoards,
@@ -28,6 +28,11 @@ import {
   getCardsForBoard,
   moveCardToList,
   updateCardPos,
+  archiveCardLocally,
+  updateCardMembers,
+  upsertBoardMembers,
+  getBoardMembers,
+  getCardMembersJson,
   upsertActions,
   getLatestActionDate,
   upsertCardListEntry,
@@ -159,10 +164,11 @@ export function registerBoardHandlers(): void {
           clearCardListEntriesForBoard(boardId)
         }
 
-        const [freshLists, freshCards, actions] = await Promise.all([
+        const [freshLists, freshCards, actions, freshMembers] = await Promise.all([
           client.getLists(boardId),
           client.getAllCards(boardId),
-          client.getActions(boardId, { since: latestActionDate ?? undefined })
+          client.getActions(boardId, { since: latestActionDate ?? undefined }),
+          client.getMembers(boardId)
         ])
 
         upsertLists(boardId, freshLists)
@@ -176,6 +182,8 @@ export function registerBoardHandlers(): void {
           boardId,
           freshCards.map((c) => c.id)
         )
+
+        upsertBoardMembers(boardId, freshMembers)
 
         // Persist all actions to trello_actions for analytics queries.
         upsertActions(boardId, actions)
@@ -510,6 +518,98 @@ export function registerBoardHandlers(): void {
           success: true,
           data: { archivedCount, skippedCount, syncedAt: new Date().toISOString() }
         }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Archive a single card (from the context menu) ───────────────────────────
+  //
+  // Archives the card on Trello and removes it from the local cache so it
+  // disappears from the Kanban view immediately without a full re-sync.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_ARCHIVE_CARD,
+    async (_e, boardId: string, cardId: string): Promise<IpcResult<void>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        await client.archiveCard(cardId)
+
+        archiveCardLocally(cardId)
+
+        return { success: true }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Get board members (reads from local cache) ──────────────────────────────
+  //
+  // Returns the cached list of board members synced during the last TRELLO_SYNC.
+  // Populated automatically on every sync — call TRELLO_SYNC first.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_GET_BOARD_MEMBERS,
+    async (_e, boardId: string): Promise<IpcResult<TrelloMember[]>> => {
+      try {
+        return { success: true, data: getBoardMembers(boardId) }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Toggle member assignment on a card ─────────────────────────────────────
+  //
+  // Adds or removes a member from a card on Trello and updates the local cache.
+  // Returns the updated members list for the card.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_ASSIGN_CARD_MEMBER,
+    async (
+      _e,
+      boardId: string,
+      cardId: string,
+      memberId: string,
+      assign: boolean
+    ): Promise<IpcResult<TrelloMember[]>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+
+        if (assign) {
+          await client.addCardMember(cardId, memberId)
+        } else {
+          await client.removeCardMember(cardId, memberId)
+        }
+
+        // Read current card members from the local DB and apply the change.
+        const membersJson = getCardMembersJson(cardId)
+        if (membersJson === undefined) return { success: false, error: `Card not found: ${cardId}` }
+
+        const currentMembers: TrelloMember[] = JSON.parse(membersJson)
+        const boardMembers = getBoardMembers(boardId)
+        const assignedMember = boardMembers.find((m) => m.id === memberId)
+
+        let updatedMembers: TrelloMember[]
+        if (assign && assignedMember) {
+          updatedMembers = currentMembers.some((m) => m.id === memberId)
+            ? currentMembers
+            : [...currentMembers, assignedMember]
+        } else {
+          updatedMembers = currentMembers.filter((m) => m.id !== memberId)
+        }
+
+        updateCardMembers(cardId, updatedMembers)
+
+        return { success: true, data: updatedMembers }
       } catch (err) {
         return { success: false, error: String(err) }
       }

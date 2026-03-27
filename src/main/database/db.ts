@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import type { BoardConfig, BoardConfigInput } from '@shared/board.types'
 import { getDbPath } from '../settings/appSettings'
-import type { TrelloList, TrelloCard, TrelloAction } from '@shared/trello.types'
+import type { TrelloList, TrelloCard, TrelloAction, TrelloMember } from '@shared/trello.types'
 
 // ─── SQL imports ───────────────────────────────────────────────────────────────
 import schemaSql from './sql/schema.sql?raw'
@@ -29,6 +29,10 @@ import sqlCardsUpdatePos from './sql/cards/update-pos.sql?raw'
 import sqlCardsGetDoneOlderThan from './sql/cards/get-done-cards-older-than.sql?raw'
 import sqlCardsGetDoneColumnDebug from './sql/cards/get-done-column-debug.sql?raw'
 import sqlCardsSetEpic from './sql/cards/set-epic.sql?raw'
+import sqlCardsArchive from './sql/cards/archive.sql?raw'
+import sqlCardsUpdateMembers from './sql/cards/update-members.sql?raw'
+import sqlBoardsMemberUpsert from './sql/boards/upsert-member.sql?raw'
+import sqlBoardsGetMembers from './sql/boards/get-members.sql?raw'
 import sqlCardListEntriesUpsert from './sql/card-list-entries/upsert.sql?raw'
 import sqlCardListEntriesSetFallback from './sql/card-list-entries/set-fallback.sql?raw'
 import sqlCardListEntriesClearForBoard from './sql/card-list-entries/clear-for-board.sql?raw'
@@ -87,6 +91,19 @@ export function getDb(): Database.Database {
   } catch {
     // Column already exists — nothing to do.
   }
+
+  // Ensure board_members table exists for existing databases that pre-date the
+  // schema addition.  CREATE TABLE IF NOT EXISTS is idempotent and safe.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS board_members (
+      id        TEXT NOT NULL,
+      board_id  TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      username  TEXT NOT NULL,
+      PRIMARY KEY (id, board_id),
+      FOREIGN KEY (board_id) REFERENCES board_configs(board_id) ON DELETE CASCADE
+    )
+  `)
 
   return _db
 }
@@ -300,6 +317,54 @@ export function getEpicCardsForBoard(storyBoardId: string): EpicCardRow[] {
 /** Returns all open story cards assigned to the given epic card. */
 export function getStoriesForEpic(epicCardId: string): EpicStoryRow[] {
   return getDb().prepare(sqlKanbanGetStoriesForEpic).all(epicCardId) as EpicStoryRow[]
+}
+
+/** Mark a single card as archived in the local cache. */
+export function archiveCardLocally(cardId: string): void {
+  getDb().prepare(sqlCardsArchive).run({ cardId })
+}
+
+/** Update the members_json for a card after a member assignment change. */
+export function updateCardMembers(cardId: string, members: TrelloMember[]): void {
+  getDb()
+    .prepare(sqlCardsUpdateMembers)
+    .run({ cardId, membersJson: JSON.stringify(members) })
+}
+
+// ─── Board Members ─────────────────────────────────────────────────────────────
+
+interface MemberRow {
+  id: string
+  full_name: string
+  username: string
+}
+
+/** Upsert the full list of board members fetched from Trello. */
+export function upsertBoardMembers(boardId: string, members: TrelloMember[]): void {
+  const db = getDb()
+  const stmt = db.prepare(sqlBoardsMemberUpsert)
+  db.transaction((rows: TrelloMember[]) => {
+    for (const m of rows) {
+      stmt.run({ id: m.id, boardId, fullName: m.fullName, username: m.username })
+    }
+  })(members)
+}
+
+/** Returns the members_json string for a card, or undefined if not found. */
+export function getCardMembersJson(cardId: string): string | undefined {
+  const row = getDb().prepare('SELECT members_json FROM trello_cards WHERE id = ?').get(cardId) as
+    | { members_json: string }
+    | undefined
+  return row?.members_json
+}
+
+/** Returns all cached board members, ordered alphabetically by full name. */
+export function getBoardMembers(boardId: string): TrelloMember[] {
+  return (getDb().prepare(sqlBoardsGetMembers).all(boardId) as MemberRow[]).map((r) => ({
+    id: r.id,
+    fullName: r.full_name,
+    username: r.username
+  }))
 }
 
 // ─── Actions ───────────────────────────────────────────────────────────────────
