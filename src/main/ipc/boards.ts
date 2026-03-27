@@ -50,14 +50,18 @@ import {
 } from '../database/db'
 import { TrelloClient } from '../trello/client'
 import sqlColumnCounts from '../database/sql/analytics/column-counts.sql?raw'
+import log from '../logger'
 
 export function registerBoardHandlers(): void {
   // ── Board CRUD ──────────────────────────────────────────────────────────────
 
   ipcMain.handle(IPC_CHANNELS.BOARDS_GET_ALL, async (): Promise<IpcResult<BoardConfig[]>> => {
     try {
-      return { success: true, data: getAllBoards() }
+      const boards = getAllBoards()
+      log.debug(`[boards] getAll → ${boards.length} board(s)`)
+      return { success: true, data: boards }
     } catch (err) {
+      log.error('[boards] getAll failed:', err)
       return { success: false, error: String(err) }
     }
   })
@@ -66,8 +70,10 @@ export function registerBoardHandlers(): void {
     IPC_CHANNELS.BOARDS_ADD,
     async (_e, input: BoardConfigInput): Promise<IpcResult<BoardConfig>> => {
       try {
+        log.info(`[boards] add boardId=${input.boardId} name="${input.boardName}"`)
         return { success: true, data: addBoard(input) }
       } catch (err) {
+        log.error('[boards] add failed:', err)
         return { success: false, error: String(err) }
       }
     }
@@ -81,8 +87,10 @@ export function registerBoardHandlers(): void {
       updates: Partial<BoardConfigInput>
     ): Promise<IpcResult<BoardConfig>> => {
       try {
+        log.info(`[boards] update boardId=${boardId}`)
         return { success: true, data: updateBoard(boardId, updates) }
       } catch (err) {
+        log.error(`[boards] update failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -92,9 +100,11 @@ export function registerBoardHandlers(): void {
     IPC_CHANNELS.BOARDS_DELETE,
     async (_e, boardId: string): Promise<IpcResult<void>> => {
       try {
+        log.info(`[boards] delete boardId=${boardId}`)
         deleteBoard(boardId)
         return { success: true }
       } catch (err) {
+        log.error(`[boards] delete failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -106,13 +116,20 @@ export function registerBoardHandlers(): void {
     IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO,
     async (_e, apiKey: string, apiToken: string): Promise<IpcResult<TrelloBoard[]>> => {
       try {
+        log.info('[boards] fetchFromTrello: validating credentials')
         const client = new TrelloClient(apiKey, apiToken)
         const validation = await client.validateCredentials()
         if (!validation.valid) {
+          log.warn('[boards] fetchFromTrello: invalid credentials')
           return { success: false, error: 'Invalid Trello API credentials' }
         }
-        return { success: true, data: await client.getMemberBoards() }
+        const boards = await client.getMemberBoards()
+        log.info(
+          `[boards] fetchFromTrello: found ${boards.length} board(s) for member "${validation.memberName}"`
+        )
+        return { success: true, data: boards }
       } catch (err) {
+        log.error('[boards] fetchFromTrello failed:', err)
         return { success: false, error: String(err) }
       }
     }
@@ -145,8 +162,12 @@ export function registerBoardHandlers(): void {
     IPC_CHANNELS.TRELLO_SYNC,
     async (_e, boardId: string): Promise<IpcResult<SyncResult>> => {
       try {
+        log.info(`[boards] sync start boardId=${boardId}`)
         const config = getBoardById(boardId)
-        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+        if (!config) {
+          log.warn(`[boards] sync: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
         const client = new TrelloClient(config.apiKey, config.apiToken)
 
@@ -218,11 +239,15 @@ export function registerBoardHandlers(): void {
         updateBoardSyncTime(boardId)
 
         const syncedAt = new Date().toISOString()
+        log.info(
+          `[boards] sync complete boardId=${boardId} lists=${freshLists.length} cards=${freshCards.length} actions=${actions.length}`
+        )
         return {
           success: true,
           data: { listCount: freshLists.length, cardCount: freshCards.length, syncedAt }
         }
       } catch (err) {
+        log.error(`[boards] sync failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -238,8 +263,10 @@ export function registerBoardHandlers(): void {
     async (_e, boardId: string): Promise<IpcResult<ColumnCount[]>> => {
       try {
         const rows = getDb().prepare(sqlColumnCounts).all(boardId) as ColumnCount[]
+        log.debug(`[boards] columnCounts boardId=${boardId} → ${rows.length} row(s)`)
         return { success: true, data: rows }
       } catch (err) {
+        log.error(`[boards] columnCounts failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -256,6 +283,9 @@ export function registerBoardHandlers(): void {
       try {
         const lists = getListsForBoard(boardId)
         const cards = getCardsForBoard(boardId)
+        log.debug(
+          `[boards] getBoardData boardId=${boardId} lists=${lists.length} cards=${cards.length}`
+        )
 
         const columns: KanbanColumn[] = lists.map((list) => ({
           id: list.id,
@@ -280,6 +310,7 @@ export function registerBoardHandlers(): void {
 
         return { success: true, data: columns }
       } catch (err) {
+        log.error(`[boards] getBoardData failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -301,8 +332,12 @@ export function registerBoardHandlers(): void {
     ): Promise<IpcResult<void>> => {
       try {
         const config = getBoardById(boardId)
-        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+        if (!config) {
+          log.warn(`[boards] moveCard: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
+        log.info(`[boards] moveCard cardId=${cardId} → listId=${toListId} pos=${pos}`)
         const client = new TrelloClient(config.apiKey, config.apiToken)
         await client.moveCard(cardId, toListId, pos)
 
@@ -310,6 +345,7 @@ export function registerBoardHandlers(): void {
 
         return { success: true }
       } catch (err) {
+        log.error(`[boards] moveCard failed cardId=${cardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -322,8 +358,12 @@ export function registerBoardHandlers(): void {
     async (_e, boardId: string, cardId: string, pos: number): Promise<IpcResult<void>> => {
       try {
         const config = getBoardById(boardId)
-        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+        if (!config) {
+          log.warn(`[boards] updateCardPos: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
+        log.debug(`[boards] updateCardPos cardId=${cardId} pos=${pos}`)
         // Persist locally first so the UI state is always consistent,
         // even if the Trello API call fails.
         updateCardPos(cardId, pos)
@@ -333,6 +373,7 @@ export function registerBoardHandlers(): void {
 
         return { success: true }
       } catch (err) {
+        log.error(`[boards] updateCardPos failed cardId=${cardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -349,15 +390,22 @@ export function registerBoardHandlers(): void {
     async (_e, boardId: string, olderThanWeeks: number): Promise<IpcResult<DoneCardPreview[]>> => {
       try {
         const config = getBoardById(boardId)
-        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+        if (!config) {
+          log.warn(`[boards] previewArchiveDoneCards: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
         const cutoffDate = new Date(
           Date.now() - olderThanWeeks * 7 * 24 * 60 * 60 * 1000
         ).toISOString()
 
         const candidates = getDoneCardsOlderThan(boardId, config.doneListNames, cutoffDate)
+        log.info(
+          `[boards] previewArchiveDoneCards boardId=${boardId} olderThanWeeks=${olderThanWeeks} candidates=${candidates.length}`
+        )
         return { success: true, data: candidates }
       } catch (err) {
+        log.error(`[boards] previewArchiveDoneCards failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -376,10 +424,15 @@ export function registerBoardHandlers(): void {
     async (_e, boardId: string): Promise<IpcResult<DoneCardDebugInfo[]>> => {
       try {
         const config = getBoardById(boardId)
-        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+        if (!config) {
+          log.warn(`[boards] getDoneColumnDebug: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
         const rows = getDoneColumnDebug(boardId, config.doneListNames)
+        log.debug(`[boards] getDoneColumnDebug boardId=${boardId} → ${rows.length} row(s)`)
         return { success: true, data: rows }
       } catch (err) {
+        log.error(`[boards] getDoneColumnDebug failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -474,13 +527,19 @@ export function registerBoardHandlers(): void {
     async (_e, boardId: string, olderThanWeeks: number): Promise<IpcResult<ArchiveResult>> => {
       try {
         const config = getBoardById(boardId)
-        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+        if (!config) {
+          log.warn(`[boards] archiveDoneCards: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
         const cutoffDate = new Date(
           Date.now() - olderThanWeeks * 7 * 24 * 60 * 60 * 1000
         ).toISOString()
 
         const candidates = getDoneCardsOlderThan(boardId, config.doneListNames, cutoffDate)
+        log.info(
+          `[boards] archiveDoneCards boardId=${boardId} olderThanWeeks=${olderThanWeeks} candidates=${candidates.length}`
+        )
 
         const client = new TrelloClient(config.apiKey, config.apiToken)
 
@@ -490,9 +549,10 @@ export function registerBoardHandlers(): void {
         for (const card of candidates) {
           try {
             await client.archiveCard(card.id)
+            log.debug(`[boards] archived card ${card.id} "${card.name}"`)
             archivedCount++
           } catch (err) {
-            console.error(`Failed to archive card ${card.id} ("${card.name}"):`, String(err))
+            log.error(`[boards] failed to archive card ${card.id} ("${card.name}"):`, err)
             skippedCount++
           }
         }
@@ -514,11 +574,15 @@ export function registerBoardHandlers(): void {
         )
         updateBoardSyncTime(boardId)
 
+        log.info(
+          `[boards] archiveDoneCards complete boardId=${boardId} archived=${archivedCount} skipped=${skippedCount}`
+        )
         return {
           success: true,
           data: { archivedCount, skippedCount, syncedAt: new Date().toISOString() }
         }
       } catch (err) {
+        log.error(`[boards] archiveDoneCards failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -534,8 +598,12 @@ export function registerBoardHandlers(): void {
     async (_e, boardId: string, cardId: string): Promise<IpcResult<void>> => {
       try {
         const config = getBoardById(boardId)
-        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+        if (!config) {
+          log.warn(`[boards] archiveCard: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
+        log.info(`[boards] archiveCard cardId=${cardId}`)
         const client = new TrelloClient(config.apiKey, config.apiToken)
         await client.archiveCard(cardId)
 
@@ -543,6 +611,7 @@ export function registerBoardHandlers(): void {
 
         return { success: true }
       } catch (err) {
+        log.error(`[boards] archiveCard failed cardId=${cardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -557,8 +626,11 @@ export function registerBoardHandlers(): void {
     IPC_CHANNELS.TRELLO_GET_BOARD_MEMBERS,
     async (_e, boardId: string): Promise<IpcResult<TrelloMember[]>> => {
       try {
-        return { success: true, data: getBoardMembers(boardId) }
+        const members = getBoardMembers(boardId)
+        log.debug(`[boards] getBoardMembers boardId=${boardId} → ${members.length} member(s)`)
+        return { success: true, data: members }
       } catch (err) {
+        log.error(`[boards] getBoardMembers failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -580,8 +652,12 @@ export function registerBoardHandlers(): void {
     ): Promise<IpcResult<TrelloMember[]>> => {
       try {
         const config = getBoardById(boardId)
-        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+        if (!config) {
+          log.warn(`[boards] assignCardMember: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
+        log.info(`[boards] assignCardMember cardId=${cardId} memberId=${memberId} assign=${assign}`)
         const client = new TrelloClient(config.apiKey, config.apiToken)
 
         if (assign) {
@@ -592,7 +668,10 @@ export function registerBoardHandlers(): void {
 
         // Read current card members from the local DB and apply the change.
         const membersJson = getCardMembersJson(cardId)
-        if (membersJson === undefined) return { success: false, error: `Card not found: ${cardId}` }
+        if (membersJson === undefined) {
+          log.warn(`[boards] assignCardMember: card not found cardId=${cardId}`)
+          return { success: false, error: `Card not found: ${cardId}` }
+        }
 
         const currentMembers: TrelloMember[] = JSON.parse(membersJson)
         const boardMembers = getBoardMembers(boardId)
@@ -611,6 +690,7 @@ export function registerBoardHandlers(): void {
 
         return { success: true, data: updatedMembers }
       } catch (err) {
+        log.error(`[boards] assignCardMember failed cardId=${cardId}:`, err)
         return { success: false, error: String(err) }
       }
     }

@@ -35,6 +35,11 @@ export const IPC_CHANNELS = {
   SETTINGS_GET_DB_PATH: 'settings:getDbPath',
   SETTINGS_SET_DB_PATH: 'settings:setDbPath',
 
+  // Logging
+  LOGS_GET_PATH: 'logs:getPath',
+  LOGS_OPEN_FOLDER: 'logs:openFolder',
+  LOGS_SET_PATH: 'logs:setPath',
+
   // Kanban board view
   TRELLO_GET_BOARD_DATA: 'trello:getBoardData',
   TRELLO_MOVE_CARD: 'trello:moveCard',
