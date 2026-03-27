@@ -18,6 +18,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "jest",
+    "test:coverage": "jest --coverage",
     "audit:ci": "pnpm audit --audit-level high",
     "postinstall": "electron-builder install-app-deps",
     "prepare": "husky"
@@ -81,7 +82,7 @@
     }
   },
   "build": {
-    "appId": "com.agilelife.app",
+    "appId": "com.inspiration-particle.agile-life",
     "productName": "Agile Life",
     "directories": {
       "buildResources": "resources"

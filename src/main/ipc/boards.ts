@@ -7,9 +7,11 @@ import type {
   SyncResult,
   ArchiveResult,
   DoneCardPreview,
-  DoneCardDebugInfo
+  DoneCardDebugInfo,
+  EpicCardOption,
+  EpicStory
 } from '@shared/board.types'
-import type { TrelloBoard, KanbanColumn } from '@shared/trello.types'
+import type { TrelloBoard, KanbanColumn, TrelloMember } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import {
   getAllBoards,
@@ -26,6 +28,11 @@ import {
   getCardsForBoard,
   moveCardToList,
   updateCardPos,
+  archiveCardLocally,
+  updateCardMembers,
+  upsertBoardMembers,
+  getBoardMembers,
+  getCardMembersJson,
   upsertActions,
   getLatestActionDate,
   upsertCardListEntry,
@@ -35,7 +42,11 @@ import {
   clearCardListEntriesForBoard,
   getDoneCardsOlderThan,
   getDoneColumnDebug,
-  getDb
+  getDb,
+  setEpicBoard,
+  setCardEpic,
+  getEpicCardsForBoard,
+  getStoriesForEpic
 } from '../database/db'
 import { TrelloClient } from '../trello/client'
 import sqlColumnCounts from '../database/sql/analytics/column-counts.sql?raw'
@@ -153,10 +164,11 @@ export function registerBoardHandlers(): void {
           clearCardListEntriesForBoard(boardId)
         }
 
-        const [freshLists, freshCards, actions] = await Promise.all([
+        const [freshLists, freshCards, actions, freshMembers] = await Promise.all([
           client.getLists(boardId),
           client.getAllCards(boardId),
-          client.getActions(boardId, { since: latestActionDate ?? undefined })
+          client.getActions(boardId, { since: latestActionDate ?? undefined }),
+          client.getMembers(boardId)
         ])
 
         upsertLists(boardId, freshLists)
@@ -170,6 +182,8 @@ export function registerBoardHandlers(): void {
           boardId,
           freshCards.map((c) => c.id)
         )
+
+        upsertBoardMembers(boardId, freshMembers)
 
         // Persist all actions to trello_actions for analytics queries.
         upsertActions(boardId, actions)
@@ -258,7 +272,9 @@ export function registerBoardHandlers(): void {
               shortUrl: c.short_url,
               labels: JSON.parse(c.labels_json),
               members: JSON.parse(c.members_json),
-              dateLastActivity: c.date_last_activity
+              dateLastActivity: c.date_last_activity,
+              epicCardId: c.epic_card_id,
+              epicCardName: c.epic_card_name
             }))
         }))
 
@@ -369,6 +385,82 @@ export function registerBoardHandlers(): void {
     }
   )
 
+  // ── Epic / Story board linking ───────────────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.BOARDS_SET_EPIC_BOARD,
+    async (
+      _e,
+      storyBoardId: string,
+      epicBoardId: string | null
+    ): Promise<IpcResult<BoardConfig>> => {
+      try {
+        const updated = setEpicBoard(storyBoardId, epicBoardId)
+        return { success: true, data: updated }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.EPICS_GET_CARDS,
+    async (_e, storyBoardId: string): Promise<IpcResult<EpicCardOption[]>> => {
+      try {
+        const rows = getEpicCardsForBoard(storyBoardId)
+        const options: EpicCardOption[] = rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          listName: r.list_name
+        }))
+        return { success: true, data: options }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.EPICS_SET_CARD_EPIC,
+    async (
+      _e,
+      _boardId: string,
+      cardId: string,
+      epicCardId: string | null
+    ): Promise<IpcResult<void>> => {
+      try {
+        setCardEpic(cardId, epicCardId)
+        return { success: true }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.EPICS_GET_STORIES,
+    async (_e, epicCardId: string): Promise<IpcResult<EpicStory[]>> => {
+      try {
+        const rows = getStoriesForEpic(epicCardId)
+        const stories: EpicStory[] = rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          desc: r.desc,
+          listId: r.list_id,
+          listName: r.list_name,
+          boardName: r.board_name,
+          pos: r.pos,
+          shortUrl: r.short_url,
+          labelsJson: r.labels_json,
+          membersJson: r.members_json
+        }))
+        return { success: true, data: stories }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
   // ── Archive done cards older than N weeks ───────────────────────────────────
   //
   // 1. Look up the board's configured "done" list names.
@@ -426,6 +518,98 @@ export function registerBoardHandlers(): void {
           success: true,
           data: { archivedCount, skippedCount, syncedAt: new Date().toISOString() }
         }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Archive a single card (from the context menu) ───────────────────────────
+  //
+  // Archives the card on Trello and removes it from the local cache so it
+  // disappears from the Kanban view immediately without a full re-sync.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_ARCHIVE_CARD,
+    async (_e, boardId: string, cardId: string): Promise<IpcResult<void>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        await client.archiveCard(cardId)
+
+        archiveCardLocally(cardId)
+
+        return { success: true }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Get board members (reads from local cache) ──────────────────────────────
+  //
+  // Returns the cached list of board members synced during the last TRELLO_SYNC.
+  // Populated automatically on every sync — call TRELLO_SYNC first.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_GET_BOARD_MEMBERS,
+    async (_e, boardId: string): Promise<IpcResult<TrelloMember[]>> => {
+      try {
+        return { success: true, data: getBoardMembers(boardId) }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Toggle member assignment on a card ─────────────────────────────────────
+  //
+  // Adds or removes a member from a card on Trello and updates the local cache.
+  // Returns the updated members list for the card.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_ASSIGN_CARD_MEMBER,
+    async (
+      _e,
+      boardId: string,
+      cardId: string,
+      memberId: string,
+      assign: boolean
+    ): Promise<IpcResult<TrelloMember[]>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) return { success: false, error: `Board not found: ${boardId}` }
+
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+
+        if (assign) {
+          await client.addCardMember(cardId, memberId)
+        } else {
+          await client.removeCardMember(cardId, memberId)
+        }
+
+        // Read current card members from the local DB and apply the change.
+        const membersJson = getCardMembersJson(cardId)
+        if (membersJson === undefined) return { success: false, error: `Card not found: ${cardId}` }
+
+        const currentMembers: TrelloMember[] = JSON.parse(membersJson)
+        const boardMembers = getBoardMembers(boardId)
+        const assignedMember = boardMembers.find((m) => m.id === memberId)
+
+        let updatedMembers: TrelloMember[]
+        if (assign && assignedMember) {
+          updatedMembers = currentMembers.some((m) => m.id === memberId)
+            ? currentMembers
+            : [...currentMembers, assignedMember]
+        } else {
+          updatedMembers = currentMembers.filter((m) => m.id !== memberId)
+        }
+
+        updateCardMembers(cardId, updatedMembers)
+
+        return { success: true, data: updatedMembers }
       } catch (err) {
         return { success: false, error: String(err) }
       }

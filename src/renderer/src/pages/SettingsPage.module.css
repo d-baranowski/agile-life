@@ -199,7 +199,53 @@ td code {
   gap: 10px;
 }
 
-/* ── Debug panel ── */
+/* ── Story Points table ── */
+.spTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 12px;
+  font-size: 13px;
+}
+
+.spTable th {
+  text-align: left;
+  padding: 6px 10px;
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.spTable td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.spTable tr:last-child td {
+  border-bottom: none;
+}
+
+.spInput {
+  width: 100%;
+  max-width: 220px;
+}
+
+.spPointsInput {
+  width: 72px;
+  text-align: center;
+}
+
+.spActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
 .debugHeader {
   display: flex;
   align-items: flex-start;

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS board_configs (
   project_code                    TEXT    NOT NULL DEFAULT '',
   next_ticket_number              INTEGER NOT NULL DEFAULT 1,
   done_list_names                 TEXT    NOT NULL DEFAULT '["Done"]',
+  story_points_config             TEXT    NOT NULL DEFAULT '[{"labelName":"Large","points":5},{"labelName":"Medium","points":3},{"labelName":"Small","points":1}]',
   last_synced_at                  TEXT,
   card_list_entries_initialized   INTEGER NOT NULL DEFAULT 0,
   created_at                      TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -98,3 +99,14 @@ CREATE TABLE IF NOT EXISTS card_list_entries (
 
 -- Extra index so queries filtering by list_id alone stay fast.
 CREATE INDEX IF NOT EXISTS idx_card_list_entries_list ON card_list_entries(list_id);
+
+-- Board members cached from Trello.
+-- Upserted on every sync so the context menu can show all assignable members.
+CREATE TABLE IF NOT EXISTS board_members (
+  id        TEXT NOT NULL,
+  board_id  TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  username  TEXT NOT NULL,
+  PRIMARY KEY (id, board_id),
+  FOREIGN KEY (board_id) REFERENCES board_configs(board_id) ON DELETE CASCADE
+);

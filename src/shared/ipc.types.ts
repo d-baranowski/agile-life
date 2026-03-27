@@ -22,6 +22,7 @@ export const IPC_CHANNELS = {
   ANALYTICS_LABEL_USER_STATS: 'analytics:labelUserStats',
   ANALYTICS_CARD_AGE: 'analytics:cardAge',
   ANALYTICS_WEEKLY_HISTORY: 'analytics:weeklyHistory',
+  ANALYTICS_STORY_POINTS_7D: 'analytics:storyPointsWeekly',
 
   // Ticket numbering
   TICKETS_GET_CONFIG: 'tickets:getConfig',
@@ -37,7 +38,16 @@ export const IPC_CHANNELS = {
   // Kanban board view
   TRELLO_GET_BOARD_DATA: 'trello:getBoardData',
   TRELLO_MOVE_CARD: 'trello:moveCard',
-  TRELLO_UPDATE_CARD_POS: 'trello:updateCardPos'
+  TRELLO_UPDATE_CARD_POS: 'trello:updateCardPos',
+  TRELLO_ARCHIVE_CARD: 'trello:archiveCard',
+  TRELLO_GET_BOARD_MEMBERS: 'trello:getBoardMembers',
+  TRELLO_ASSIGN_CARD_MEMBER: 'trello:assignCardMember',
+
+  // Epic / Story board linking
+  BOARDS_SET_EPIC_BOARD: 'boards:setEpicBoard',
+  EPICS_GET_CARDS: 'epics:getCards',
+  EPICS_SET_CARD_EPIC: 'epics:setCardEpic',
+  EPICS_GET_STORIES: 'epics:getStories'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

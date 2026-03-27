@@ -53,12 +53,15 @@ function resolveLabelColor(color: string): string {
   return LABEL_COLORS[color?.toLowerCase()] ?? '#8892a4'
 }
 
+const HISTORY_PAGE_SIZE = 13
+
 export default function AnalyticsPage({ board }: Props): JSX.Element {
   const [weeklyStats, setWeeklyStats] = useState<WeeklyUserStats[]>([])
   const [labelStats, setLabelStats] = useState<LabelUserStats[]>([])
   const [historyStats, setHistoryStats] = useState<WeeklyHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [historyOffset, setHistoryOffset] = useState(0)
 
   const loadStats = useCallback(async () => {
     setLoading(true)
@@ -67,7 +70,7 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
     const [weeklyResult, labelResult, historyResult] = await Promise.all([
       api.analytics.weeklyUserStats(board.boardId),
       api.analytics.labelUserStats(board.boardId),
-      api.analytics.weeklyHistory(board.boardId)
+      api.analytics.weeklyHistory(board.boardId, board.storyPointsConfig)
     ])
 
     if (!weeklyResult.success) {
@@ -87,11 +90,16 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
     }
 
     setLoading(false)
-  }, [board.boardId])
+  }, [board.boardId, board.storyPointsConfig])
 
   useEffect(() => {
     loadStats()
   }, [loadStats])
+
+  // Reset page offset when data reloads
+  useEffect(() => {
+    setHistoryOffset(0)
+  }, [historyStats])
 
   // ── Derived data ────────────────────────────────────────────────────────────
 
@@ -130,7 +138,7 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
 
   const totalCompleted = sortedUsers.reduce((s, [, u]) => s + u.count, 0)
 
-  // ── 12-month history chart data ─────────────────────────────────────────────
+  // ── 12-month history chart data with paging ─────────────────────────────────
 
   // Collect all unique weeks (sorted) and all unique users from history
   const allHistoryWeeks = [...new Set(historyStats.map((r) => r.week))].sort()
@@ -142,7 +150,15 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
     }
   })
 
-  // Build a lookup: week → userId → count
+  // Compute page window
+  const totalWeeks = allHistoryWeeks.length
+  const maxOffset = Math.max(0, Math.ceil(totalWeeks / HISTORY_PAGE_SIZE) - 1)
+  const clampedOffset = Math.min(historyOffset, maxOffset)
+  const pageEndIdx = totalWeeks - clampedOffset * HISTORY_PAGE_SIZE
+  const pageStartIdx = Math.max(0, pageEndIdx - HISTORY_PAGE_SIZE)
+  const pageWeeks = allHistoryWeeks.slice(pageStartIdx, pageEndIdx)
+
+  // Build a lookup: week → userId → story points
   const historyLookup = new Map<string, Map<string, number>>()
   historyStats.forEach((r) => {
     const key = r.userId ?? 'unassigned'
@@ -151,12 +167,12 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
   })
 
   const historyChartData = {
-    labels: allHistoryWeeks,
+    labels: pageWeeks,
     datasets: [...historyUserMap.entries()].map(([userId, { userName, idx }]) => {
       const color = USER_PALETTE[idx % USER_PALETTE.length]
       return {
         label: userName,
-        data: allHistoryWeeks.map((w) => historyLookup.get(w)?.get(userId) ?? 0),
+        data: pageWeeks.map((w) => historyLookup.get(w)?.get(userId) ?? 0),
         borderColor: color,
         backgroundColor: color + '33',
         fill: false,
@@ -174,10 +190,18 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
       tooltip: { mode: 'index' as const, intersect: false }
     },
     scales: {
-      x: { ticks: { maxTicksLimit: 13 } },
+      x: { ticks: { maxTicksLimit: HISTORY_PAGE_SIZE } },
       y: { beginAtZero: true, ticks: { precision: 0 } }
     }
   }
+
+  // Human-readable range label for the current page
+  const pageRangeLabel =
+    pageWeeks.length > 0
+      ? pageWeeks[0] === pageWeeks[pageWeeks.length - 1]
+        ? pageWeeks[0]
+        : `${pageWeeks[0]} – ${pageWeeks[pageWeeks.length - 1]}`
+      : ''
 
   return (
     <div className={styles.container}>
@@ -286,9 +310,32 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
             )}
           </section>
 
-          {/* ── 12-month history chart ── */}
+          {/* ── Story-point history chart ── */}
           <section>
-            <h2 className={styles.sectionTitle}>Completion Trend — Past 12 Months</h2>
+            <div className={styles.chartHeader}>
+              <h2 className={styles.sectionTitle}>Story Point Trend — Past 12 Months</h2>
+              {allHistoryWeeks.length > 0 && (
+                <div className={styles.chartNav}>
+                  <button
+                    className={styles.chartNavBtn}
+                    onClick={() => setHistoryOffset((o) => Math.min(o + 1, maxOffset))}
+                    disabled={clampedOffset >= maxOffset}
+                    title="Older"
+                  >
+                    ◀
+                  </button>
+                  <span className={styles.chartNavLabel}>{pageRangeLabel}</span>
+                  <button
+                    className={styles.chartNavBtn}
+                    onClick={() => setHistoryOffset((o) => Math.max(o - 1, 0))}
+                    disabled={clampedOffset === 0}
+                    title="Newer"
+                  >
+                    ▶
+                  </button>
+                </div>
+              )}
+            </div>
             {allHistoryWeeks.length === 0 ? (
               <p className="text-muted">
                 No historical data yet. Sync your board to populate this chart — the sync now

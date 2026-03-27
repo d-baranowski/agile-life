@@ -1,9 +1,9 @@
 import Database from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
-import type { BoardConfig, BoardConfigInput } from '@shared/board.types'
+import type { BoardConfig, BoardConfigInput, StoryPointRule } from '@shared/board.types'
 import { getDbPath } from '../settings/appSettings'
-import type { TrelloList, TrelloCard, TrelloAction } from '@shared/trello.types'
+import type { TrelloList, TrelloCard, TrelloAction, TrelloMember } from '@shared/trello.types'
 
 // ─── SQL imports ───────────────────────────────────────────────────────────────
 import schemaSql from './sql/schema.sql?raw'
@@ -23,13 +23,21 @@ import sqlCardsMarkAllRemoved from './sql/cards/mark-all-removed.sql?raw'
 import sqlKanbanGetLists from './sql/kanban/get-lists.sql?raw'
 import sqlKanbanGetCards from './sql/kanban/get-cards.sql?raw'
 import sqlKanbanMoveCard from './sql/kanban/move-card.sql?raw'
+import sqlKanbanGetEpicCards from './sql/kanban/get-epic-cards.sql?raw'
+import sqlKanbanGetStoriesForEpic from './sql/kanban/get-stories-for-epic.sql?raw'
 import sqlCardsUpdatePos from './sql/cards/update-pos.sql?raw'
 import sqlCardsGetDoneOlderThan from './sql/cards/get-done-cards-older-than.sql?raw'
 import sqlCardsGetDoneColumnDebug from './sql/cards/get-done-column-debug.sql?raw'
+import sqlCardsSetEpic from './sql/cards/set-epic.sql?raw'
+import sqlCardsArchive from './sql/cards/archive.sql?raw'
+import sqlCardsUpdateMembers from './sql/cards/update-members.sql?raw'
+import sqlBoardsMemberUpsert from './sql/boards/upsert-member.sql?raw'
+import sqlBoardsGetMembers from './sql/boards/get-members.sql?raw'
 import sqlCardListEntriesUpsert from './sql/card-list-entries/upsert.sql?raw'
 import sqlCardListEntriesSetFallback from './sql/card-list-entries/set-fallback.sql?raw'
 import sqlCardListEntriesClearForBoard from './sql/card-list-entries/clear-for-board.sql?raw'
 import sqlBoardsSetCardListEntriesInitialized from './sql/boards/set-card-list-entries-initialized.sql?raw'
+import sqlBoardsSetEpicBoard from './sql/boards/set-epic-board.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -73,6 +81,36 @@ export function getDb(): Database.Database {
   } catch {
     // Column already exists — nothing to do.
   }
+  try {
+    _db.exec('ALTER TABLE board_configs ADD COLUMN epic_board_id TEXT DEFAULT NULL')
+  } catch {
+    // Column already exists — nothing to do.
+  }
+  try {
+    _db.exec('ALTER TABLE trello_cards ADD COLUMN epic_card_id TEXT DEFAULT NULL')
+  } catch {
+    // Column already exists — nothing to do.
+  }
+  try {
+    _db.exec(
+      'ALTER TABLE board_configs ADD COLUMN story_points_config TEXT NOT NULL DEFAULT \'[{"labelName":"Large","points":5},{"labelName":"Medium","points":3},{"labelName":"Small","points":1}]\''
+    )
+  } catch {
+    // Column already exists — nothing to do.
+  }
+
+  // Ensure board_members table exists for existing databases that pre-date the
+  // schema addition.  CREATE TABLE IF NOT EXISTS is idempotent and safe.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS board_members (
+      id        TEXT NOT NULL,
+      board_id  TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      username  TEXT NOT NULL,
+      PRIMARY KEY (id, board_id),
+      FOREIGN KEY (board_id) REFERENCES board_configs(board_id) ON DELETE CASCADE
+    )
+  `)
 
   return _db
 }
@@ -116,7 +154,8 @@ export function updateBoard(boardId: string, updates: Partial<BoardConfigInput>)
       apiToken: updates.apiToken ?? existing.apiToken,
       projectCode: (updates.projectCode ?? existing.projectCode).toUpperCase(),
       nextTicketNumber: updates.nextTicketNumber ?? existing.nextTicketNumber,
-      doneListNames: JSON.stringify(updates.doneListNames ?? existing.doneListNames)
+      doneListNames: JSON.stringify(updates.doneListNames ?? existing.doneListNames),
+      storyPointsConfig: JSON.stringify(updates.storyPointsConfig ?? existing.storyPointsConfig)
     })
 
   return getBoardById(boardId)!
@@ -124,6 +163,16 @@ export function updateBoard(boardId: string, updates: Partial<BoardConfigInput>)
 
 export function deleteBoard(boardId: string): void {
   getDb().prepare(sqlBoardsDelete).run(boardId)
+}
+
+/**
+ * Set (or clear) the epic board for a story board.
+ * Pass null for epicBoardId to unlink the epic board.
+ */
+export function setEpicBoard(boardId: string, epicBoardId: string | null): BoardConfig {
+  if (!getBoardById(boardId)) throw new Error(`Board not found: ${boardId}`)
+  getDb().prepare(sqlBoardsSetEpicBoard).run({ boardId, epicBoardId })
+  return getBoardById(boardId)!
 }
 
 // ─── Lists ─────────────────────────────────────────────────────────────────────
@@ -222,6 +271,28 @@ interface CardRow {
   labels_json: string
   members_json: string
   date_last_activity: string
+  epic_card_id: string | null
+  epic_card_name: string | null
+}
+
+interface EpicCardRow {
+  id: string
+  name: string
+  list_name: string
+}
+
+interface EpicStoryRow {
+  id: string
+  name: string
+  desc: string
+  list_id: string
+  list_name: string
+  board_name: string
+  pos: number
+  short_url: string
+  labels_json: string
+  members_json: string
+  date_last_activity: string
 }
 
 export function getListsForBoard(boardId: string): ListRow[] {
@@ -239,6 +310,69 @@ export function moveCardToList(cardId: string, toListId: string, pos: number): v
 /** Update only the position of a card (used when reordering within a column). */
 export function updateCardPos(cardId: string, pos: number): void {
   getDb().prepare(sqlCardsUpdatePos).run({ cardId, pos })
+}
+
+/** Set the epic card reference on a story card (null clears it). */
+export function setCardEpic(cardId: string, epicCardId: string | null): void {
+  getDb().prepare(sqlCardsSetEpic).run({ cardId, epicCardId })
+}
+
+/** Returns open cards from the epic board linked to the given story board. */
+export function getEpicCardsForBoard(storyBoardId: string): EpicCardRow[] {
+  return getDb().prepare(sqlKanbanGetEpicCards).all(storyBoardId) as EpicCardRow[]
+}
+
+/** Returns all open story cards assigned to the given epic card. */
+export function getStoriesForEpic(epicCardId: string): EpicStoryRow[] {
+  return getDb().prepare(sqlKanbanGetStoriesForEpic).all(epicCardId) as EpicStoryRow[]
+}
+
+/** Mark a single card as archived in the local cache. */
+export function archiveCardLocally(cardId: string): void {
+  getDb().prepare(sqlCardsArchive).run({ cardId })
+}
+
+/** Update the members_json for a card after a member assignment change. */
+export function updateCardMembers(cardId: string, members: TrelloMember[]): void {
+  getDb()
+    .prepare(sqlCardsUpdateMembers)
+    .run({ cardId, membersJson: JSON.stringify(members) })
+}
+
+// ─── Board Members ─────────────────────────────────────────────────────────────
+
+interface MemberRow {
+  id: string
+  full_name: string
+  username: string
+}
+
+/** Upsert the full list of board members fetched from Trello. */
+export function upsertBoardMembers(boardId: string, members: TrelloMember[]): void {
+  const db = getDb()
+  const stmt = db.prepare(sqlBoardsMemberUpsert)
+  db.transaction((rows: TrelloMember[]) => {
+    for (const m of rows) {
+      stmt.run({ id: m.id, boardId, fullName: m.fullName, username: m.username })
+    }
+  })(members)
+}
+
+/** Returns the members_json string for a card, or undefined if not found. */
+export function getCardMembersJson(cardId: string): string | undefined {
+  const row = getDb().prepare('SELECT members_json FROM trello_cards WHERE id = ?').get(cardId) as
+    | { members_json: string }
+    | undefined
+  return row?.members_json
+}
+
+/** Returns all cached board members, ordered alphabetically by full name. */
+export function getBoardMembers(boardId: string): TrelloMember[] {
+  return (getDb().prepare(sqlBoardsGetMembers).all(boardId) as MemberRow[]).map((r) => ({
+    id: r.id,
+    fullName: r.full_name,
+    username: r.username
+  }))
 }
 
 // ─── Actions ───────────────────────────────────────────────────────────────────
@@ -408,6 +542,11 @@ export function getDoneColumnDebug(
 type Row = Record<string, unknown>
 
 function rowToBoardConfig(row: Row): BoardConfig {
+  const defaultStoryPoints: StoryPointRule[] = [
+    { labelName: 'Large', points: 5 },
+    { labelName: 'Medium', points: 3 },
+    { labelName: 'Small', points: 1 }
+  ]
   return {
     id: row.id as number,
     boardId: row.board_id as string,
@@ -417,7 +556,11 @@ function rowToBoardConfig(row: Row): BoardConfig {
     projectCode: row.project_code as string,
     nextTicketNumber: row.next_ticket_number as number,
     doneListNames: JSON.parse(row.done_list_names as string),
+    storyPointsConfig: row.story_points_config
+      ? (JSON.parse(row.story_points_config as string) as StoryPointRule[])
+      : defaultStoryPoints,
     lastSyncedAt: (row.last_synced_at as string | null) ?? null,
+    epicBoardId: (row.epic_board_id as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   }

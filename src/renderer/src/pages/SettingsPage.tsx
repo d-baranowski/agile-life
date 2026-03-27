@@ -3,7 +3,8 @@ import type {
   BoardConfig,
   ArchiveResult,
   DoneCardPreview,
-  DoneCardDebugInfo
+  DoneCardDebugInfo,
+  StoryPointRule
 } from '@shared/board.types'
 import type { DbPathInfo } from '@shared/settings.types'
 import { api } from '../hooks/useApi'
@@ -11,12 +12,14 @@ import styles from './SettingsPage.module.css'
 
 interface Props {
   board: BoardConfig
+  allBoards: BoardConfig[]
   onBoardUpdated: (board: BoardConfig) => void
   onBoardDeleted: (boardId: string) => void
 }
 
 export default function SettingsPage({
   board,
+  allBoards,
   onBoardUpdated,
   onBoardDeleted
 }: Props): JSX.Element {
@@ -27,6 +30,12 @@ export default function SettingsPage({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // Story points configuration
+  const [storyPoints, setStoryPoints] = useState<StoryPointRule[]>(board.storyPointsConfig)
+  const [spSaving, setSpSaving] = useState(false)
+  const [spSuccess, setSpSuccess] = useState<string | null>(null)
+  const [spError, setSpError] = useState<string | null>(null)
 
   const [archiveWeeks, setArchiveWeeks] = useState(2)
   const [previewing, setPreviewing] = useState(false)
@@ -59,6 +68,9 @@ export default function SettingsPage({
       if (result.success && result.data) setDbPathInfo(result.data)
     })
   }, [])
+
+  const [epicBoardSaving, setEpicBoardSaving] = useState(false)
+  const [epicBoardError, setEpicBoardError] = useState<string | null>(null)
 
   const doneListLabel = (board.doneListNames ?? ['Done']).join(', ')
 
@@ -129,6 +141,18 @@ export default function SettingsPage({
     setDebugLoading(false)
   }
 
+  const handleSetEpicBoard = async (epicBoardId: string | null): Promise<void> => {
+    setEpicBoardSaving(true)
+    setEpicBoardError(null)
+    const result = await api.boards.setEpicBoard(board.boardId, epicBoardId)
+    setEpicBoardSaving(false)
+    if (result.success && result.data) {
+      onBoardUpdated(result.data)
+    } else {
+      setEpicBoardError(result.error ?? 'Failed to update epic board.')
+    }
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setError(null)
@@ -152,6 +176,29 @@ export default function SettingsPage({
       setTimeout(() => setSuccess(null), 3000)
     } else {
       setError(result.error ?? 'Failed to save settings.')
+    }
+  }
+
+  const handleSaveStoryPoints = async () => {
+    setSpSaving(true)
+    setSpError(null)
+    setSpSuccess(null)
+
+    const validRules = storyPoints
+      .filter((r) => r.labelName.trim() !== '')
+      .map((r) => ({ labelName: r.labelName.trim(), points: r.points }))
+
+    const result = await api.boards.update(board.boardId, { storyPointsConfig: validRules })
+
+    setSpSaving(false)
+
+    if (result.success && result.data) {
+      onBoardUpdated(result.data)
+      setStoryPoints(result.data.storyPointsConfig)
+      setSpSuccess('Story point rules saved.')
+      setTimeout(() => setSpSuccess(null), 3000)
+    } else {
+      setSpError(result.error ?? 'Failed to save story point rules.')
     }
   }
 
@@ -220,6 +267,125 @@ export default function SettingsPage({
         <div className={styles.actions}>
           <button className="btn-primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : '✓ Save Settings'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Epic Board ── */}
+      <div className="card">
+        <h2 className={styles.cardTitle}>Epic Board</h2>
+        <p className={styles.hint}>
+          Link another board as the <strong>Epic Board</strong> for this board. Cards from the epic
+          board can then be assigned as epics for cards on this board. On the epic board,
+          double-click any card to see all stories assigned to it.
+        </p>
+        {epicBoardError && <div className={styles.errorBanner}>{epicBoardError}</div>}
+        <div className={styles.form}>
+          <label className={styles.label}>
+            Epic Board
+            <select
+              value={board.epicBoardId ?? ''}
+              onChange={(e) => handleSetEpicBoard(e.target.value || null)}
+              disabled={epicBoardSaving}
+            >
+              <option value="">— None —</option>
+              {allBoards
+                .filter((b) => b.boardId !== board.boardId)
+                .map((b) => (
+                  <option key={b.boardId} value={b.boardId}>
+                    {b.boardName}
+                  </option>
+                ))}
+            </select>
+          </label>
+        </div>
+        {board.epicBoardId && (
+          <p className={styles.hint}>
+            ✓ Epics are sourced from{' '}
+            <strong>
+              {allBoards.find((b) => b.boardId === board.epicBoardId)?.boardName ??
+                board.epicBoardId}
+            </strong>
+            .
+          </p>
+        )}
+      </div>
+
+      {/* ── Story Points ── */}
+      <div className="card">
+        <h2 className={styles.cardTitle}>Story Points</h2>
+        <p className={styles.hint}>
+          Assign story-point values to ticket labels. The analytics trend chart multiplies each
+          completed ticket by the points of its first matching label. Tickets with no matching label
+          count as <strong>1</strong> point.
+        </p>
+
+        {spError && <div className={styles.errorBanner}>{spError}</div>}
+        {spSuccess && <div className={styles.successBanner}>{spSuccess}</div>}
+
+        <table className={styles.spTable}>
+          <thead>
+            <tr>
+              <th>Label Name</th>
+              <th>Points</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {storyPoints.map((rule, idx) => (
+              <tr key={idx}>
+                <td>
+                  <input
+                    type="text"
+                    value={rule.labelName}
+                    placeholder="e.g. Large"
+                    onChange={(e) => {
+                      const next = [...storyPoints]
+                      next[idx] = { ...next[idx], labelName: e.target.value }
+                      setStoryPoints(next)
+                    }}
+                    className={styles.spInput}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    min={0}
+                    value={rule.points}
+                    onChange={(e) => {
+                      const next = [...storyPoints]
+                      next[idx] = {
+                        ...next[idx],
+                        points: Math.max(0, parseInt(e.target.value, 10) || 0)
+                      }
+                      setStoryPoints(next)
+                    }}
+                    className={styles.spPointsInput}
+                  />
+                </td>
+                <td>
+                  <button
+                    className="btn-ghost"
+                    onClick={() => setStoryPoints(storyPoints.filter((_, i) => i !== idx))}
+                    title="Remove rule"
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className={styles.spActions}>
+          <button
+            className="btn-ghost"
+            onClick={() => setStoryPoints([...storyPoints, { labelName: '', points: 1 }])}
+          >
+            + Add Rule
+          </button>
+          <button className="btn-primary" onClick={handleSaveStoryPoints} disabled={spSaving}>
+            {spSaving ? 'Saving…' : '✓ Save Story Points'}
           </button>
         </div>
       </div>

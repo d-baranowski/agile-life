@@ -1,3 +1,9 @@
+/** Maps a label name to a story-point value for analytics calculations. */
+export interface StoryPointRule {
+  labelName: string
+  points: number
+}
+
 export interface BoardConfig {
   id: number
   boardId: string
@@ -7,12 +13,17 @@ export interface BoardConfig {
   projectCode: string
   nextTicketNumber: number
   doneListNames: string[]
+  storyPointsConfig: StoryPointRule[]
   lastSyncedAt: string | null
+  epicBoardId: string | null
   createdAt: string
   updatedAt: string
 }
 
-export type BoardConfigInput = Omit<BoardConfig, 'id' | 'lastSyncedAt' | 'createdAt' | 'updatedAt'>
+export type BoardConfigInput = Omit<
+  BoardConfig,
+  'id' | 'epicBoardId' | 'lastSyncedAt' | 'createdAt' | 'updatedAt'
+>
 
 /** Returned by the TRELLO_SYNC IPC handler. */
 export interface SyncResult {
@@ -37,7 +48,27 @@ export interface DoneCardPreview {
   enteredDoneAt: string
 }
 
-/** Raw debug info for a single done-column card (no threshold applied). */
+/** A card from the epic board, used to populate the epic assignment dropdown. */
+export interface EpicCardOption {
+  id: string
+  name: string
+  listName: string
+}
+
+/** A story card that is part of an epic, returned by the epic stories modal query. */
+export interface EpicStory {
+  id: string
+  name: string
+  desc: string
+  listId: string
+  listName: string
+  boardName: string
+  pos: number
+  shortUrl: string
+  labelsJson: string
+  membersJson: string
+}
+
 export interface DoneCardDebugInfo {
   id: string
   name: string

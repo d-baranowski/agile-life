@@ -10,15 +10,19 @@ import type {
   SyncResult,
   ArchiveResult,
   DoneCardPreview,
-  DoneCardDebugInfo
+  DoneCardDebugInfo,
+  EpicCardOption,
+  EpicStory,
+  StoryPointRule
 } from '@shared/board.types'
-import type { TrelloBoard, KanbanColumn } from '@shared/trello.types'
+import type { TrelloBoard, KanbanColumn, TrelloMember } from '@shared/trello.types'
 import type {
   ColumnCount,
   WeeklyUserStats,
   LabelUserStats,
   CardAgeStats,
-  WeeklyHistory
+  WeeklyHistory,
+  StoryPointsUserStats
 } from '@shared/analytics.types'
 import type {
   TicketNumberingConfig,
@@ -41,7 +45,9 @@ export const api = {
       invoke<BoardConfig>(IPC_CHANNELS.BOARDS_UPDATE, boardId, updates),
     delete: (boardId: string) => invoke<void>(IPC_CHANNELS.BOARDS_DELETE, boardId),
     fetchFromTrello: (apiKey: string, apiToken: string) =>
-      invoke<TrelloBoard[]>(IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO, apiKey, apiToken)
+      invoke<TrelloBoard[]>(IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO, apiKey, apiToken),
+    setEpicBoard: (storyBoardId: string, epicBoardId: string | null) =>
+      invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_EPIC_BOARD, storyBoardId, epicBoardId)
   },
 
   trello: {
@@ -66,6 +72,21 @@ export const api = {
     /** Debug: all done-column cards with raw timestamp data (no threshold). */
     getDoneColumnDebug: (boardId: string) =>
       invoke<DoneCardDebugInfo[]>(IPC_CHANNELS.TRELLO_GET_DONE_COLUMN_DEBUG, boardId),
+    /** Archives a single card on Trello and removes it from the local cache. */
+    archiveCard: (boardId: string, cardId: string) =>
+      invoke<void>(IPC_CHANNELS.TRELLO_ARCHIVE_CARD, boardId, cardId),
+    /** Returns the cached list of board members from the last sync. */
+    getBoardMembers: (boardId: string) =>
+      invoke<TrelloMember[]>(IPC_CHANNELS.TRELLO_GET_BOARD_MEMBERS, boardId),
+    /** Adds or removes a member assignment on a card and returns the updated member list. */
+    assignCardMember: (boardId: string, cardId: string, memberId: string, assign: boolean) =>
+      invoke<TrelloMember[]>(
+        IPC_CHANNELS.TRELLO_ASSIGN_CARD_MEMBER,
+        boardId,
+        cardId,
+        memberId,
+        assign
+      ),
     /** Archives open cards in the "done" lists that have been in done for olderThanWeeks weeks. */
     archiveDoneCards: (boardId: string, olderThanWeeks: number) =>
       invoke<ArchiveResult>(IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS, boardId, olderThanWeeks)
@@ -83,9 +104,16 @@ export const api = {
       invoke<LabelUserStats[]>(IPC_CHANNELS.ANALYTICS_LABEL_USER_STATS, boardId),
     /** Returns age in days for every open card. */
     cardAge: (boardId: string) => invoke<CardAgeStats[]>(IPC_CHANNELS.ANALYTICS_CARD_AGE, boardId),
-    /** Returns tickets completed per user per week for the past 12 months. */
-    weeklyHistory: (boardId: string) =>
-      invoke<WeeklyHistory[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_HISTORY, boardId)
+    /** Returns story points completed per user per week for the past 12 months. */
+    weeklyHistory: (boardId: string, storyPointsConfig: StoryPointRule[] = []) =>
+      invoke<WeeklyHistory[]>(IPC_CHANNELS.ANALYTICS_WEEKLY_HISTORY, boardId, storyPointsConfig),
+    /** Returns story points completed per user in the last 7 days. */
+    storyPoints7d: (boardId: string, storyPointsConfig: StoryPointRule[] = []) =>
+      invoke<StoryPointsUserStats[]>(
+        IPC_CHANNELS.ANALYTICS_STORY_POINTS_7D,
+        boardId,
+        storyPointsConfig
+      )
   },
 
   tickets: {
@@ -112,5 +140,17 @@ export const api = {
      */
     setDbPath: (resetToDefault = false) =>
       invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_SET_DB_PATH, resetToDefault)
+  },
+
+  epics: {
+    /** Returns all open cards from the linked epic board for assignment. */
+    getCards: (storyBoardId: string) =>
+      invoke<EpicCardOption[]>(IPC_CHANNELS.EPICS_GET_CARDS, storyBoardId),
+    /** Assigns or clears the epic for a story card. */
+    setCardEpic: (boardId: string, cardId: string, epicCardId: string | null) =>
+      invoke<void>(IPC_CHANNELS.EPICS_SET_CARD_EPIC, boardId, cardId, epicCardId),
+    /** Returns all story cards assigned to the given epic card. */
+    getStories: (epicCardId: string) =>
+      invoke<EpicStory[]>(IPC_CHANNELS.EPICS_GET_STORIES, epicCardId)
   }
 }
