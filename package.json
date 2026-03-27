@@ -67,7 +67,7 @@
     "vite": "5.4.21"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"],
+    "onlyBuiltDependencies": ["better-sqlite3", "electron", "esbuild"],
     "overrides": {
       "tar": ">=7.5.11",
       "esbuild": ">=0.25.0",
