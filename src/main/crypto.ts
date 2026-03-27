@@ -8,7 +8,12 @@ const ENC_PREFIX = 'enc:'
  * unavailable on this platform.
  */
 export function encryptCredential(plaintext: string): string {
-  if (!safeStorage.isEncryptionAvailable()) return plaintext
+  if (!safeStorage.isEncryptionAvailable()) {
+    console.warn(
+      '[crypto] safeStorage encryption is not available on this platform; credentials will be stored in plaintext.'
+    )
+    return plaintext
+  }
   return ENC_PREFIX + safeStorage.encryptString(plaintext).toString('base64')
 }
 
