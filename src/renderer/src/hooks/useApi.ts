@@ -94,6 +94,9 @@ export const api = {
         memberId,
         assign
       ),
+    /** Creates a new card on Trello and in the local cache, returns the new KanbanCard. */
+    createCard: (boardId: string, listId: string, name: string) =>
+      invoke<KanbanColumn['cards'][number]>(IPC_CHANNELS.TRELLO_CREATE_CARD, boardId, listId, name),
     /** Archives open cards in the "done" lists that have been in done for olderThanWeeks weeks. */
     archiveDoneCards: (boardId: string, olderThanWeeks: number) =>
       invoke<ArchiveResult>(IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS, boardId, olderThanWeeks)

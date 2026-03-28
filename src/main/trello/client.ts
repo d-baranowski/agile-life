@@ -130,8 +130,16 @@ export class TrelloClient {
   // ─── Card Mutation ───────────────────────────────────────────────────────────
 
   /**
-   * Updates a card's name via the Trello API.
+   * Creates a new card on Trello in the specified list.
+   * Pass `idLabels` to pre-assign label IDs on the new card.
    */
+  async createCard(listId: string, name: string, desc?: string, idLabels?: string[]): Promise<TrelloCard> {
+    const body: Record<string, unknown> = { idList: listId, name }
+    if (desc) body.desc = desc
+    if (idLabels && idLabels.length > 0) body.idLabels = idLabels.join(',')
+    const { data } = await this.http.post<TrelloCard>('/cards', body)
+    return data
+  }
   async updateCardName(cardId: string, name: string): Promise<TrelloCard> {
     const { data } = await this.http.put<TrelloCard>(`/cards/${cardId}`, { name })
     return data
@@ -161,18 +169,6 @@ export class TrelloClient {
    */
   async archiveCard(cardId: string): Promise<TrelloCard> {
     const { data } = await this.http.put<TrelloCard>(`/cards/${cardId}`, { closed: true })
-    return data
-  }
-
-  /**
-   * Creates a new card on Trello in the specified list.
-   * Pass `idLabels` to pre-assign label IDs on the new card.
-   */
-  async createCard(listId: string, name: string, desc?: string, idLabels?: string[]): Promise<TrelloCard> {
-    const body: Record<string, unknown> = { idList: listId, name }
-    if (desc) body.desc = desc
-    if (idLabels && idLabels.length > 0) body.idLabels = idLabels.join(',')
-    const { data } = await this.http.post<TrelloCard>('/cards', body)
     return data
   }
 
