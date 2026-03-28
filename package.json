@@ -19,7 +19,7 @@
     "format:check": "prettier --check .",
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "audit:ci": "pnpm audit --audit-level high",
+    "audit:ci": "pnpm audit --audit-level high --ignore-registry-errors",
     "postinstall": "electron-builder install-app-deps",
     "prepare": "husky"
   },
