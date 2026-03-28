@@ -6,18 +6,20 @@ import type {
   DoneCardDebugInfo,
   StoryPointRule
 } from '@shared/board.types'
-import type { DbPathInfo } from '@shared/settings.types'
+import type { DbPathInfo, LogPathInfo } from '@shared/settings.types'
 import { api } from '../hooks/useApi'
 import styles from './SettingsPage.module.css'
 
 interface Props {
   board: BoardConfig
+  allBoards: BoardConfig[]
   onBoardUpdated: (board: BoardConfig) => void
   onBoardDeleted: (boardId: string) => void
 }
 
 export default function SettingsPage({
   board,
+  allBoards,
   onBoardUpdated,
   onBoardDeleted
 }: Props): JSX.Element {
@@ -61,11 +63,21 @@ export default function SettingsPage({
   const [dbPathError, setDbPathError] = useState<string | null>(null)
   const [dbPathChanged, setDbPathChanged] = useState(false)
 
+  const [logPathInfo, setLogPathInfo] = useState<LogPathInfo | null>(null)
+  const [logPathChanging, setLogPathChanging] = useState(false)
+  const [logPathError, setLogPathError] = useState<string | null>(null)
+
   useEffect(() => {
     api.settings.getDbPath().then((result) => {
       if (result.success && result.data) setDbPathInfo(result.data)
     })
+    api.logs.getPath().then((result) => {
+      if (result.success && result.data) setLogPathInfo(result.data)
+    })
   }, [])
+
+  const [epicBoardSaving, setEpicBoardSaving] = useState(false)
+  const [epicBoardError, setEpicBoardError] = useState<string | null>(null)
 
   const doneListLabel = (board.doneListNames ?? ['Done']).join(', ')
 
@@ -134,6 +146,18 @@ export default function SettingsPage({
       setDebugError(result.error ?? 'Failed to load debug data.')
     }
     setDebugLoading(false)
+  }
+
+  const handleSetEpicBoard = async (epicBoardId: string | null): Promise<void> => {
+    setEpicBoardSaving(true)
+    setEpicBoardError(null)
+    const result = await api.boards.setEpicBoard(board.boardId, epicBoardId)
+    setEpicBoardSaving(false)
+    if (result.success && result.data) {
+      onBoardUpdated(result.data)
+    } else {
+      setEpicBoardError(result.error ?? 'Failed to update epic board.')
+    }
   }
 
   const handleSave = async () => {
@@ -222,6 +246,34 @@ export default function SettingsPage({
     }
   }
 
+  const handleChooseLogPath = async () => {
+    setLogPathChanging(true)
+    setLogPathError(null)
+    const result = await api.logs.setPath(false)
+    setLogPathChanging(false)
+    if (result.success && result.data) {
+      setLogPathInfo(result.data)
+    } else {
+      setLogPathError(result.error ?? 'Failed to change log location.')
+    }
+  }
+
+  const handleResetLogPath = async () => {
+    setLogPathChanging(true)
+    setLogPathError(null)
+    const result = await api.logs.setPath(true)
+    setLogPathChanging(false)
+    if (result.success && result.data) {
+      setLogPathInfo(result.data)
+    } else {
+      setLogPathError(result.error ?? 'Failed to reset log location.')
+    }
+  }
+
+  const handleOpenLogFolder = async () => {
+    await api.logs.openFolder()
+  }
+
   return (
     <div className={styles.container}>
       <h1 className={styles.title}>⚙️ Settings — {board.boardName}</h1>
@@ -252,6 +304,46 @@ export default function SettingsPage({
             {saving ? 'Saving…' : '✓ Save Settings'}
           </button>
         </div>
+      </div>
+
+      {/* ── Epic Board ── */}
+      <div className="card">
+        <h2 className={styles.cardTitle}>Epic Board</h2>
+        <p className={styles.hint}>
+          Link another board as the <strong>Epic Board</strong> for this board. Cards from the epic
+          board can then be assigned as epics for cards on this board. On the epic board,
+          double-click any card to see all stories assigned to it.
+        </p>
+        {epicBoardError && <div className={styles.errorBanner}>{epicBoardError}</div>}
+        <div className={styles.form}>
+          <label className={styles.label}>
+            Epic Board
+            <select
+              value={board.epicBoardId ?? ''}
+              onChange={(e) => handleSetEpicBoard(e.target.value || null)}
+              disabled={epicBoardSaving}
+            >
+              <option value="">— None —</option>
+              {allBoards
+                .filter((b) => b.boardId !== board.boardId)
+                .map((b) => (
+                  <option key={b.boardId} value={b.boardId}>
+                    {b.boardName}
+                  </option>
+                ))}
+            </select>
+          </label>
+        </div>
+        {board.epicBoardId && (
+          <p className={styles.hint}>
+            ✓ Epics are sourced from{' '}
+            <strong>
+              {allBoards.find((b) => b.boardId === board.epicBoardId)?.boardName ??
+                board.epicBoardId}
+            </strong>
+            .
+          </p>
+        )}
       </div>
 
       {/* ── Story Points ── */}
@@ -592,6 +684,40 @@ export default function SettingsPage({
           )}
           <button className="btn-primary" onClick={handleChooseDbPath} disabled={dbPathChanging}>
             {dbPathChanging ? 'Choosing…' : '📂 Choose Location'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Logs ── */}
+      <div className="card">
+        <h2 className={styles.cardTitle}>Logs</h2>
+        {logPathError && <div className={styles.errorBanner}>{logPathError}</div>}
+        <div className={styles.form}>
+          <label className={styles.label}>
+            Log File Location
+            <span className={styles.hint}>
+              Structured application logs written by electron-log.
+              {logPathInfo?.isCustom ? ' (custom)' : ' (default)'}
+            </span>
+            <input
+              type="text"
+              readOnly
+              value={logPathInfo?.currentPath ?? '…'}
+              style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+            />
+          </label>
+        </div>
+        <div className={styles.actions}>
+          {logPathInfo?.isCustom && (
+            <button className="btn-ghost" onClick={handleResetLogPath} disabled={logPathChanging}>
+              Restore Default
+            </button>
+          )}
+          <button className="btn-ghost" onClick={handleOpenLogFolder}>
+            📂 Open Log Folder
+          </button>
+          <button className="btn-primary" onClick={handleChooseLogPath} disabled={logPathChanging}>
+            {logPathChanging ? 'Choosing…' : '📁 Choose Location'}
           </button>
         </div>
       </div>

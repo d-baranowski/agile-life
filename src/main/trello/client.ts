@@ -130,6 +130,19 @@ export class TrelloClient {
   // ─── Card Mutation ───────────────────────────────────────────────────────────
 
   /**
+   * Creates a new card in the given list via the Trello API.
+   * Pass `pos` to set its initial position; defaults to 'bottom'.
+   */
+  async createCard(
+    name: string,
+    listId: string,
+    pos: number | 'top' | 'bottom' = 'bottom'
+  ): Promise<TrelloCard> {
+    const { data } = await this.http.post<TrelloCard>('/cards', { name, idList: listId, pos })
+    return data
+  }
+
+  /**
    * Updates a card's name via the Trello API.
    */
   async updateCardName(cardId: string, name: string): Promise<TrelloCard> {

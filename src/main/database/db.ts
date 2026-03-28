@@ -24,9 +24,12 @@ import sqlCardsMarkAllRemoved from './sql/cards/mark-all-removed.sql?raw'
 import sqlKanbanGetLists from './sql/kanban/get-lists.sql?raw'
 import sqlKanbanGetCards from './sql/kanban/get-cards.sql?raw'
 import sqlKanbanMoveCard from './sql/kanban/move-card.sql?raw'
+import sqlKanbanGetEpicCards from './sql/kanban/get-epic-cards.sql?raw'
+import sqlKanbanGetStoriesForEpic from './sql/kanban/get-stories-for-epic.sql?raw'
 import sqlCardsUpdatePos from './sql/cards/update-pos.sql?raw'
 import sqlCardsGetDoneOlderThan from './sql/cards/get-done-cards-older-than.sql?raw'
 import sqlCardsGetDoneColumnDebug from './sql/cards/get-done-column-debug.sql?raw'
+import sqlCardsSetEpic from './sql/cards/set-epic.sql?raw'
 import sqlCardsArchive from './sql/cards/archive.sql?raw'
 import sqlCardsUpdateMembers from './sql/cards/update-members.sql?raw'
 import sqlBoardsMemberUpsert from './sql/boards/upsert-member.sql?raw'
@@ -35,6 +38,7 @@ import sqlCardListEntriesUpsert from './sql/card-list-entries/upsert.sql?raw'
 import sqlCardListEntriesSetFallback from './sql/card-list-entries/set-fallback.sql?raw'
 import sqlCardListEntriesClearForBoard from './sql/card-list-entries/clear-for-board.sql?raw'
 import sqlBoardsSetCardListEntriesInitialized from './sql/boards/set-card-list-entries-initialized.sql?raw'
+import sqlBoardsSetEpicBoard from './sql/boards/set-epic-board.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -75,6 +79,16 @@ export function getDb(): Database.Database {
     _db.exec(
       'ALTER TABLE board_configs ADD COLUMN card_list_entries_initialized INTEGER NOT NULL DEFAULT 0'
     )
+  } catch {
+    // Column already exists — nothing to do.
+  }
+  try {
+    _db.exec('ALTER TABLE board_configs ADD COLUMN epic_board_id TEXT DEFAULT NULL')
+  } catch {
+    // Column already exists — nothing to do.
+  }
+  try {
+    _db.exec('ALTER TABLE trello_cards ADD COLUMN epic_card_id TEXT DEFAULT NULL')
   } catch {
     // Column already exists — nothing to do.
   }
@@ -174,6 +188,16 @@ export function deleteBoard(boardId: string): void {
   getDb().prepare(sqlBoardsDelete).run(boardId)
 }
 
+/**
+ * Set (or clear) the epic board for a story board.
+ * Pass null for epicBoardId to unlink the epic board.
+ */
+export function setEpicBoard(boardId: string, epicBoardId: string | null): BoardConfig {
+  if (!getBoardById(boardId)) throw new Error(`Board not found: ${boardId}`)
+  getDb().prepare(sqlBoardsSetEpicBoard).run({ boardId, epicBoardId })
+  return getBoardById(boardId)!
+}
+
 // ─── Lists ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -270,6 +294,29 @@ interface CardRow {
   labels_json: string
   members_json: string
   date_last_activity: string
+  epic_card_id: string | null
+  epic_card_name: string | null
+  entered_at: string | null
+}
+
+interface EpicCardRow {
+  id: string
+  name: string
+  list_name: string
+}
+
+interface EpicStoryRow {
+  id: string
+  name: string
+  desc: string
+  list_id: string
+  list_name: string
+  board_name: string
+  pos: number
+  short_url: string
+  labels_json: string
+  members_json: string
+  date_last_activity: string
 }
 
 export function getListsForBoard(boardId: string): ListRow[] {
@@ -289,9 +336,43 @@ export function updateCardPos(cardId: string, pos: number): void {
   getDb().prepare(sqlCardsUpdatePos).run({ cardId, pos })
 }
 
+/** Set the epic card reference on a story card (null clears it). */
+export function setCardEpic(cardId: string, epicCardId: string | null): void {
+  getDb().prepare(sqlCardsSetEpic).run({ cardId, epicCardId })
+}
+
+/** Returns open cards from the epic board linked to the given story board. */
+export function getEpicCardsForBoard(storyBoardId: string): EpicCardRow[] {
+  return getDb().prepare(sqlKanbanGetEpicCards).all(storyBoardId) as EpicCardRow[]
+}
+
+/** Returns all open story cards assigned to the given epic card. */
+export function getStoriesForEpic(epicCardId: string): EpicStoryRow[] {
+  return getDb().prepare(sqlKanbanGetStoriesForEpic).all(epicCardId) as EpicStoryRow[]
+}
+
 /** Mark a single card as archived in the local cache. */
 export function archiveCardLocally(cardId: string): void {
   getDb().prepare(sqlCardsArchive).run({ cardId })
+}
+
+/** Insert a single freshly-created card into the local cache. */
+export function insertCard(boardId: string, card: TrelloCard): void {
+  getDb()
+    .prepare(sqlCardsUpsert)
+    .run({
+      id: card.id,
+      boardId,
+      listId: card.idList,
+      name: card.name,
+      desc: card.desc ?? '',
+      closed: 0,
+      dateLastActivity: card.dateLastActivity ?? new Date().toISOString(),
+      pos: card.pos,
+      shortUrl: card.shortUrl ?? '',
+      labelsJson: JSON.stringify(card.labels ?? []),
+      membersJson: JSON.stringify(card.members ?? [])
+    })
 }
 
 /** Update the members_json for a card after a member assignment change. */
@@ -522,6 +603,7 @@ function rowToBoardConfig(row: Row): BoardConfig {
       ? (JSON.parse(row.story_points_config as string) as StoryPointRule[])
       : defaultStoryPoints,
     lastSyncedAt: (row.last_synced_at as string | null) ?? null,
+    epicBoardId: (row.epic_board_id as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   }

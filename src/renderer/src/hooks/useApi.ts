@@ -11,6 +11,8 @@ import type {
   ArchiveResult,
   DoneCardPreview,
   DoneCardDebugInfo,
+  EpicCardOption,
+  EpicStory,
   StoryPointRule,
   SavedCredentials
 } from '@shared/board.types'
@@ -28,7 +30,7 @@ import type {
   UnnumberedCard,
   ApplyNumberingResult
 } from '@shared/ticket.types'
-import type { DbPathInfo } from '@shared/settings.types'
+import type { DbPathInfo, LogPathInfo } from '@shared/settings.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return window.api.invoke(channel as Parameters<typeof window.api.invoke>[0], ...args) as Promise<
@@ -46,7 +48,9 @@ export const api = {
     fetchFromTrello: (apiKey: string, apiToken: string) =>
       invoke<TrelloBoard[]>(IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO, apiKey, apiToken),
     getSavedCredentials: () =>
-      invoke<SavedCredentials | null>(IPC_CHANNELS.BOARDS_GET_SAVED_CREDENTIALS)
+      invoke<SavedCredentials | null>(IPC_CHANNELS.BOARDS_GET_SAVED_CREDENTIALS),
+    setEpicBoard: (storyBoardId: string, epicBoardId: string | null) =>
+      invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_EPIC_BOARD, storyBoardId, epicBoardId)
   },
 
   trello: {
@@ -86,6 +90,9 @@ export const api = {
         memberId,
         assign
       ),
+    /** Creates a new card on Trello and in the local cache, returns the new KanbanCard. */
+    createCard: (boardId: string, listId: string, name: string) =>
+      invoke<KanbanColumn['cards'][number]>(IPC_CHANNELS.TRELLO_CREATE_CARD, boardId, listId, name),
     /** Archives open cards in the "done" lists that have been in done for olderThanWeeks weeks. */
     archiveDoneCards: (boardId: string, olderThanWeeks: number) =>
       invoke<ArchiveResult>(IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS, boardId, olderThanWeeks)
@@ -139,5 +146,31 @@ export const api = {
      */
     setDbPath: (resetToDefault = false) =>
       invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_SET_DB_PATH, resetToDefault)
+  },
+
+  logs: {
+    /** Returns the current log file path info (path, default path, isCustom). */
+    getPath: () => invoke<LogPathInfo>(IPC_CHANNELS.LOGS_GET_PATH),
+    /** Opens the log folder in the native file manager. */
+    openFolder: () => invoke<void>(IPC_CHANNELS.LOGS_OPEN_FOLDER),
+    /**
+     * Opens a native folder-picker dialog and moves log output to the chosen
+     * folder (as "main.log").  Pass `resetToDefault = true` to restore the
+     * electron-log default location.  Takes effect immediately.
+     */
+    setPath: (resetToDefault = false) =>
+      invoke<LogPathInfo>(IPC_CHANNELS.LOGS_SET_PATH, resetToDefault)
+  },
+
+  epics: {
+    /** Returns all open cards from the linked epic board for assignment. */
+    getCards: (storyBoardId: string) =>
+      invoke<EpicCardOption[]>(IPC_CHANNELS.EPICS_GET_CARDS, storyBoardId),
+    /** Assigns or clears the epic for a story card. */
+    setCardEpic: (boardId: string, cardId: string, epicCardId: string | null) =>
+      invoke<void>(IPC_CHANNELS.EPICS_SET_CARD_EPIC, boardId, cardId, epicCardId),
+    /** Returns all story cards assigned to the given epic card. */
+    getStories: (epicCardId: string) =>
+      invoke<EpicStory[]>(IPC_CHANNELS.EPICS_GET_STORIES, epicCardId)
   }
 }
