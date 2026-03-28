@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
 import type { BoardConfig } from '@shared/board.types'
 import type { EpicCardOption, EpicStory } from '@shared/board.types'
-import type { KanbanColumn, KanbanCard, TrelloMember } from '@shared/trello.types'
+import type { KanbanColumn, KanbanCard, TrelloMember, TrelloLabel } from '@shared/trello.types'
 import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
@@ -36,6 +36,23 @@ interface AddCardModal {
   text: string
   /** null = edit phase; non-null = queue/upload phase */
   queue: QueueItem[] | null
+  uploading: boolean
+}
+
+interface BulkLabelQueueItem {
+  id: string
+  cardId: string
+  cardName: string
+  status: QueueItemStatus
+  notFound?: boolean
+}
+
+interface BulkLabelModal {
+  /** Labels selected to apply (true) or remove (false) */
+  selectedLabelIds: Set<string>
+  text: string
+  /** null = edit phase; non-null = queue/upload phase */
+  queue: BulkLabelQueueItem[] | null
   uploading: boolean
 }
 
@@ -118,10 +135,18 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [addCardModal, setAddCardModal] = useState<AddCardModal | null>(null)
   const addCardTextareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Board labels (loaded on mount)
+  const [boardLabels, setBoardLabels] = useState<TrelloLabel[]>([])
+
+  // Bulk label modal state
+  const [bulkLabelModal, setBulkLabelModal] = useState<BulkLabelModal | null>(null)
+  const bulkLabelTextareaRef = useRef<HTMLTextAreaElement>(null)
+
   const loadBoardData = useCallback(async () => {
-    const [dataResult, membersResult] = await Promise.all([
+    const [dataResult, membersResult, labelsResult] = await Promise.all([
       api.trello.getBoardData(board.boardId),
-      api.trello.getBoardMembers(board.boardId)
+      api.trello.getBoardMembers(board.boardId),
+      api.trello.getBoardLabels(board.boardId)
     ])
     if (dataResult.success && dataResult.data) {
       setColumns(dataResult.data)
@@ -131,6 +156,9 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     }
     if (membersResult.success && membersResult.data) {
       setBoardMembers(membersResult.data)
+    }
+    if (labelsResult.success && labelsResult.data) {
+      setBoardLabels(labelsResult.data)
     }
     setLoading(false)
   }, [board.boardId, syncVersion])
@@ -375,7 +403,177 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     [board.boardId, boardMembers, columns]
   )
 
-  // ── Add-card modal handlers ───────────────────────────────────────────────
+  // ── Single-card label toggle ──────────────────────────────────────────────
+
+  const handleToggleLabel = useCallback(
+    async (cardId: string, label: TrelloLabel, assign: boolean) => {
+      setContextMenu(null)
+
+      // Optimistically update the label list in the UI
+      const prevColumns = columns
+      setColumns((prev) =>
+        prev.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) => {
+            if (c.id !== cardId) return c
+            const updatedLabels = assign
+              ? c.labels.some((l) => l.id === label.id)
+                ? c.labels
+                : [...c.labels, label]
+              : c.labels.filter((l) => l.id !== label.id)
+            return { ...c, labels: updatedLabels }
+          })
+        }))
+      )
+
+      const result = await api.trello.assignCardLabel(board.boardId, cardId, label, assign)
+      if (result.success && result.data) {
+        setColumns((prev) =>
+          prev.map((col) => ({
+            ...col,
+            cards: col.cards.map((c) => (c.id === cardId ? { ...c, labels: result.data! } : c))
+          }))
+        )
+      } else {
+        setColumns(prevColumns)
+        setToastMessage(result.error ?? 'Failed to update label assignment. Please try again.')
+      }
+    },
+    [board.boardId, columns]
+  )
+
+  // ── Bulk label modal handlers ─────────────────────────────────────────────
+
+  const handleOpenBulkLabel = useCallback(() => {
+    setBulkLabelModal({ selectedLabelIds: new Set(), text: '', queue: null, uploading: false })
+    setTimeout(() => bulkLabelTextareaRef.current?.focus(), 50)
+  }, [])
+
+  const handleCloseBulkLabel = useCallback(() => {
+    setBulkLabelModal((prev) => (prev?.uploading ? prev : null))
+  }, [])
+
+  const handleToggleBulkLabelSelection = useCallback((labelId: string) => {
+    setBulkLabelModal((prev) => {
+      if (!prev) return null
+      const next = new Set(prev.selectedLabelIds)
+      if (next.has(labelId)) {
+        next.delete(labelId)
+      } else {
+        next.add(labelId)
+      }
+      return { ...prev, selectedLabelIds: next }
+    })
+  }, [])
+
+  const handleStartBulkLabel = useCallback(() => {
+    setBulkLabelModal((prev) => {
+      if (!prev) return null
+      const allCards = columns.flatMap((col) => col.cards)
+      // Build a map for O(1) lookups
+      const cardsByName = new Map(allCards.map((c) => [c.name.toLowerCase(), c]))
+      const names = prev.text
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean)
+
+      const queue: BulkLabelQueueItem[] = names.map((name) => {
+        const card = cardsByName.get(name.toLowerCase())
+        return {
+          id: `${Date.now()}-${Math.random()}`,
+          cardId: card?.id ?? '',
+          cardName: name,
+          status: card ? 'pending' : 'failed',
+          notFound: !card
+        }
+      })
+      return { ...prev, queue }
+    })
+  }, [columns])
+
+  const handleRunBulkLabel = useCallback(async () => {
+    setBulkLabelModal((prev) => (prev ? { ...prev, uploading: true } : null))
+
+    const snapshot = bulkLabelModal
+    if (!snapshot?.queue) return
+
+    const selectedLabels = boardLabels.filter((l) => snapshot.selectedLabelIds.has(l.id))
+
+    for (let i = 0; i < snapshot.queue.length; i++) {
+      const item = snapshot.queue[i]
+      if (item.notFound || item.status === 'failed') continue
+
+      // Mark running
+      setBulkLabelModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) => (q.id === item.id ? { ...q, status: 'running' } : q))
+        }
+      })
+
+      let success = true
+      let finalLabels: TrelloLabel[] | null = null
+      // Apply each selected label to the card; collect the final label list after the last call
+      for (const label of selectedLabels) {
+        const result = await api.trello.assignCardLabel(board.boardId, item.cardId, label, true)
+        if (!result.success) {
+          success = false
+          break
+        }
+        if (result.data) finalLabels = result.data
+      }
+
+      // Single UI update per card once all labels have been applied
+      if (finalLabels) {
+        const labelsSnapshot = finalLabels
+        setColumns((prev) =>
+          prev.map((col) => ({
+            ...col,
+            cards: col.cards.map((c) =>
+              c.id === item.cardId ? { ...c, labels: labelsSnapshot } : c
+            )
+          }))
+        )
+      }
+
+      setBulkLabelModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) =>
+            q.id === item.id ? { ...q, status: success ? 'done' : 'failed' } : q
+          )
+        }
+      })
+
+      if (i < snapshot.queue.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300))
+      }
+    }
+
+    setBulkLabelModal((prev) => (prev ? { ...prev, uploading: false } : null))
+  }, [board.boardId, boardLabels, bulkLabelModal])
+
+  const handleBulkLabelRetryItem = useCallback((itemId: string) => {
+    setBulkLabelModal((prev) => {
+      if (!prev?.queue) return prev
+      const updated = prev.queue.map((q) =>
+        q.id === itemId && !q.notFound ? { ...q, status: 'pending' as QueueItemStatus } : q
+      )
+      return { ...prev, queue: updated }
+    })
+  }, [])
+
+  const handleBulkLabelRetryAllFailed = useCallback(() => {
+    setBulkLabelModal((prev) => {
+      if (!prev?.queue) return prev
+      const updated = prev.queue.map((q) =>
+        q.status === 'failed' && !q.notFound ? { ...q, status: 'pending' as QueueItemStatus } : q
+      )
+      return { ...prev, queue: updated }
+    })
+  }, [])
 
   // Open the modal in edit phase for a given column
   const handleOpenAddCard = useCallback((listId: string, listName: string) => {
@@ -610,6 +808,11 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
           🎫 Number Tickets
         </button>
+        {boardLabels.length > 0 && (
+          <button className={styles.numberTicketsBtn} onClick={handleOpenBulkLabel}>
+            🏷️ Bulk Label
+          </button>
+        )}
       </div>
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className={styles.board}>
@@ -690,6 +893,29 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                   >
                     <span className={styles.contextMenuCheck}>{assigned ? '✓' : ''}</span>
                     {member.fullName}
+                  </button>
+                )
+              })}
+            </>
+          )}
+          {boardLabels.length > 0 && (
+            <>
+              <div className={styles.contextMenuDivider} />
+              <div className={styles.contextMenuLabel}>Labels:</div>
+              {boardLabels.map((label) => {
+                const assigned = contextMenu.card.labels.some((l) => l.id === label.id)
+                return (
+                  <button
+                    key={label.id}
+                    className={styles.contextMenuItem}
+                    onClick={() => handleToggleLabel(contextMenu.card.id, label, !assigned)}
+                  >
+                    <span className={styles.contextMenuCheck}>{assigned ? '✓' : ''}</span>
+                    <span
+                      className={styles.contextMenuLabelDot}
+                      style={{ background: labelColor(label.color) }}
+                    />
+                    {label.name || label.color}
                   </button>
                 )
               })}
@@ -914,6 +1140,216 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                         disabled={addCardModal.uploading}
                       >
                         {allDone && !addCardModal.uploading ? 'Close' : 'Cancel'}
+                      </button>
+                    </div>
+                  </>
+                )
+              })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk label modal ── */}
+      {bulkLabelModal && (
+        <div className={styles.modalOverlay} onClick={handleCloseBulkLabel}>
+          <div className={styles.addCardModal} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className={styles.addCardModalHeader}>
+              <span className={styles.addCardModalTitle}>
+                <strong>Bulk Label Cards</strong>
+              </span>
+              <button
+                className={styles.modalClose}
+                onClick={handleCloseBulkLabel}
+                disabled={bulkLabelModal.uploading}
+                title="Close (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Edit phase */}
+            {bulkLabelModal.queue === null && (
+              <>
+                <div className={styles.addCardModalBody}>
+                  <div className={styles.bulkLabelSection}>
+                    <div className={styles.contextMenuLabel} style={{ padding: '0 0 6px' }}>
+                      Select labels to apply:
+                    </div>
+                    <div className={styles.bulkLabelPickerGrid}>
+                      {boardLabels.map((label) => {
+                        const selected = bulkLabelModal.selectedLabelIds.has(label.id)
+                        return (
+                          <button
+                            key={label.id}
+                            className={`${styles.bulkLabelChip} ${selected ? styles.bulkLabelChipSelected : ''}`}
+                            onClick={() => handleToggleBulkLabelSelection(label.id)}
+                            style={
+                              { '--chip-color': labelColor(label.color) } as React.CSSProperties
+                            }
+                          >
+                            <span
+                              className={styles.bulkLabelChipDot}
+                              style={{ background: labelColor(label.color) }}
+                            />
+                            {label.name || label.color}
+                            {selected && <span className={styles.bulkLabelChipCheck}>✓</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div className={styles.bulkLabelSection}>
+                    <div className={styles.contextMenuLabel} style={{ padding: '0 0 6px' }}>
+                      Enter card names to label (one per line):
+                    </div>
+                    <textarea
+                      ref={bulkLabelTextareaRef}
+                      className={styles.addCardTextarea}
+                      placeholder={'Paste from Excel or type card names — one per line'}
+                      value={bulkLabelModal.text}
+                      onChange={(e) =>
+                        setBulkLabelModal((prev) =>
+                          prev ? { ...prev, text: e.target.value } : null
+                        )
+                      }
+                      rows={5}
+                    />
+                    {(() => {
+                      const previewLines = bulkLabelModal.text
+                        .split('\n')
+                        .map((line) => line.trim())
+                        .filter(Boolean)
+                      return previewLines.length > 0 ? (
+                        <div className={styles.addCardPreviewList}>
+                          {previewLines.map((line, idx) => (
+                            <div key={idx} className={styles.addCardPreviewItem}>
+                              <span className={styles.addCardPreviewName}>{line}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null
+                    })()}
+                  </div>
+                </div>
+                <div className={styles.addCardModalFooter}>
+                  <button className={styles.addCardCancelBtn} onClick={handleCloseBulkLabel}>
+                    Cancel
+                  </button>
+                  <button
+                    className={styles.addCardStartBtn}
+                    onClick={handleStartBulkLabel}
+                    disabled={
+                      bulkLabelModal.selectedLabelIds.size === 0 ||
+                      bulkLabelModal.text.trim().length === 0
+                    }
+                  >
+                    Preview (
+                    {
+                      bulkLabelModal.text
+                        .split('\n')
+                        .map((s) => s.trim())
+                        .filter(Boolean).length
+                    }{' '}
+                    card
+                    {bulkLabelModal.text
+                      .split('\n')
+                      .map((s) => s.trim())
+                      .filter(Boolean).length !== 1
+                      ? 's'
+                      : ''}
+                    )
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Queue phase */}
+            {bulkLabelModal.queue !== null &&
+              (() => {
+                const hasAnyFailed = bulkLabelModal.queue.some(
+                  (q) => q.status === 'failed' && !q.notFound
+                )
+                const allDone = bulkLabelModal.queue.every(
+                  (q) => q.status === 'done' || q.status === 'failed'
+                )
+                return (
+                  <>
+                    <div className={styles.addCardQueueList}>
+                      {bulkLabelModal.queue.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`${styles.addCardQueueItem} ${
+                            item.status === 'done'
+                              ? styles.queueItemDone
+                              : item.status === 'failed'
+                                ? styles.queueItemFailed
+                                : item.status === 'running'
+                                  ? styles.queueItemRunning
+                                  : ''
+                          }`}
+                        >
+                          <span className={styles.queueItemIcon}>
+                            {item.status === 'pending' && '⏳'}
+                            {item.status === 'running' && (
+                              <span
+                                className="spinner"
+                                style={{ width: 14, height: 14, borderWidth: 2 }}
+                              />
+                            )}
+                            {item.status === 'done' && '✓'}
+                            {item.status === 'failed' && '✕'}
+                          </span>
+                          <span className={styles.queueItemName}>
+                            {item.cardName}
+                            {item.notFound && (
+                              <span className={styles.bulkLabelNotFound}> (not found)</span>
+                            )}
+                          </span>
+                          {!bulkLabelModal.uploading &&
+                            item.status === 'failed' &&
+                            !item.notFound && (
+                              <button
+                                className={styles.queueRetryBtn}
+                                onClick={() => handleBulkLabelRetryItem(item.id)}
+                              >
+                                ↺ Retry
+                              </button>
+                            )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className={styles.addCardModalFooter}>
+                      {bulkLabelModal.uploading && (
+                        <span className={styles.uploadingLabel}>Applying labels…</span>
+                      )}
+                      {!bulkLabelModal.uploading && allDone && hasAnyFailed && (
+                        <button
+                          className={styles.addCardStartBtn}
+                          onClick={handleBulkLabelRetryAllFailed}
+                        >
+                          ↺ Retry all failed
+                        </button>
+                      )}
+                      {!bulkLabelModal.uploading && !allDone && (
+                        <button
+                          className={styles.addCardStartBtn}
+                          onClick={handleRunBulkLabel}
+                          disabled={bulkLabelModal.queue.every(
+                            (q) => q.status === 'failed' && q.notFound
+                          )}
+                        >
+                          Apply labels (
+                          {bulkLabelModal.queue.filter((q) => q.status === 'pending').length}{' '}
+                          remaining)
+                        </button>
+                      )}
+                      <button
+                        className={styles.addCardCancelBtn}
+                        onClick={handleCloseBulkLabel}
+                        disabled={bulkLabelModal.uploading}
+                      >
+                        {allDone && !bulkLabelModal.uploading ? 'Close' : 'Cancel'}
                       </button>
                     </div>
                   </>

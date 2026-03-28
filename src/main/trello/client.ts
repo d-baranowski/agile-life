@@ -3,6 +3,7 @@ import type {
   TrelloBoard,
   TrelloList,
   TrelloCard,
+  TrelloLabel,
   TrelloMember,
   TrelloAction
 } from '@shared/trello.types'
@@ -189,6 +190,30 @@ export class TrelloClient {
    */
   async removeCardMember(cardId: string, memberId: string): Promise<void> {
     await this.http.delete(`/cards/${cardId}/idMembers/${memberId}`)
+  }
+
+  /**
+   * Returns all labels defined on the board via the Trello API.
+   */
+  async getBoardLabels(boardId: string): Promise<TrelloLabel[]> {
+    const { data } = await this.http.get<TrelloLabel[]>(`/boards/${boardId}/labels`, {
+      params: { fields: 'id,name,color,idBoard', limit: 1000 }
+    })
+    return data
+  }
+
+  /**
+   * Adds a label to a card on Trello.
+   */
+  async addCardLabel(cardId: string, labelId: string): Promise<void> {
+    await this.http.post(`/cards/${cardId}/idLabels`, { value: labelId })
+  }
+
+  /**
+   * Removes a label from a card on Trello.
+   */
+  async removeCardLabel(cardId: string, labelId: string): Promise<void> {
+    await this.http.delete(`/cards/${cardId}/idLabels/${labelId}`)
   }
 
   // ─── Credentials Validation ──────────────────────────────────────────────────

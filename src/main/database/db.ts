@@ -3,7 +3,13 @@ import fs from 'fs'
 import path from 'path'
 import type { BoardConfig, BoardConfigInput, StoryPointRule } from '@shared/board.types'
 import { getDbPath } from '../settings/appSettings'
-import type { TrelloList, TrelloCard, TrelloAction, TrelloMember } from '@shared/trello.types'
+import type {
+  TrelloList,
+  TrelloCard,
+  TrelloAction,
+  TrelloMember,
+  TrelloLabel
+} from '@shared/trello.types'
 
 // ─── SQL imports ───────────────────────────────────────────────────────────────
 import schemaSql from './sql/schema.sql?raw'
@@ -357,6 +363,47 @@ export function updateCardMembers(cardId: string, members: TrelloMember[]): void
   getDb()
     .prepare(sqlCardsUpdateMembers)
     .run({ cardId, membersJson: JSON.stringify(members) })
+}
+
+/** Update the labels_json for a card after a label assignment change. */
+export function updateCardLabels(cardId: string, labels: TrelloLabel[]): void {
+  getDb()
+    .prepare('UPDATE trello_cards SET labels_json = @labelsJson WHERE id = @cardId')
+    .run({ cardId, labelsJson: JSON.stringify(labels) })
+}
+
+/** Returns the labels_json string for a card, or undefined if not found. */
+export function getCardLabelsJson(cardId: string): string | undefined {
+  const row = getDb().prepare('SELECT labels_json FROM trello_cards WHERE id = ?').get(cardId) as
+    | { labels_json: string }
+    | undefined
+  return row?.labels_json
+}
+
+/**
+ * Returns all distinct labels used on open cards for a board,
+ * aggregated from the local labels_json cache.
+ */
+export function getBoardLabels(boardId: string): TrelloLabel[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT labels_json FROM trello_cards
+       WHERE board_id = ? AND closed = 0 AND labels_json != '[]'`
+    )
+    .all(boardId) as { labels_json: string }[]
+
+  const seen = new Set<string>()
+  const labels: TrelloLabel[] = []
+  for (const row of rows) {
+    const parsed: TrelloLabel[] = JSON.parse(row.labels_json)
+    for (const label of parsed) {
+      if (!seen.has(label.id)) {
+        seen.add(label.id)
+        labels.push(label)
+      }
+    }
+  }
+  return labels
 }
 
 // ─── Board Members ─────────────────────────────────────────────────────────────

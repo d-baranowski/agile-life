@@ -966,3 +966,70 @@
   opacity: 0.45;
   cursor: default;
 }
+
+/* ── Context-menu label dot ──────────────────────────────────────────────── */
+
+.contextMenuLabelDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Bulk label modal ────────────────────────────────────────────────────── */
+
+.bulkLabelSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.bulkLabelPickerGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bulkLabelChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    background var(--transition);
+}
+
+.bulkLabelChip:hover {
+  border-color: var(--chip-color, var(--color-accent));
+}
+
+.bulkLabelChipSelected {
+  border-color: var(--chip-color, var(--color-accent));
+  background: color-mix(in srgb, var(--chip-color, var(--color-accent)) 15%, transparent);
+}
+
+.bulkLabelChipDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.bulkLabelChipCheck {
+  margin-left: 2px;
+  color: var(--chip-color, var(--color-accent));
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.bulkLabelNotFound {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}

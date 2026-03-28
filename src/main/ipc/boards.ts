@@ -11,7 +11,7 @@ import type {
   EpicCardOption,
   EpicStory
 } from '@shared/board.types'
-import type { TrelloBoard, KanbanColumn, TrelloMember } from '@shared/trello.types'
+import type { TrelloBoard, KanbanColumn, TrelloMember, TrelloLabel } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
 import {
   getAllBoards,
@@ -34,6 +34,9 @@ import {
   upsertBoardMembers,
   getBoardMembers,
   getCardMembersJson,
+  updateCardLabels,
+  getCardLabelsJson,
+  getBoardLabels,
   upsertActions,
   getLatestActionDate,
   upsertCardListEntry,
@@ -742,6 +745,106 @@ export function registerBoardHandlers(): void {
         }
       } catch (err) {
         log.error(`[boards] createCard failed listId=${listId} name="${name}":`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Get board labels (fetches from Trello API + merges with local cache) ───
+  //
+  // Returns all labels defined on the board. Fetches from the Trello API so
+  // labels that are not yet assigned to any card are also included.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_GET_BOARD_LABELS,
+    async (_e, boardId: string): Promise<IpcResult<TrelloLabel[]>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) {
+          log.warn(`[boards] getBoardLabels: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
+
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        const labels = await client.getBoardLabels(boardId)
+
+        // Merge with locally-aggregated labels to also show labels from archived cards.
+        const localLabels = getBoardLabels(boardId)
+        const seen = new Set<string>(labels.map((l) => l.id))
+        for (const l of localLabels) {
+          if (!seen.has(l.id)) {
+            seen.add(l.id)
+            labels.push(l)
+          }
+        }
+
+        log.debug(`[boards] getBoardLabels boardId=${boardId} → ${labels.length} label(s)`)
+        return { success: true, data: labels }
+      } catch (err) {
+        log.error(`[boards] getBoardLabels failed boardId=${boardId}:`, err)
+        // Fall back to locally-aggregated labels if the API call fails.
+        try {
+          const localLabels = getBoardLabels(boardId)
+          return { success: true, data: localLabels }
+        } catch {
+          return { success: false, error: String(err) }
+        }
+      }
+    }
+  )
+
+  // ── Toggle label assignment on a card ──────────────────────────────────────
+  //
+  // Adds or removes a label from a card on Trello and updates the local cache.
+  // Returns the updated labels list for the card.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_ASSIGN_CARD_LABEL,
+    async (
+      _e,
+      boardId: string,
+      cardId: string,
+      label: TrelloLabel,
+      assign: boolean
+    ): Promise<IpcResult<TrelloLabel[]>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) {
+          log.warn(`[boards] assignCardLabel: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
+
+        log.info(`[boards] assignCardLabel cardId=${cardId} labelId=${label.id} assign=${assign}`)
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+
+        if (assign) {
+          await client.addCardLabel(cardId, label.id)
+        } else {
+          await client.removeCardLabel(cardId, label.id)
+        }
+
+        // Read current card labels from the local DB and apply the change.
+        const labelsJson = getCardLabelsJson(cardId)
+        if (labelsJson === undefined) {
+          log.warn(`[boards] assignCardLabel: card not found cardId=${cardId}`)
+          return { success: false, error: `Card not found: ${cardId}` }
+        }
+
+        const currentLabels: TrelloLabel[] = JSON.parse(labelsJson)
+        let updatedLabels: TrelloLabel[]
+        if (assign) {
+          updatedLabels = currentLabels.some((l) => l.id === label.id)
+            ? currentLabels
+            : [...currentLabels, label]
+        } else {
+          updatedLabels = currentLabels.filter((l) => l.id !== label.id)
+        }
+
+        updateCardLabels(cardId, updatedLabels)
+
+        return { success: true, data: updatedLabels }
+      } catch (err) {
+        log.error(`[boards] assignCardLabel failed cardId=${cardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
