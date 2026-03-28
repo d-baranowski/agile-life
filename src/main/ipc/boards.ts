@@ -619,6 +619,49 @@ export function registerBoardHandlers(): void {
     }
   )
 
+  // ── Archive multiple cards at once (from the bulk-select action bar) ──────────
+  //
+  // Archives each card on Trello and removes it from the local cache.
+  // Cards that fail individually are skipped; the others are still archived.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_ARCHIVE_CARDS,
+    async (
+      _e,
+      boardId: string,
+      cardIds: string[]
+    ): Promise<IpcResult<{ archivedCount: number; skippedCount: number }>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) {
+          log.warn(`[boards] archiveCards: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
+
+        log.info(`[boards] archiveCards boardId=${boardId} count=${cardIds.length}`)
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+
+        let archivedCount = 0
+        let skippedCount = 0
+        for (const cardId of cardIds) {
+          try {
+            await client.archiveCard(cardId)
+            archiveCardLocally(cardId)
+            archivedCount++
+          } catch (err) {
+            log.warn(`[boards] archiveCards: failed to archive cardId=${cardId}:`, err)
+            skippedCount++
+          }
+        }
+
+        return { success: true, data: { archivedCount, skippedCount } }
+      } catch (err) {
+        log.error(`[boards] archiveCards failed boardId=${boardId}:`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
   // ── Get board members (reads from local cache) ──────────────────────────────
   //
   // Returns the cached list of board members synced during the last TRELLO_SYNC.

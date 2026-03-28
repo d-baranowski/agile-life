@@ -95,6 +95,11 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
   const contextMenuRef = useRef<HTMLDivElement>(null)
 
+  // Multi-select state
+  const [isSelectMode, setIsSelectMode] = useState(false)
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
+  const [isBulkArchiving, setIsBulkArchiving] = useState(false)
+
   // Is this board a story board (has a linked epic board)?
   const isStoryBoard = !!board.epicBoardId
   // Is this board acting as an epic board for some other board?
@@ -260,6 +265,8 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setShowTicketsModal(false)
         setEpicStoriesCard(null)
         setEpicDropdownCardId(null)
+        setIsSelectMode(false)
+        setSelectedCardIds(new Set())
         setAddCardModal((prev) => (prev?.uploading ? prev : null))
       }
     }
@@ -335,6 +342,49 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     },
     [board.boardId, columns]
   )
+
+  const handleToggleSelectMode = useCallback(() => {
+    setIsSelectMode((prev) => {
+      if (prev) setSelectedCardIds(new Set())
+      return !prev
+    })
+    setContextMenu(null)
+  }, [])
+
+  const handleToggleCardSelection = useCallback((cardId: string) => {
+    setSelectedCardIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(cardId)) {
+        next.delete(cardId)
+      } else {
+        next.add(cardId)
+      }
+      return next
+    })
+  }, [])
+
+  const handleBulkArchive = useCallback(async () => {
+    if (selectedCardIds.size === 0) return
+    setIsBulkArchiving(true)
+    const cardIds = [...selectedCardIds]
+    // Optimistically remove selected cards from the UI
+    const prevColumns = columns
+    setColumns((prev) =>
+      prev.map((col) => ({ ...col, cards: col.cards.filter((c) => !selectedCardIds.has(c.id)) }))
+    )
+    setSelectedCardIds(new Set())
+    setIsSelectMode(false)
+    const result = await api.trello.archiveCards(board.boardId, cardIds)
+    setIsBulkArchiving(false)
+    if (!result.success) {
+      setColumns(prevColumns)
+      setToastMessage(result.error ?? 'Failed to archive cards. Please try again.')
+    } else if (result.data && result.data.skippedCount > 0) {
+      setToastMessage(
+        `Archived ${result.data.archivedCount} card(s). ${result.data.skippedCount} could not be archived.`
+      )
+    }
+  }, [board.boardId, columns, selectedCardIds])
 
   const handleToggleMember = useCallback(
     async (cardId: string, memberId: string, assign: boolean) => {
@@ -610,6 +660,13 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
           🎫 Number Tickets
         </button>
+        <button
+          className={`${styles.numberTicketsBtn} ${isSelectMode ? styles.selectModeActive : ''}`}
+          onClick={handleToggleSelectMode}
+          title={isSelectMode ? 'Exit selection mode (Esc)' : 'Select cards to archive in bulk'}
+        >
+          {isSelectMode ? '✕ Cancel' : '☑ Select'}
+        </button>
       </div>
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className={styles.board}>
@@ -636,12 +693,16 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                         isEpicBoard={isEpicBoard}
                         epicCardOptions={epicCardOptions}
                         epicDropdownCardId={epicDropdownCardId}
+                        isSelectMode={isSelectMode}
+                        isSelected={selectedCardIds.has(card.id)}
+                        onToggleSelection={handleToggleCardSelection}
                         onOpenEpicStories={handleOpenEpicStories}
                         onSetCardEpic={handleSetCardEpic}
                         onToggleEpicDropdown={(cardId) =>
                           setEpicDropdownCardId((prev) => (prev === cardId ? null : cardId))
                         }
                         onContextMenu={(e) => {
+                          if (isSelectMode) return
                           e.preventDefault()
                           setContextMenu({ x: e.clientX, y: e.clientY, card })
                         }}
@@ -703,6 +764,22 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         onDismiss={() => setToastMessage(null)}
         onOpenLogs={handleOpenLogs}
       />
+
+      {/* ── Bulk action bar (shown when cards are selected) ── */}
+      {isSelectMode && selectedCardIds.size > 0 && (
+        <div className={styles.bulkActionBar}>
+          <span className={styles.bulkActionCount}>
+            {selectedCardIds.size} card{selectedCardIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <button
+            className={styles.bulkArchiveBtn}
+            onClick={handleBulkArchive}
+            disabled={isBulkArchiving}
+          >
+            {isBulkArchiving ? 'Archiving…' : `🗄️ Archive ${selectedCardIds.size}`}
+          </button>
+        </div>
+      )}
 
       {ticketsModal}
 
@@ -935,6 +1012,9 @@ interface CardProps {
   isEpicBoard: boolean
   epicCardOptions: EpicCardOption[]
   epicDropdownCardId: string | null
+  isSelectMode: boolean
+  isSelected: boolean
+  onToggleSelection: (cardId: string) => void
   onOpenEpicStories: (cardId: string, cardName: string) => void
   onSetCardEpic: (cardId: string, epicCardId: string | null) => void
   onToggleEpicDropdown: (cardId: string) => void
@@ -948,6 +1028,9 @@ function DraggableCard({
   isEpicBoard,
   epicCardOptions,
   epicDropdownCardId,
+  isSelectMode,
+  isSelected,
+  onToggleSelection,
   onOpenEpicStories,
   onSetCardEpic,
   onToggleEpicDropdown,
@@ -956,6 +1039,10 @@ function DraggableCard({
   const lastClickRef = useRef<number>(0)
 
   const handleClick = () => {
+    if (isSelectMode) {
+      onToggleSelection(card.id)
+      return
+    }
     if (!isEpicBoard) return
     const now = Date.now()
     if (now - lastClickRef.current < 350) {
@@ -966,21 +1053,28 @@ function DraggableCard({
   }
 
   return (
-    <Draggable draggableId={card.id} index={index}>
+    <Draggable draggableId={card.id} index={index} isDragDisabled={isSelectMode}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''}`}
+          className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''} ${isSelected ? styles.cardSelected : ''}`}
           onClick={handleClick}
           onContextMenu={onContextMenu}
-          title={isEpicBoard ? 'Double-click to see stories in this epic' : undefined}
+          title={
+            isEpicBoard && !isSelectMode ? 'Double-click to see stories in this epic' : undefined
+          }
         >
+          {isSelectMode && (
+            <span className={styles.cardCheckbox} aria-hidden="true">
+              {isSelected ? '☑' : '☐'}
+            </span>
+          )}
           <span className={styles.cardName}>{card.name}</span>
 
           {/* Epic label (story board only) */}
-          {isStoryBoard && (
+          {isStoryBoard && !isSelectMode && (
             <div className={styles.epicRow}>
               <button
                 className={card.epicCardName ? styles.epicChip : styles.epicChipEmpty}
@@ -1017,7 +1111,7 @@ function DraggableCard({
           )}
 
           {/* Epic board hint */}
-          {isEpicBoard && (
+          {isEpicBoard && !isSelectMode && (
             <span className={styles.epicBoardHint}>⚡ Epic — double-click for stories</span>
           )}
 
@@ -1056,7 +1150,7 @@ function DraggableCard({
                   </span>
                 )}
 
-                {card.shortUrl && (
+                {card.shortUrl && !isSelectMode && (
                   <a
                     href={card.shortUrl}
                     target="_blank"

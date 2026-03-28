@@ -672,6 +672,79 @@
   font-weight: 700;
 }
 
+/* ── Select mode ─────────────────────────────────────────────────────────── */
+
+.selectModeActive {
+  border-color: var(--color-accent);
+  background: rgba(233, 69, 96, 0.1);
+  color: var(--color-accent);
+}
+
+.selectModeActive:hover {
+  background: rgba(233, 69, 96, 0.2);
+}
+
+.cardSelected {
+  border-color: var(--color-accent);
+  background: rgba(233, 69, 96, 0.08);
+  box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.3);
+}
+
+.cardCheckbox {
+  font-size: 1rem;
+  color: var(--color-accent);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ── Bulk action bar ─────────────────────────────────────────────────────── */
+
+.bulkActionBar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  z-index: 200;
+}
+
+.bulkActionCount {
+  font-size: 0.85rem;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.bulkArchiveBtn {
+  padding: 7px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    opacity var(--transition),
+    background var(--transition);
+  white-space: nowrap;
+}
+
+.bulkArchiveBtn:hover {
+  opacity: 0.88;
+}
+
+.bulkArchiveBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* ── Add card ─────────────────────────────────────────────────────────────── */
 
 .addCardBtn {
