@@ -9,7 +9,6 @@ overrides:
   esbuild: '>=0.25.0'
   brace-expansion: '>=5.0.5'
   handlebars: '>=4.7.9'
-  '@actions/http-client': 4.0.0
   undici: 6.24.1
 
 importers:
@@ -134,8 +133,8 @@ packages:
   '@actions/github@6.0.1':
     resolution: {integrity: sha512-xbZVcaqD4XnQAe35qSQqskb3SqIAfRyLBrHMd/8TuL7hJSz2QtbDwnNM8zWx4zO5l2fnGtseNE3MbEvD7BxVMw==}
 
-  '@actions/http-client@4.0.0':
-    resolution: {integrity: sha512-QuwPsgVMsD6qaPD57GLZi9sqzAZCtiJT8kVBCDpLtxhL5MydQ4gS+DrejtZZPdIYyB1e95uCK9Luyds7ybHI3g==}
+  '@actions/http-client@2.2.3':
+    resolution: {integrity: sha512-mx8hyJi/hjFvbPokCg4uRd4ZX78t+YyRPtnKWwIl+RzNaVuFpQHfmlGVfsKEJN8LwTCvL+DfVgAM04XaHkm6bA==}
 
   '@actions/io@1.1.3':
     resolution: {integrity: sha512-wi9JjgKLYS7U/z8PPbco+PvTb/nRWjeoFlJ1Qer83k/3C5PHQi28hiVdeE2kHXmIL99mQFawx8qt/JPjZilJ8Q==}
@@ -3530,7 +3529,7 @@ snapshots:
   '@actions/core@1.11.1':
     dependencies:
       '@actions/exec': 1.1.1
-      '@actions/http-client': 4.0.0
+      '@actions/http-client': 2.2.3
 
   '@actions/exec@1.1.1':
     dependencies:
@@ -3538,7 +3537,7 @@ snapshots:
 
   '@actions/github@6.0.1':
     dependencies:
-      '@actions/http-client': 4.0.0
+      '@actions/http-client': 2.2.3
       '@octokit/core': 5.2.2
       '@octokit/plugin-paginate-rest': 9.2.2(@octokit/core@5.2.2)
       '@octokit/plugin-rest-endpoint-methods': 10.4.1(@octokit/core@5.2.2)
@@ -3546,7 +3545,7 @@ snapshots:
       '@octokit/request-error': 5.1.1
       undici: 6.24.1
 
-  '@actions/http-client@4.0.0':
+  '@actions/http-client@2.2.3':
     dependencies:
       tunnel: 0.0.6
       undici: 6.24.1
