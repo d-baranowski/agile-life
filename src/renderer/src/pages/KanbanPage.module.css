@@ -1018,6 +1018,7 @@
   cursor: default;
 }
 
+
 /* ── Bulk action bar ──────────────────────────────────────────────────────── */
 
 .bulkActionBar {
@@ -1130,3 +1131,4 @@
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
+
