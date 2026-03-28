@@ -38,3 +38,14 @@ Always run `pnpm format` after editing files to stay consistent with these setti
 - Run `pnpm lint`, `pnpm format:check`, and `pnpm test` locally before opening a PR
 - Keep commits focused; one logical change per commit
 - CI enforces Prettier, ESLint, unit tests with coverage upload, and a `pnpm audit` security scan — all jobs must be green before merging
+
+## Git Workflow
+
+- Always rebase onto `main` before opening a PR to keep a linear, readable history — never merge `main` into a feature branch
+- Confirm there are no conflicts with `main` before opening a PR:
+  ```bash
+  git fetch origin main
+  git rebase origin/main
+  ```
+- Resolve any conflicts that arise during rebase before pushing
+- Prefer `git rebase -i` to squash fixup commits into logical units before marking a PR ready for review
