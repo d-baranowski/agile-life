@@ -1007,7 +1007,11 @@ function DraggableCard({
           title={isEpicBoard ? 'Double-click to see stories in this epic' : undefined}
         >
           <span className={styles.cardName}>
-            {isDuplicate && <span className={styles.duplicateBadge} title="Duplicate title">⊖</span>}
+            {isDuplicate && (
+              <span className={styles.duplicateBadge} title="Duplicate title">
+                ⊖
+              </span>
+            )}
             {card.name}
           </span>
 
