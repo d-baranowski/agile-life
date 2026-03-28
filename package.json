@@ -55,6 +55,7 @@
     "@types/react": "18.3.28",
     "@types/react-beautiful-dnd": "13.1.8",
     "@types/react-dom": "18.3.7",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@vitejs/plugin-react": "4.7.0",
     "electron": "^29.4.6",
     "electron-builder": "24.13.3",
