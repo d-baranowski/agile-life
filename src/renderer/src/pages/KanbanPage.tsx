@@ -954,6 +954,19 @@ function DraggableCard({
   onContextMenu
 }: CardProps): JSX.Element {
   const lastClickRef = useRef<number>(0)
+  const epicSearchRef = useRef<HTMLInputElement>(null)
+  const [epicSearchQuery, setEpicSearchQuery] = useState('')
+
+  const isDropdownOpen = epicDropdownCardId === card.id
+
+  // Reset search query and focus the input whenever this card's dropdown opens
+  useEffect(() => {
+    if (isDropdownOpen) {
+      setEpicSearchQuery('')
+      // Defer focus so the input is mounted before we try to focus it
+      requestAnimationFrame(() => epicSearchRef.current?.focus())
+    }
+  }, [isDropdownOpen])
 
   const handleClick = () => {
     if (!isEpicBoard) return
@@ -993,24 +1006,40 @@ function DraggableCard({
                 {card.epicCardName ? `⚡ ${card.epicCardName}` : '+ Epic'}
               </button>
 
-              {epicDropdownCardId === card.id && (
+              {isDropdownOpen && (
                 <div className={styles.epicDropdown} onClick={(e) => e.stopPropagation()}>
+                  <div className={styles.epicDropdownSearch}>
+                    <input
+                      ref={epicSearchRef}
+                      type="text"
+                      className={styles.epicDropdownSearchInput}
+                      placeholder="Search epics…"
+                      value={epicSearchQuery}
+                      onChange={(e) => setEpicSearchQuery(e.target.value)}
+                    />
+                  </div>
                   <button
                     className={styles.epicDropdownItem}
                     onClick={() => onSetCardEpic(card.id, null)}
                   >
                     — None
                   </button>
-                  {epicCardOptions.map((opt) => (
-                    <button
-                      key={opt.id}
-                      className={`${styles.epicDropdownItem} ${card.epicCardId === opt.id ? styles.epicDropdownItemActive : ''}`}
-                      onClick={() => onSetCardEpic(card.id, opt.id)}
-                    >
-                      <span className={styles.epicDropdownName}>{opt.name}</span>
-                      <span className={styles.epicDropdownList}>{opt.listName}</span>
-                    </button>
-                  ))}
+                  {epicCardOptions
+                    .filter(
+                      (opt) =>
+                        !epicSearchQuery.trim() ||
+                        fuzzyMatch(epicSearchQuery, `${opt.name} ${opt.listName}`)
+                    )
+                    .map((opt) => (
+                      <button
+                        key={opt.id}
+                        className={`${styles.epicDropdownItem} ${card.epicCardId === opt.id ? styles.epicDropdownItemActive : ''}`}
+                        onClick={() => onSetCardEpic(card.id, opt.id)}
+                      >
+                        <span className={styles.epicDropdownName}>{opt.name}</span>
+                        <span className={styles.epicDropdownList}>{opt.listName}</span>
+                      </button>
+                    ))}
                 </div>
               )}
             </div>
