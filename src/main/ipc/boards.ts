@@ -305,7 +305,8 @@ export function registerBoardHandlers(): void {
               members: JSON.parse(c.members_json),
               dateLastActivity: c.date_last_activity,
               epicCardId: c.epic_card_id,
-              epicCardName: c.epic_card_name
+              epicCardName: c.epic_card_name,
+              enteredAt: c.entered_at
             }))
         }))
 

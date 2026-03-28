@@ -273,6 +273,7 @@ interface CardRow {
   date_last_activity: string
   epic_card_id: string | null
   epic_card_name: string | null
+  entered_at: string | null
 }
 
 interface EpicCardRow {
