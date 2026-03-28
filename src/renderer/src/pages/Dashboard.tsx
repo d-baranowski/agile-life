@@ -5,7 +5,8 @@ import type {
   WeeklyUserStats,
   LabelUserStats,
   WeeklyHistory,
-  StoryPointsUserStats
+  StoryPointsUserStats,
+  EpicWeeklyHistory
 } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
 import styles from './Dashboard.module.css'
@@ -15,13 +16,23 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Filler,
   Tooltip,
   Legend
 } from 'chart.js'
-import { Line } from 'react-chartjs-2'
+import { Line, Bar } from 'react-chartjs-2'
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend)
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Filler,
+  Tooltip,
+  Legend
+)
 
 interface Props {
   board: BoardConfig
@@ -68,21 +79,25 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
   const [labelStats, setLabelStats] = useState<LabelUserStats[]>([])
   const [historyStats, setHistoryStats] = useState<WeeklyHistory[]>([])
   const [storyPointStats, setStoryPointStats] = useState<StoryPointsUserStats[]>([])
+  const [epicHistoryStats, setEpicHistoryStats] = useState<EpicWeeklyHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [historyOffset, setHistoryOffset] = useState(0)
+  const [epicHistoryOffset, setEpicHistoryOffset] = useState(0)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
     setError(null)
 
-    const [colResult, weeklyResult, labelResult, historyResult, spResult] = await Promise.all([
-      api.analytics.columnCounts(board.boardId),
-      api.analytics.weeklyUserStats(board.boardId),
-      api.analytics.labelUserStats(board.boardId),
-      api.analytics.weeklyHistory(board.boardId, board.storyPointsConfig),
-      api.analytics.storyPoints7d(board.boardId, board.storyPointsConfig)
-    ])
+    const [colResult, weeklyResult, labelResult, historyResult, spResult, epicResult] =
+      await Promise.all([
+        api.analytics.columnCounts(board.boardId),
+        api.analytics.weeklyUserStats(board.boardId),
+        api.analytics.labelUserStats(board.boardId),
+        api.analytics.weeklyHistory(board.boardId, board.storyPointsConfig),
+        api.analytics.storyPoints7d(board.boardId, board.storyPointsConfig),
+        api.analytics.epicWeeklyHistory(board.boardId, board.storyPointsConfig)
+      ])
 
     if (colResult.success && colResult.data) setColumns(colResult.data)
     else if (!colResult.success) setError(colResult.error ?? 'Failed to load column counts.')
@@ -92,6 +107,7 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
     else setError((prev) => prev ?? labelResult.error ?? 'Failed to load label stats.')
     if (historyResult.success) setHistoryStats(historyResult.data ?? [])
     if (spResult.success) setStoryPointStats(spResult.data ?? [])
+    if (epicResult.success) setEpicHistoryStats(epicResult.data ?? [])
 
     setLoading(false)
   }, [board.boardId, board.storyPointsConfig])
@@ -104,6 +120,11 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
   useEffect(() => {
     setHistoryOffset(0)
   }, [historyStats])
+
+  // Reset page when epic history data changes
+  useEffect(() => {
+    setEpicHistoryOffset(0)
+  }, [epicHistoryStats])
 
   // ── Derived data ─────────────────────────────────────────────────────────────
 
@@ -196,6 +217,62 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
       ? pageWeeks[0] === pageWeeks[pageWeeks.length - 1]
         ? pageWeeks[0]
         : `${pageWeeks[0]} – ${pageWeeks[pageWeeks.length - 1]}`
+      : ''
+
+  // ── Epic chart derived data ───────────────────────────────────────────────
+
+  const allEpicWeeks = [...new Set(epicHistoryStats.map((r) => r.week))].sort()
+  const epicMap = new Map<string, { epicCardName: string; idx: number }>()
+  epicHistoryStats.forEach((r) => {
+    if (!epicMap.has(r.epicCardId))
+      epicMap.set(r.epicCardId, { epicCardName: r.epicCardName, idx: epicMap.size })
+  })
+
+  const totalEpicWeeks = allEpicWeeks.length
+  const maxEpicOffset = Math.max(0, Math.ceil(totalEpicWeeks / HISTORY_PAGE_SIZE) - 1)
+  const clampedEpicOffset = Math.min(epicHistoryOffset, maxEpicOffset)
+  const epicPageEndIdx = totalEpicWeeks - clampedEpicOffset * HISTORY_PAGE_SIZE
+  const epicPageStartIdx = Math.max(0, epicPageEndIdx - HISTORY_PAGE_SIZE)
+  const epicPageWeeks = allEpicWeeks.slice(epicPageStartIdx, epicPageEndIdx)
+
+  const epicLookup = new Map<string, Map<string, number>>()
+  epicHistoryStats.forEach((r) => {
+    if (!epicLookup.has(r.week)) epicLookup.set(r.week, new Map())
+    epicLookup.get(r.week)?.set(r.epicCardId, r.storyPoints)
+  })
+
+  const epicChartData = {
+    labels: epicPageWeeks,
+    datasets: [...epicMap.entries()].map(([epicCardId, { epicCardName, idx }]) => {
+      const color = USER_PALETTE[idx % USER_PALETTE.length]
+      return {
+        label: epicCardName,
+        data: epicPageWeeks.map((w) => epicLookup.get(w)?.get(epicCardId) ?? 0),
+        backgroundColor: color + 'bb',
+        borderColor: color,
+        borderWidth: 1
+      }
+    })
+  }
+
+  const epicChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom' as const },
+      tooltip: { mode: 'index' as const, intersect: false }
+    },
+    scales: {
+      x: { stacked: false, ticks: { maxTicksLimit: HISTORY_PAGE_SIZE } },
+      y: { beginAtZero: true, ticks: { precision: 0 } }
+    }
+  }
+
+  const epicPageRangeLabel =
+    epicPageWeeks.length > 0
+      ? epicPageWeeks[0] === epicPageWeeks[epicPageWeeks.length - 1]
+        ? epicPageWeeks[0]
+        : `${epicPageWeeks[0]} – ${epicPageWeeks[epicPageWeeks.length - 1]}`
       : ''
 
   return (
