@@ -29,7 +29,7 @@ import type {
   UnnumberedCard,
   ApplyNumberingResult
 } from '@shared/ticket.types'
-import type { DbPathInfo } from '@shared/settings.types'
+import type { DbPathInfo, LogPathInfo } from '@shared/settings.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return window.api.invoke(channel as Parameters<typeof window.api.invoke>[0], ...args) as Promise<
@@ -87,6 +87,9 @@ export const api = {
         memberId,
         assign
       ),
+    /** Creates a new card on Trello and in the local cache, returns the new KanbanCard. */
+    createCard: (boardId: string, listId: string, name: string) =>
+      invoke<KanbanColumn['cards'][number]>(IPC_CHANNELS.TRELLO_CREATE_CARD, boardId, listId, name),
     /** Archives open cards in the "done" lists that have been in done for olderThanWeeks weeks. */
     archiveDoneCards: (boardId: string, olderThanWeeks: number) =>
       invoke<ArchiveResult>(IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS, boardId, olderThanWeeks)
@@ -140,6 +143,20 @@ export const api = {
      */
     setDbPath: (resetToDefault = false) =>
       invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_SET_DB_PATH, resetToDefault)
+  },
+
+  logs: {
+    /** Returns the current log file path info (path, default path, isCustom). */
+    getPath: () => invoke<LogPathInfo>(IPC_CHANNELS.LOGS_GET_PATH),
+    /** Opens the log folder in the native file manager. */
+    openFolder: () => invoke<void>(IPC_CHANNELS.LOGS_OPEN_FOLDER),
+    /**
+     * Opens a native folder-picker dialog and moves log output to the chosen
+     * folder (as "main.log").  Pass `resetToDefault = true` to restore the
+     * electron-log default location.  Takes effect immediately.
+     */
+    setPath: (resetToDefault = false) =>
+      invoke<LogPathInfo>(IPC_CHANNELS.LOGS_SET_PATH, resetToDefault)
   },
 
   epics: {

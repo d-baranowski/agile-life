@@ -273,6 +273,7 @@ interface CardRow {
   date_last_activity: string
   epic_card_id: string | null
   epic_card_name: string | null
+  entered_at: string | null
 }
 
 interface EpicCardRow {
@@ -343,6 +344,25 @@ export function getStoriesForEpic(epicCardId: string): EpicStoryRow[] {
 /** Mark a single card as archived in the local cache. */
 export function archiveCardLocally(cardId: string): void {
   getDb().prepare(sqlCardsArchive).run({ cardId })
+}
+
+/** Insert a single freshly-created card into the local cache. */
+export function insertCard(boardId: string, card: TrelloCard): void {
+  getDb()
+    .prepare(sqlCardsUpsert)
+    .run({
+      id: card.id,
+      boardId,
+      listId: card.idList,
+      name: card.name,
+      desc: card.desc ?? '',
+      closed: 0,
+      dateLastActivity: card.dateLastActivity ?? new Date().toISOString(),
+      pos: card.pos,
+      shortUrl: card.shortUrl ?? '',
+      labelsJson: JSON.stringify(card.labels ?? []),
+      membersJson: JSON.stringify(card.members ?? [])
+    })
 }
 
 /** Update the members_json for a card after a member assignment change. */

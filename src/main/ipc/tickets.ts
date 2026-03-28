@@ -8,6 +8,7 @@ import type {
 } from '@shared/ticket.types'
 import { getBoardById, updateBoard, getDb } from '../database/db'
 import { TrelloClient } from '../trello/client'
+import log from '../logger'
 
 const TICKET_REGEX = /^[A-Z]{3}-\d{6} /
 
@@ -29,13 +30,17 @@ export function registerTicketHandlers(): void {
     async (_e, boardId: string): Promise<IpcResult<TicketNumberingConfig>> => {
       try {
         const board = getBoardById(boardId)
-        if (!board) return { success: false, error: `Board not found: ${boardId}` }
+        if (!board) {
+          log.warn(`[tickets] getConfig: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
         const rows = getDb()
           .prepare('SELECT name FROM trello_cards WHERE board_id = ? AND closed = 0')
           .all(boardId) as { name: string }[]
 
         const unnumberedCount = rows.filter((c) => !TICKET_REGEX.test(c.name)).length
+        log.debug(`[tickets] getConfig boardId=${boardId} unnumberedCount=${unnumberedCount}`)
 
         return {
           success: true,
@@ -46,6 +51,7 @@ export function registerTicketHandlers(): void {
           }
         }
       } catch (err) {
+        log.error(`[tickets] getConfig failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -60,7 +66,10 @@ export function registerTicketHandlers(): void {
     async (_e, boardId: string): Promise<IpcResult<UnnumberedCard[]>> => {
       try {
         const board = getBoardById(boardId)
-        if (!board) return { success: false, error: `Board not found: ${boardId}` }
+        if (!board) {
+          log.warn(`[tickets] previewUnnumbered: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
         if (!board.projectCode || !/^[A-Z]{3}$/.test(board.projectCode)) {
           return {
@@ -89,8 +98,10 @@ export function registerTicketHandlers(): void {
           proposedName: `${board.projectCode}-${String(nextNum++).padStart(6, '0')} ${c.name}`
         }))
 
+        log.debug(`[tickets] previewUnnumbered boardId=${boardId} unnumbered=${preview.length}`)
         return { success: true, data: preview }
       } catch (err) {
+        log.error(`[tickets] previewUnnumbered failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -106,7 +117,10 @@ export function registerTicketHandlers(): void {
     async (_e, boardId: string): Promise<IpcResult<ApplyNumberingResult>> => {
       try {
         const board = getBoardById(boardId)
-        if (!board) return { success: false, error: `Board not found: ${boardId}` }
+        if (!board) {
+          log.warn(`[tickets] applyNumbering: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
         if (!board.projectCode || !/^[A-Z]{3}$/.test(board.projectCode)) {
           return {
@@ -124,6 +138,7 @@ export function registerTicketHandlers(): void {
           .all(boardId) as { id: string; name: string }[]
 
         const unnumbered = rows.filter((c) => !TICKET_REGEX.test(c.name))
+        log.info(`[tickets] applyNumbering boardId=${boardId} cards=${unnumbered.length}`)
 
         const client = new TrelloClient(board.apiKey, board.apiToken)
         const updateStmt = getDb().prepare('UPDATE trello_cards SET name = ? WHERE id = ?')
@@ -142,6 +157,10 @@ export function registerTicketHandlers(): void {
             nextNum++
             updated++
           } catch (err) {
+            log.error(
+              `[tickets] applyNumbering: failed to rename card ${card.id} "${card.name}":`,
+              err
+            )
             failed++
             errors.push(`Card "${card.name}": ${String(err)}`)
           }
@@ -154,8 +173,12 @@ export function registerTicketHandlers(): void {
         // Persist the updated counter only after the batch completes.
         updateBoard(boardId, { nextTicketNumber: nextNum })
 
+        log.info(
+          `[tickets] applyNumbering complete boardId=${boardId} updated=${updated} failed=${failed}`
+        )
         return { success: true, data: { updated, failed, errors } }
       } catch (err) {
+        log.error(`[tickets] applyNumbering failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -172,8 +195,12 @@ export function registerTicketHandlers(): void {
     async (_e, boardId: string, cardId: string, newName: string): Promise<IpcResult<void>> => {
       try {
         const board = getBoardById(boardId)
-        if (!board) return { success: false, error: `Board not found: ${boardId}` }
+        if (!board) {
+          log.warn(`[tickets] applySingleCard: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
+        log.info(`[tickets] applySingleCard cardId=${cardId} newName="${newName}"`)
         const client = new TrelloClient(board.apiKey, board.apiToken)
         await client.updateCardName(cardId, newName)
 
@@ -186,6 +213,7 @@ export function registerTicketHandlers(): void {
 
         return { success: true }
       } catch (err) {
+        log.error(`[tickets] applySingleCard failed cardId=${cardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
@@ -204,7 +232,10 @@ export function registerTicketHandlers(): void {
     ): Promise<IpcResult<void>> => {
       try {
         const board = getBoardById(boardId)
-        if (!board) return { success: false, error: `Board not found: ${boardId}` }
+        if (!board) {
+          log.warn(`[tickets] updateConfig: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
 
         if (updates.projectCode !== undefined && !/^[A-Z]{3}$/.test(updates.projectCode)) {
           return {
@@ -223,9 +254,11 @@ export function registerTicketHandlers(): void {
           }
         }
 
+        log.info(`[tickets] updateConfig boardId=${boardId}`, updates)
         updateBoard(boardId, updates)
         return { success: true }
       } catch (err) {
+        log.error(`[tickets] updateConfig failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
