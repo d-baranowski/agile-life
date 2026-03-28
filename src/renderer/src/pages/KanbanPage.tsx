@@ -1062,7 +1062,9 @@ function DraggableCard({
           className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''} ${isSelected ? styles.cardSelected : ''}`}
           onClick={handleClick}
           onContextMenu={onContextMenu}
-          title={isEpicBoard && !isSelectMode ? 'Double-click to see stories in this epic' : undefined}
+          title={
+            isEpicBoard && !isSelectMode ? 'Double-click to see stories in this epic' : undefined
+          }
         >
           {isSelectMode && (
             <span className={styles.cardCheckbox} aria-hidden="true">
