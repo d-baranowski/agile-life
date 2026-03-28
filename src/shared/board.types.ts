@@ -22,6 +22,8 @@ export interface BoardConfig {
   storyPointsConfig: StoryPointRule[]
   lastSyncedAt: string | null
   epicBoardId: string | null
+  /** The Trello member ID the user identifies as on this board (for gamification). */
+  myMemberId: string | null
   createdAt: string
   updatedAt: string
 }

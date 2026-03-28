@@ -46,6 +46,7 @@ import {
   getDoneColumnDebug,
   getDb,
   setEpicBoard,
+  setMyMember,
   setCardEpic,
   setBulkCardEpic,
   getEpicCardsForBoard,
@@ -469,6 +470,22 @@ export function registerBoardHandlers(): void {
         const updated = setEpicBoard(storyBoardId, epicBoardId)
         return { success: true, data: updated }
       } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Gamification: set member identity ───────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.BOARDS_SET_MY_MEMBER,
+    async (_e, boardId: string, myMemberId: string | null): Promise<IpcResult<BoardConfig>> => {
+      try {
+        const updated = setMyMember(boardId, myMemberId)
+        log.info(`[boards] setMyMember boardId=${boardId} myMemberId=${myMemberId}`)
+        return { success: true, data: updated }
+      } catch (err) {
+        log.error('[boards] setMyMember failed:', err)
         return { success: false, error: String(err) }
       }
     }
