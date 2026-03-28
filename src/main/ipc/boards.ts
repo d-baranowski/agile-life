@@ -29,6 +29,7 @@ import {
   moveCardToList,
   updateCardPos,
   archiveCardLocally,
+  insertCard,
   updateCardMembers,
   upsertBoardMembers,
   getBoardMembers,
@@ -691,6 +692,55 @@ export function registerBoardHandlers(): void {
         return { success: true, data: updatedMembers }
       } catch (err) {
         log.error(`[boards] assignCardMember failed cardId=${cardId}:`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Create a new card in a list ─────────────────────────────────────────────
+  //
+  // Creates the card on Trello, then inserts it into the local SQLite cache.
+  // Returns the KanbanCard representation so the renderer can add it to the UI.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_CREATE_CARD,
+    async (
+      _e,
+      boardId: string,
+      listId: string,
+      name: string
+    ): Promise<IpcResult<KanbanColumn['cards'][number]>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) {
+          log.warn(`[boards] createCard: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
+
+        log.info(`[boards] createCard listId=${listId} name="${name}"`)
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        const trelloCard = await client.createCard(name, listId, 'bottom')
+
+        insertCard(boardId, trelloCard)
+
+        return {
+          success: true,
+          data: {
+            id: trelloCard.id,
+            name: trelloCard.name,
+            desc: trelloCard.desc ?? '',
+            listId: trelloCard.idList,
+            pos: trelloCard.pos,
+            shortUrl: trelloCard.shortUrl ?? '',
+            labels: trelloCard.labels ?? [],
+            members: trelloCard.members ?? [],
+            dateLastActivity: trelloCard.dateLastActivity ?? new Date().toISOString(),
+            epicCardId: null,
+            epicCardName: null
+          }
+        }
+      } catch (err) {
+        log.error(`[boards] createCard failed listId=${listId} name="${name}":`, err)
         return { success: false, error: String(err) }
       }
     }
