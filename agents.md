@@ -37,7 +37,11 @@ Always run `pnpm format` after editing files to stay consistent with these setti
 
 - Run `pnpm lint`, `pnpm format:check`, and `pnpm test` locally before opening a PR
 - Keep commits focused; one logical change per commit
-- CI enforces Prettier, ESLint, unit tests with coverage upload, and a `pnpm audit` security scan — all jobs must be green before merging
+- The following CI jobs **must** be green before merging:
+  - **CI / ESLint** — `pnpm lint`
+  - **CI / Prettier** — `pnpm format:check`
+  - **CI / Unit Tests** — `pnpm test:coverage`
+  - **CI / pnpm audit** — `pnpm audit --audit-level high`
 
 ## Git Workflow
 
