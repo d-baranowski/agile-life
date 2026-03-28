@@ -133,7 +133,12 @@ export class TrelloClient {
    * Creates a new card on Trello in the specified list.
    * Pass `idLabels` to pre-assign label IDs on the new card.
    */
-  async createCard(listId: string, name: string, desc?: string, idLabels?: string[]): Promise<TrelloCard> {
+  async createCard(
+    listId: string,
+    name: string,
+    desc?: string,
+    idLabels?: string[]
+  ): Promise<TrelloCard> {
     const body: Record<string, unknown> = { idList: listId, name }
     if (desc) body.desc = desc
     if (idLabels && idLabels.length > 0) body.idLabels = idLabels.join(',')

@@ -83,7 +83,6 @@ function moveCard(
   })
 }
 
-
 // ─── Placeholder resolver (mirrors server-side logic for preview) ─────────────
 
 function resolvePlaceholders(template: string, now: Date): string {
@@ -97,8 +96,18 @@ function resolvePlaceholders(template: string, now: Date): string {
   const adjustedDow = (startOfYear.getDay() + 6) % 7
   const week = String(Math.floor((dayOfYear + adjustedDow) / 7) + 1).padStart(2, '0')
   const MONTH_NAMES = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
   ]
   return template
     .replace(/\{\{year\}\}/g, String(year))
@@ -905,7 +914,10 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                       <div className={styles.genPreviewTitle}>Preview</div>
                       {genLoading ? (
                         <div className={styles.genPreviewLoading}>
-                          <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                          <div
+                            className="spinner"
+                            style={{ width: 14, height: 14, borderWidth: 2 }}
+                          />
                           <span>Loading…</span>
                         </div>
                       ) : genTemplates.length === 0 ? (
@@ -961,10 +973,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                   className="btn-primary"
                   onClick={handleGenerateFromModal}
                   disabled={
-                    genGroupId === null ||
-                    genTemplates.length === 0 ||
-                    genLoading ||
-                    genGenerating
+                    genGroupId === null || genTemplates.length === 0 || genLoading || genGenerating
                   }
                 >
                   {genGenerating ? (

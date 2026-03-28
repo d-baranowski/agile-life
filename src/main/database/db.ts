@@ -3,7 +3,13 @@ import fs from 'fs'
 import path from 'path'
 import type { BoardConfig, BoardConfigInput, StoryPointRule } from '@shared/board.types'
 import { getDbPath } from '../settings/appSettings'
-import type { TrelloList, TrelloCard, TrelloAction, TrelloMember, TrelloLabel } from '@shared/trello.types'
+import type {
+  TrelloList,
+  TrelloCard,
+  TrelloAction,
+  TrelloMember,
+  TrelloLabel
+} from '@shared/trello.types'
 import type {
   TemplateGroup,
   TicketTemplate,
