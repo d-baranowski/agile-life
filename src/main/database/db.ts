@@ -59,6 +59,7 @@ import sqlTemplatesGetByGroup from './sql/templates/get-by-group.sql?raw'
 import sqlTemplatesInsert from './sql/templates/insert-template.sql?raw'
 import sqlTemplatesUpdate from './sql/templates/update-template.sql?raw'
 import sqlTemplatesDelete from './sql/templates/delete-template.sql?raw'
+import sqlBoardsSetMyMember from './sql/boards/set-my-member.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -131,6 +132,11 @@ export function getDb(): Database.Database {
   }
   try {
     _db.exec('ALTER TABLE board_configs ADD COLUMN last_selected INTEGER NOT NULL DEFAULT 0')
+  } catch {
+    // Column already exists — nothing to do.
+  }
+  try {
+    _db.exec('ALTER TABLE board_configs ADD COLUMN my_member_id TEXT DEFAULT NULL')
   } catch {
     // Column already exists — nothing to do.
   }
@@ -233,7 +239,6 @@ export function setEpicBoard(boardId: string, epicBoardId: string | null): Board
   return getBoardById(boardId)!
 }
 
-/**
  * Returns the boardId of the board most recently selected by the user, or
  * undefined if no board has been explicitly selected yet.
  */
@@ -255,6 +260,15 @@ export function setLastSelectedBoardId(boardId: string): void {
     db.prepare('UPDATE board_configs SET last_selected = 1 WHERE board_id = ?').run(boardId)
   })()
 }
+
+/**
+ * Set (or clear) the member identity for gamification on this board.
+ * Pass null for myMemberId to unset the identity.
+ */
+export function setMyMember(boardId: string, myMemberId: string | null): BoardConfig {
+  if (!getBoardById(boardId)) throw new Error(`Board not found: ${boardId}`)
+  getDb().prepare(sqlBoardsSetMyMember).run({ boardId, myMemberId })
+  return getBoardById(boardId)!
 
 // ─── Lists ─────────────────────────────────────────────────────────────────────
 
@@ -691,6 +705,7 @@ function rowToBoardConfig(row: Row): BoardConfig {
       : defaultStoryPoints,
     lastSyncedAt: (row.last_synced_at as string | null) ?? null,
     epicBoardId: (row.epic_board_id as string | null) ?? null,
+    myMemberId: (row.my_member_id as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   }
