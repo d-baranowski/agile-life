@@ -8,6 +8,7 @@ import type {
 } from '@shared/board.types'
 import type { DbPathInfo, LogPathInfo } from '@shared/settings.types'
 import { api } from '../hooks/useApi'
+import { isSoundEnabled, setSoundEnabled } from '../utils/sound'
 import styles from './SettingsPage.module.css'
 
 interface Props {
@@ -78,6 +79,14 @@ export default function SettingsPage({
 
   const [epicBoardSaving, setEpicBoardSaving] = useState(false)
   const [epicBoardError, setEpicBoardError] = useState<string | null>(null)
+
+  // Sound preference (stored in localStorage)
+  const [soundEnabled, setSoundEnabledState] = useState(isSoundEnabled)
+
+  function handleToggleSound(enabled: boolean): void {
+    setSoundEnabled(enabled)
+    setSoundEnabledState(enabled)
+  }
 
   const doneListLabel = (board.doneListNames ?? ['Done']).join(', ')
 
@@ -650,6 +659,29 @@ export default function SettingsPage({
             )}
           </>
         )}
+      </div>
+
+      {/* ── Sound & Notifications ── */}
+      <div className="card">
+        <h2 className={styles.cardTitle}>Sound &amp; Notifications</h2>
+        <div className={styles.form}>
+          <label
+            className={styles.label}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+          >
+            <input
+              type="checkbox"
+              checked={soundEnabled}
+              onChange={(e) => handleToggleSound(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: 'pointer' }}
+            />
+            Play coin sound when a card is moved to a done column
+          </label>
+          <span className={styles.hint}>
+            An 8-bit Mario-inspired sound plays each time you complete a task. Disable it here if
+            you prefer a quieter experience.
+          </span>
+        </div>
       </div>
 
       {/* ── Database ── */}

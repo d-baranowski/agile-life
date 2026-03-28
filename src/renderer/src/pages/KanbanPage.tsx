@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
+import confetti from 'canvas-confetti'
 import type { BoardConfig } from '@shared/board.types'
-import type { EpicCardOption, EpicStory } from '@shared/board.types'
+import type { EpicCardOption, EpicStory, StoryPointRule } from '@shared/board.types'
 import type { KanbanColumn, KanbanCard, TrelloMember } from '@shared/trello.types'
 import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
 import TicketNumberingPage from './TicketNumberingPage'
+import { playCoinSound } from '../utils/sound'
 import styles from './KanbanPage.module.css'
 
 interface Props {
@@ -40,6 +42,36 @@ interface AddCardModal {
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the story-point value for a card based on its labels.
+ * Mirrors the server-side `cardStoryPoints` function in analytics.ts.
+ * Falls back to 1 when no label matches any configured rule.
+ */
+function cardStoryPoints(card: KanbanCard, config: StoryPointRule[]): number {
+  if (!config || config.length === 0) return 1
+  const rulesMap = new Map(config.map((r) => [r.labelName.trim().toLowerCase(), r.points]))
+  for (const label of card.labels) {
+    const pts = rulesMap.get((label.name || '').trim().toLowerCase())
+    if (pts !== undefined) return pts
+  }
+  return 1
+}
+
+/**
+ * Fires a confetti burst and plays a coin sound to celebrate completing a task.
+ * The number of particles scales with the card's story-point value.
+ */
+function triggerDoneEffect(points: number): void {
+  const particleCount = Math.min(points * 40, 300)
+  confetti({
+    particleCount,
+    spread: 70,
+    origin: { y: 0.55 },
+    colors: ['#FFD700', '#FFA500', '#FF6347', '#7CFC00', '#00BFFF']
+  })
+  playCoinSound()
+}
 
 /** Parse card names from a multiline textarea value (one per non-blank line). */
 function parseCardNames(text: string): string[] {
@@ -214,6 +246,13 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
       const toCol = columns.find((c) => c.id === toColId)
       if (!toCol) return
 
+      // Detect whether the destination is a "done" column so we can fire the celebration effect.
+      const fromCol = columns.find((c) => c.id === fromColId)
+      const movedCard = fromCol?.cards[source.index]
+      const isDoneMove = board.doneListNames.some(
+        (name) => name.trim().toLowerCase() === toCol.name.trim().toLowerCase()
+      )
+
       // Compute a stable pos for the new position in the target column so
       // Trello and the local DB stay in sync after cross-column moves.
       const destCards = toCol.cards
@@ -250,9 +289,16 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         // Revert optimistic update and show error
         setColumns(prevColumns)
         setToastMessage(syncResult.error ?? 'Failed to move card. Please try again.')
+        return
+      }
+
+      // ── Celebrate moving a card into a done column ──
+      if (isDoneMove && movedCard) {
+        const points = cardStoryPoints(movedCard, board.storyPointsConfig)
+        triggerDoneEffect(points)
       }
     },
-    [board.boardId, columns]
+    [board.boardId, board.doneListNames, board.storyPointsConfig, columns]
   )
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
