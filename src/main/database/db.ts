@@ -4,6 +4,7 @@ import path from 'path'
 import type { BoardConfig, BoardConfigInput, StoryPointRule } from '@shared/board.types'
 import { getDbPath } from '../settings/appSettings'
 import type { TrelloList, TrelloCard, TrelloAction, TrelloMember } from '@shared/trello.types'
+import { encryptCredential, decryptCredential } from '../crypto'
 
 // ─── SQL imports ───────────────────────────────────────────────────────────────
 import schemaSql from './sql/schema.sql?raw'
@@ -112,6 +113,28 @@ export function getDb(): Database.Database {
     )
   `)
 
+  // ── Encrypt any pre-existing plaintext credentials ─────────────────────────
+  // Boards added before this migration store api_key / api_token as plaintext.
+  // Detect them by the absence of the "enc:" prefix and re-write them using
+  // encryptCredential so that all stored values are consistently encrypted.
+  const plainBoards = _db
+    .prepare(
+      "SELECT board_id, api_key, api_token FROM board_configs WHERE api_key NOT LIKE 'enc:%' OR api_token NOT LIKE 'enc:%'"
+    )
+    .all() as Array<{ board_id: string; api_key: string; api_token: string }>
+  const encStmt = _db.prepare(
+    'UPDATE board_configs SET api_key = ?, api_token = ? WHERE board_id = ?'
+  )
+  for (const board of plainBoards) {
+    // decryptCredential is a no-op for plaintext values, so this is safe even
+    // if one credential is already encrypted and the other is not.
+    encStmt.run(
+      encryptCredential(decryptCredential(board.api_key)),
+      encryptCredential(decryptCredential(board.api_token)),
+      board.board_id
+    )
+  }
+
   return _db
 }
 
@@ -131,8 +154,8 @@ export function addBoard(input: BoardConfigInput): BoardConfig {
   const result = db.prepare(sqlBoardsInsert).run({
     boardId: input.boardId,
     boardName: input.boardName,
-    apiKey: input.apiKey,
-    apiToken: input.apiToken,
+    apiKey: encryptCredential(input.apiKey),
+    apiToken: encryptCredential(input.apiToken),
     projectCode: input.projectCode.toUpperCase(),
     nextTicketNumber: input.nextTicketNumber,
     doneListNames: JSON.stringify(input.doneListNames)
@@ -150,8 +173,8 @@ export function updateBoard(boardId: string, updates: Partial<BoardConfigInput>)
     .run({
       boardId,
       boardName: updates.boardName ?? existing.boardName,
-      apiKey: updates.apiKey ?? existing.apiKey,
-      apiToken: updates.apiToken ?? existing.apiToken,
+      apiKey: encryptCredential(updates.apiKey ?? existing.apiKey),
+      apiToken: encryptCredential(updates.apiToken ?? existing.apiToken),
       projectCode: (updates.projectCode ?? existing.projectCode).toUpperCase(),
       nextTicketNumber: updates.nextTicketNumber ?? existing.nextTicketNumber,
       doneListNames: JSON.stringify(updates.doneListNames ?? existing.doneListNames),
@@ -571,8 +594,8 @@ function rowToBoardConfig(row: Row): BoardConfig {
     id: row.id as number,
     boardId: row.board_id as string,
     boardName: row.board_name as string,
-    apiKey: row.api_key as string,
-    apiToken: row.api_token as string,
+    apiKey: decryptCredential(row.api_key as string),
+    apiToken: decryptCredential(row.api_token as string),
     projectCode: row.project_code as string,
     nextTicketNumber: row.next_ticket_number as number,
     doneListNames: JSON.parse(row.done_list_names as string),

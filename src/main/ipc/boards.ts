@@ -9,7 +9,8 @@ import type {
   DoneCardPreview,
   DoneCardDebugInfo,
   EpicCardOption,
-  EpicStory
+  EpicStory,
+  SavedCredentials
 } from '@shared/board.types'
 import type { TrelloBoard, KanbanColumn, TrelloMember } from '@shared/trello.types'
 import type { ColumnCount } from '@shared/analytics.types'
@@ -112,6 +113,20 @@ export function registerBoardHandlers(): void {
   )
 
   // ── Trello credential check + board list ────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.BOARDS_GET_SAVED_CREDENTIALS,
+    async (): Promise<IpcResult<SavedCredentials | null>> => {
+      try {
+        const boards = getAllBoards()
+        if (boards.length === 0) return { success: true, data: null }
+        const { apiKey, apiToken } = boards[0]
+        return { success: true, data: { apiKey, apiToken } }
+      } catch (err) {
+        return { success: false, error: String(err) }
+      }
+    }
+  )
 
   ipcMain.handle(
     IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO,
