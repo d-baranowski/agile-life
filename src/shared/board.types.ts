@@ -52,6 +52,7 @@ export interface DoneCardPreview {
 export interface EpicCardOption {
   id: string
   name: string
+  listId: string
   listName: string
 }
 

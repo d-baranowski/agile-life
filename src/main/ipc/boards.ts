@@ -466,6 +466,7 @@ export function registerBoardHandlers(): void {
         const options: EpicCardOption[] = rows.map((r) => ({
           id: r.id,
           name: r.name,
+          listId: r.list_id,
           listName: r.list_name
         }))
         return { success: true, data: options }

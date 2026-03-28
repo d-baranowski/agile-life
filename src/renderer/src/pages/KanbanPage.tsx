@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
 import type { BoardConfig } from '@shared/board.types'
 import type { EpicCardOption, EpicStory } from '@shared/board.types'
@@ -91,6 +91,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [epicFilter, setEpicFilter] = useState<string>('') // '' = all, '__none__' = no epic, epicCardId = specific epic
+  const [epicColumnFilter, setEpicColumnFilter] = useState<string>('') // '' = all, listId = specific epic column
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
   const contextMenuRef = useRef<HTMLDivElement>(null)
@@ -144,6 +145,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   // Load epic card options when this is a story board
   useEffect(() => {
     setEpicFilter('')
+    setEpicColumnFilter('')
     if (!isStoryBoard) return
     api.epics.getCards(board.boardId).then((result) => {
       if (result.success && result.data) setEpicCardOptions(result.data)
@@ -514,19 +516,47 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const filteredColumns =
-    searchQuery.trim() || epicFilter
-      ? columns.map((col) => ({
-          ...col,
-          cards: col.cards.filter((card) => {
-            if (searchQuery.trim() && !fuzzyMatch(searchQuery, `${card.name} ${card.desc}`))
-              return false
-            if (epicFilter === '__none__') return !card.epicCardId
-            if (epicFilter) return card.epicCardId === epicFilter
-            return true
-          })
-        }))
-      : columns
+  // Derive unique epic columns from the loaded epic card options (for the column filter dropdown)
+  const epicColumns = useMemo(
+    () =>
+      epicCardOptions.reduce<{ listId: string; listName: string }[]>((acc, opt) => {
+        if (!acc.some((c) => c.listId === opt.listId)) {
+          acc.push({ listId: opt.listId, listName: opt.listName })
+        }
+        return acc
+      }, []),
+    [epicCardOptions]
+  )
+
+  // Build a set of epic card IDs that belong to the selected epic column (for efficient lookup)
+  const epicCardIdsInColumn = useMemo(
+    () =>
+      epicColumnFilter
+        ? new Set(
+            epicCardOptions.filter((opt) => opt.listId === epicColumnFilter).map((opt) => opt.id)
+          )
+        : null,
+    [epicCardOptions, epicColumnFilter]
+  )
+
+  const filteredColumns = useMemo(
+    () =>
+      searchQuery.trim() || epicFilter || epicColumnFilter
+        ? columns.map((col) => ({
+            ...col,
+            cards: col.cards.filter((card) => {
+              if (searchQuery.trim() && !fuzzyMatch(searchQuery, `${card.name} ${card.desc}`))
+                return false
+              if (epicFilter === '__none__') return !card.epicCardId
+              if (epicFilter) return card.epicCardId === epicFilter
+              if (epicCardIdsInColumn)
+                return card.epicCardId !== null && epicCardIdsInColumn.has(card.epicCardId)
+              return true
+            })
+          }))
+        : columns,
+    [columns, searchQuery, epicFilter, epicColumnFilter, epicCardIdsInColumn]
+  )
 
   if (loading) {
     return (
@@ -594,7 +624,10 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           <select
             className={styles.epicFilterSelect}
             value={epicFilter}
-            onChange={(e) => setEpicFilter(e.target.value)}
+            onChange={(e) => {
+              setEpicFilter(e.target.value)
+              setEpicColumnFilter('')
+            }}
             title="Filter by epic"
             aria-label="Filter cards by epic"
           >
@@ -603,6 +636,25 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             {epicCardOptions.map((opt) => (
               <option key={opt.id} value={opt.id}>
                 {opt.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {isStoryBoard && epicColumns.length > 0 && (
+          <select
+            className={styles.epicFilterSelect}
+            value={epicColumnFilter}
+            onChange={(e) => {
+              setEpicColumnFilter(e.target.value)
+              setEpicFilter('')
+            }}
+            title="Filter by epic column"
+            aria-label="Filter cards by epic column"
+          >
+            <option value="">📋 All epic columns</option>
+            {epicColumns.map((col) => (
+              <option key={col.listId} value={col.listId}>
+                {col.listName}
               </option>
             ))}
           </select>
