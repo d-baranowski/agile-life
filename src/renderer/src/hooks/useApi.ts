@@ -13,7 +13,8 @@ import type {
   DoneCardDebugInfo,
   EpicCardOption,
   EpicStory,
-  StoryPointRule
+  StoryPointRule,
+  SavedCredentials
 } from '@shared/board.types'
 import type { TrelloBoard, KanbanColumn, TrelloMember, TrelloLabel } from '@shared/trello.types'
 import type {
@@ -53,6 +54,8 @@ export const api = {
     delete: (boardId: string) => invoke<void>(IPC_CHANNELS.BOARDS_DELETE, boardId),
     fetchFromTrello: (apiKey: string, apiToken: string) =>
       invoke<TrelloBoard[]>(IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO, apiKey, apiToken),
+    getSavedCredentials: () =>
+      invoke<SavedCredentials | null>(IPC_CHANNELS.BOARDS_GET_SAVED_CREDENTIALS),
     setEpicBoard: (storyBoardId: string, epicBoardId: string | null) =>
       invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_EPIC_BOARD, storyBoardId, epicBoardId)
   },
