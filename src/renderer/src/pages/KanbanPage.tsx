@@ -1195,64 +1195,57 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
       {gamificationStats && (
         <div className={styles.gamificationBar}>
           {/* Previous week reference bar */}
-          <div className={styles.gamificationRow}>
-            <span className={styles.gamificationLabel}>Last week</span>
-            <div className={styles.gamificationTrack}>
-              <div
-                className={styles.gamificationFillPrev}
-                style={{
-                  width: gamificationBarWidth(
-                    gamificationStats.prevWeekPoints,
-                    gamificationStats.yearlyHighScore
-                  )
-                }}
-              />
-            </div>
-            <span className={styles.gamificationPoints}>{gamificationStats.prevWeekPoints} SP</span>
+          <div
+            className={styles.gamificationTrack}
+            title={`Last week: ${gamificationStats.prevWeekPoints} SP`}
+          >
+            <div
+              className={styles.gamificationFillPrev}
+              style={{
+                width: gamificationBarWidth(
+                  gamificationStats.prevWeekPoints,
+                  gamificationStats.yearlyHighScore
+                )
+              }}
+            />
           </div>
 
           {/* Yearly high score — shown above current week when current beats previous */}
           {gamificationStats.currentWeekPoints > 0 &&
             gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
             gamificationStats.yearlyHighScore > gamificationStats.prevWeekPoints && (
-              <div className={styles.gamificationRow}>
-                <span className={styles.gamificationLabel}>🏆 Year best</span>
-                <div className={styles.gamificationTrack}>
-                  <div className={styles.gamificationFillHigh} style={{ width: '100%' }} />
-                </div>
-                <span className={styles.gamificationPoints}>
-                  {gamificationStats.yearlyHighScore} SP
-                </span>
+              <div
+                className={styles.gamificationTrack}
+                title={`🏆 Year best: ${gamificationStats.yearlyHighScore} SP`}
+              >
+                <div className={styles.gamificationFillHigh} style={{ width: '100%' }} />
               </div>
             )}
 
           {/* Current week bar */}
-          <div className={styles.gamificationRow}>
-            <span className={styles.gamificationLabel}>
-              {gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
+          <div
+            className={styles.gamificationTrack}
+            title={`${
+              gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
               gamificationStats.currentWeekPoints > 0
                 ? '🔥 This week'
-                : 'This week'}
-            </span>
-            <div className={styles.gamificationTrack}>
-              <div
-                className={`${styles.gamificationFillCurrent} ${
-                  gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
-                  gamificationStats.currentWeekPoints > 0
-                    ? styles.gamificationFillCurrentBeat
-                    : ''
-                }`}
-                style={{
-                  width: gamificationBarWidth(
-                    gamificationStats.currentWeekPoints,
-                    gamificationStats.yearlyHighScore
-                  )
-                }}
-              />
-            </div>
-            <span className={styles.gamificationPoints}>
-              {gamificationStats.currentWeekPoints} SP
-            </span>
+                : 'This week'
+            }: ${gamificationStats.currentWeekPoints} SP`}
+          >
+            <div
+              className={`${styles.gamificationFillCurrent} ${
+                gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
+                gamificationStats.currentWeekPoints > 0
+                  ? styles.gamificationFillCurrentBeat
+                  : ''
+              }`}
+              style={{
+                width: gamificationBarWidth(
+                  gamificationStats.currentWeekPoints,
+                  gamificationStats.yearlyHighScore
+                )
+              }}
+            />
           </div>
         </div>
       )}

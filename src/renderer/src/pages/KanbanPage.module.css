@@ -1520,64 +1520,41 @@
 
 .gamificationBar {
   flex-shrink: 0;
-  padding: 6px 24px 8px;
+  padding: 3px 24px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   border-bottom: 1px solid var(--color-border);
 }
 
-.gamificationRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.gamificationLabel {
-  font-size: 0.72rem;
-  color: var(--color-text-muted);
-  width: 76px;
-  flex-shrink: 0;
-  text-align: right;
-}
-
 .gamificationTrack {
-  flex: 1;
-  height: 8px;
+  height: 4px;
   background: var(--color-border);
-  border-radius: 4px;
+  border-radius: 2px;
   overflow: hidden;
+  cursor: default;
 }
 
 .gamificationFillPrev {
   height: 100%;
   background: var(--color-text-muted);
-  border-radius: 4px;
+  border-radius: 2px;
   transition: width 0.4s ease;
 }
 
 .gamificationFillHigh {
   height: 100%;
   background: #f5a623;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .gamificationFillCurrent {
   height: 100%;
   background: var(--color-accent);
-  border-radius: 4px;
+  border-radius: 2px;
   transition: width 0.4s ease;
 }
 
 .gamificationFillCurrentBeat {
   background: #4caf50;
-}
-
-.gamificationPoints {
-  font-size: 0.72rem;
-  color: var(--color-text);
-  width: 40px;
-  flex-shrink: 0;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }
