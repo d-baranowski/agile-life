@@ -66,12 +66,19 @@ function cardStoryPoints(card: KanbanCard, config: StoryPointRule[]): number {
  *                Defaults to the centre of the screen when omitted.
  */
 function triggerDoneEffect(points: number, origin?: { x: number; y: number }): void {
-  const particleCount = Math.min(points * 40, 300)
+  const particleCount = Math.min(points * 20, 150)
+  const label = `+${points} pt${points !== 1 ? 's' : ''}`
+  const textShape = confetti.shapeFromText({ text: label, scalar: 2, color: '#FFD700' })
+
   confetti({
     particleCount,
-    spread: 70,
+    spread: 60,
     origin: origin ?? { x: 0.5, y: 0.55 },
-    colors: ['#FFD700', '#FFA500', '#FF6347', '#7CFC00', '#00BFFF']
+    shapes: [textShape],
+    scalar: 2,
+    ticks: 60,
+    gravity: 1.5,
+    startVelocity: 30
   })
   playCoinSound()
 }
@@ -130,6 +137,9 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
   const contextMenuRef = useRef<HTMLDivElement>(null)
+  // Track the most-recent pointer position so we can fire confetti from the drop location
+  // without waiting for React to re-render or querying the DOM after an async API call.
+  const lastPointerPos = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 })
 
   // Multi-select state (story boards only)
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
@@ -182,6 +192,19 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     setSelectedCardIds(new Set())
     loadBoardData()
   }, [loadBoardData])
+
+  // Keep lastPointerPos in sync with the cursor so handleDragEnd can read the
+  // drop position immediately, without querying the DOM after a re-render.
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent): void => {
+      lastPointerPos.current = {
+        x: e.clientX / window.innerWidth,
+        y: e.clientY / window.innerHeight
+      }
+    }
+    document.addEventListener('pointermove', onPointerMove)
+    return () => document.removeEventListener('pointermove', onPointerMove)
+  }, [])
 
   // Load epic card options when this is a story board
   useEffect(() => {
@@ -271,6 +294,15 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
               : 65536
 
       const prevColumns = columns
+
+      // ── Celebrate moving a card into a done column ──
+      // Fire immediately (optimistically) using the last known pointer position as the
+      // confetti origin, so there is no perceived delay waiting for the Trello API.
+      if (isDoneMove && movedCard) {
+        const points = cardStoryPoints(movedCard, board.storyPointsConfig)
+        triggerDoneEffect(points, lastPointerPos.current)
+      }
+
       // Optimistically update UI: move card into new column with the computed pos
       setColumns((prev) => {
         const cols = moveCard(prev, fromColId, toColId, source.index, destination.index)
@@ -292,26 +324,6 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         // Revert optimistic update and show error
         setColumns(prevColumns)
         setToastMessage(syncResult.error ?? 'Failed to move card. Please try again.')
-        return
-      }
-
-      // ── Celebrate moving a card into a done column ──
-      if (isDoneMove && movedCard) {
-        const points = cardStoryPoints(movedCard, board.storyPointsConfig)
-
-        // Compute the card's viewport position so confetti bursts from it.
-        // react-beautiful-dnd stamps data-rbd-draggable-id on each card element.
-        let origin: { x: number; y: number } | undefined
-        const el = document.querySelector<HTMLElement>(`[data-rbd-draggable-id="${draggableId}"]`)
-        if (el) {
-          const rect = el.getBoundingClientRect()
-          origin = {
-            x: (rect.left + rect.width / 2) / window.innerWidth,
-            y: (rect.top + rect.height / 2) / window.innerHeight
-          }
-        }
-
-        triggerDoneEffect(points, origin)
       }
     },
     [board.boardId, board.doneListNames, board.storyPointsConfig, columns]
