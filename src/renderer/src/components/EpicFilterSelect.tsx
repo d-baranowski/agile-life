@@ -1,32 +1,30 @@
 import { useState, useRef, useEffect } from 'react'
 import type { EpicCardOption } from '@shared/board.types'
+import { fuzzyMatch } from './EpicSelect'
 import styles from './EpicSelect.module.css'
 
-export function fuzzyMatch(needle: string, haystack: string): boolean {
-  const n = needle.toLowerCase()
-  const h = haystack.toLowerCase()
-  const nLen = n.length
-  let ni = 0
-  for (let i = 0; i < h.length && ni < nLen; i++) {
-    if (h[i] === n[ni]) ni++
-  }
-  return ni === nLen
-}
+const ALL_VALUE = ''
+const NONE_VALUE = '__none__'
 
 interface Props {
   epicCards: EpicCardOption[]
   value: string
-  onChange: (id: string) => void
+  onChange: (value: string) => void
 }
 
-export function EpicSelect({ epicCards, value, onChange }: Props): JSX.Element {
+export function EpicFilterSelect({ epicCards, value, onChange }: Props): JSX.Element {
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const selectedEpic = epicCards.find((e) => e.id === value)
-  const triggerLabel = selectedEpic ? selectedEpic.name : '— None —'
+  let triggerLabel = '⚡ All epics'
+  if (value === NONE_VALUE) {
+    triggerLabel = '— No epic'
+  } else if (value !== ALL_VALUE) {
+    const found = epicCards.find((e) => e.id === value)
+    triggerLabel = found ? found.name : '⚡ All epics'
+  }
 
   useEffect(() => {
     if (open) {
@@ -50,8 +48,8 @@ export function EpicSelect({ epicCards, value, onChange }: Props): JSX.Element {
     (opt) => !searchQuery.trim() || fuzzyMatch(searchQuery, `${opt.name} ${opt.listName}`)
   )
 
-  function select(id: string) {
-    onChange(id)
+  function select(val: string) {
+    onChange(val)
     setOpen(false)
   }
 
@@ -78,8 +76,19 @@ export function EpicSelect({ epicCards, value, onChange }: Props): JSX.Element {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button type="button" className={styles.option} onClick={() => select('')}>
-            — None —
+          <button
+            type="button"
+            className={`${styles.option} ${value === ALL_VALUE ? styles.optionActive : ''}`}
+            onClick={() => select(ALL_VALUE)}
+          >
+            ⚡ All epics
+          </button>
+          <button
+            type="button"
+            className={`${styles.option} ${value === NONE_VALUE ? styles.optionActive : ''}`}
+            onClick={() => select(NONE_VALUE)}
+          >
+            — No epic
           </button>
           {filtered.map((opt) => (
             <button
@@ -92,7 +101,9 @@ export function EpicSelect({ epicCards, value, onChange }: Props): JSX.Element {
               <span className={styles.optionList}>{opt.listName}</span>
             </button>
           ))}
-          {filtered.length === 0 && <span className={styles.empty}>No epics found</span>}
+          {filtered.length === 0 && searchQuery.trim() && (
+            <span className={styles.empty}>No epics found</span>
+          )}
         </div>
       )}
     </div>
