@@ -61,6 +61,8 @@ export const IPC_CHANNELS = {
   TRELLO_GET_BOARD_MEMBERS: 'trello:getBoardMembers',
   TRELLO_ASSIGN_CARD_MEMBER: 'trello:assignCardMember',
   TRELLO_CREATE_CARD: 'trello:createCard',
+  TRELLO_GET_BOARD_LABELS: 'trello:getBoardLabels',
+  TRELLO_ASSIGN_CARD_LABEL: 'trello:assignCardLabel',
 
   // Epic / Story board linking
   BOARDS_SET_EPIC_BOARD: 'boards:setEpicBoard',
