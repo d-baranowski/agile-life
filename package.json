@@ -46,6 +46,7 @@
     "react-router-dom": "6.30.3"
   },
   "devDependencies": {
+    "@codecov/vite-plugin": "1.9.1",
     "@electron-toolkit/eslint-config-prettier": "2.0.0",
     "@electron-toolkit/eslint-config-ts": "2.0.0",
     "@electron-toolkit/tsconfig": "1.0.1",
@@ -80,7 +81,8 @@
       "tar": ">=7.5.11",
       "esbuild": ">=0.25.0",
       "brace-expansion": ">=5.0.5",
-      "handlebars": ">=4.7.9"
+      "handlebars": ">=4.7.9",
+      "undici": "6.24.1"
     }
   },
   "build": {
