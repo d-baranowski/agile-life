@@ -627,11 +627,6 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   // ── Bulk label modal handlers ─────────────────────────────────────────────
 
-  const handleOpenBulkLabel = useCallback(() => {
-    setBulkLabelModal({ selectedLabelIds: new Set(), text: '', queue: null, uploading: false })
-    setTimeout(() => bulkLabelTextareaRef.current?.focus(), 50)
-  }, [])
-
   const handleOpenBulkLabelFromBar = useCallback(() => {
     setBulkLabelModal({
       selectedLabelIds: new Set(),
@@ -1258,10 +1253,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
               )}
             </div>
             {boardLabels.length > 0 && (
-              <button
-                className={styles.bulkEpicBtn}
-                onClick={() => handleOpenBulkLabelFromBar()}
-              >
+              <button className={styles.bulkEpicBtn} onClick={() => handleOpenBulkLabelFromBar()}>
                 🏷️ Set Label
               </button>
             )}
