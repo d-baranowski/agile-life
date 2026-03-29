@@ -1520,11 +1520,10 @@
 
 .gamificationBar {
   flex-shrink: 0;
-  padding: 3px 24px 5px;
+  padding: 5px 24px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  border-bottom: 1px solid var(--color-border);
+  gap: 8px;
 }
 
 .gamificationTrack {
@@ -1540,7 +1539,7 @@
 .gamificationTrack::before {
   content: '';
   position: absolute;
-  inset: -6px 0;
+  inset: -3px 0;
 }
 
 /* CSS tooltip */
