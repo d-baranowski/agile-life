@@ -49,7 +49,9 @@ import {
   setCardEpic,
   setBulkCardEpic,
   getEpicCardsForBoard,
-  getStoriesForEpic
+  getStoriesForEpic,
+  getLastSelectedBoardId,
+  setLastSelectedBoardId
 } from '../database/db'
 import { TrelloClient } from '../trello/client'
 import sqlColumnCounts from '../database/sql/analytics/column-counts.sql?raw'
@@ -114,6 +116,32 @@ export function registerBoardHandlers(): void {
   )
 
   // ── Trello credential check + board list ────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.BOARDS_GET_LAST_SELECTED,
+    async (): Promise<IpcResult<string | null>> => {
+      try {
+        const boardId = getLastSelectedBoardId()
+        return { success: true, data: boardId ?? null }
+      } catch (err) {
+        log.error('[boards] getLastSelected failed:', err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.BOARDS_SET_LAST_SELECTED,
+    async (_e, boardId: string): Promise<IpcResult<void>> => {
+      try {
+        setLastSelectedBoardId(boardId)
+        return { success: true }
+      } catch (err) {
+        log.error(`[boards] setLastSelected failed boardId=${boardId}:`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
 
   ipcMain.handle(
     IPC_CHANNELS.BOARDS_GET_SAVED_CREDENTIALS,
