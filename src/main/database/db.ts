@@ -239,6 +239,7 @@ export function setEpicBoard(boardId: string, epicBoardId: string | null): Board
   return getBoardById(boardId)!
 }
 
+/**
  * Returns the boardId of the board most recently selected by the user, or
  * undefined if no board has been explicitly selected yet.
  */
@@ -269,6 +270,7 @@ export function setMyMember(boardId: string, myMemberId: string | null): BoardCo
   if (!getBoardById(boardId)) throw new Error(`Board not found: ${boardId}`)
   getDb().prepare(sqlBoardsSetMyMember).run({ boardId, myMemberId })
   return getBoardById(boardId)!
+}
 
 // ─── Lists ─────────────────────────────────────────────────────────────────────
 
