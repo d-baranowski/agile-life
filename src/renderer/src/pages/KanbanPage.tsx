@@ -55,6 +55,8 @@ interface BulkLabelModal {
   /** null = edit phase; non-null = queue/upload phase */
   queue: BulkLabelQueueItem[] | null
   uploading: boolean
+  /** true when triggered from the multi-select bulk action bar (cards come from selectedCardIds) */
+  fromSelection?: boolean
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -630,6 +632,16 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     setTimeout(() => bulkLabelTextareaRef.current?.focus(), 50)
   }, [])
 
+  const handleOpenBulkLabelFromBar = useCallback(() => {
+    setBulkLabelModal({
+      selectedLabelIds: new Set(),
+      text: '',
+      queue: null,
+      uploading: false,
+      fromSelection: true
+    })
+  }, [])
+
   const handleCloseBulkLabel = useCallback(() => {
     setBulkLabelModal((prev) => (prev?.uploading ? prev : null))
   }, [])
@@ -651,25 +663,42 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     setBulkLabelModal((prev) => {
       if (!prev) return null
       const allCards = columns.flatMap((col) => col.cards)
-      const cardsByName = new Map(allCards.map((c) => [c.name.toLowerCase(), c]))
-      const names = prev.text
-        .split('\n')
-        .map((s) => s.trim())
-        .filter(Boolean)
 
-      const queue: BulkLabelQueueItem[] = names.map((name) => {
-        const card = cardsByName.get(name.toLowerCase())
-        return {
-          id: `${Date.now()}-${Math.random()}`,
-          cardId: card?.id ?? '',
-          cardName: name,
-          status: card ? 'pending' : 'failed',
-          notFound: !card
-        }
-      })
+      let queue: BulkLabelQueueItem[]
+
+      if (prev.fromSelection) {
+        const cardMap = new Map(allCards.map((c) => [c.id, c]))
+        queue = Array.from(selectedCardIds).map((cardId) => {
+          const card = cardMap.get(cardId)
+          return {
+            id: `${Date.now()}-${Math.random()}`,
+            cardId,
+            cardName: card?.name ?? cardId,
+            status: 'pending' as QueueItemStatus,
+            notFound: false
+          }
+        })
+      } else {
+        const cardsByName = new Map(allCards.map((c) => [c.name.toLowerCase(), c]))
+        const names = prev.text
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean)
+        queue = names.map((name) => {
+          const card = cardsByName.get(name.toLowerCase())
+          return {
+            id: `${Date.now()}-${Math.random()}`,
+            cardId: card?.id ?? '',
+            cardName: name,
+            status: card ? 'pending' : ('failed' as QueueItemStatus),
+            notFound: !card
+          }
+        })
+      }
+
       return { ...prev, queue }
     })
-  }, [columns])
+  }, [columns, selectedCardIds])
 
   const handleRunBulkLabel = useCallback(async () => {
     setBulkLabelModal((prev) => (prev ? { ...prev, uploading: true } : null))
@@ -730,6 +759,9 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     }
 
     setBulkLabelModal((prev) => (prev ? { ...prev, uploading: false } : null))
+    if (snapshot.fromSelection) {
+      setSelectedCardIds(new Set())
+    }
   }, [board.boardId, boardLabels, bulkLabelModal])
 
   const handleBulkLabelRetryItem = useCallback((itemId: string) => {
@@ -1027,17 +1059,6 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 >
                   📋 Generate from Template
                 </button>
-                {boardLabels.length > 0 && (
-                  <button
-                    className={styles.meatballItem}
-                    onClick={() => {
-                      handleOpenBulkLabel()
-                      setShowEmptyMeatball(false)
-                    }}
-                  >
-                    🏷️ Bulk Label
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -1141,17 +1162,6 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
               >
                 📋 Generate from Template
               </button>
-              {boardLabels.length > 0 && (
-                <button
-                  className={styles.meatballItem}
-                  onClick={() => {
-                    handleOpenBulkLabel()
-                    setShowMainMeatball(false)
-                  }}
-                >
-                  🏷️ Bulk Label
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -1247,6 +1257,14 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 </div>
               )}
             </div>
+            {boardLabels.length > 0 && (
+              <button
+                className={styles.bulkEpicBtn}
+                onClick={() => handleOpenBulkLabelFromBar()}
+              >
+                🏷️ Set Label
+              </button>
+            )}
             <button
               className={styles.bulkClearBtn}
               onClick={() => setSelectedCardIds(new Set())}
@@ -1710,67 +1728,79 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                       })}
                     </div>
                   </div>
-                  <div className={styles.bulkLabelSection}>
-                    <div className={styles.contextMenuLabel} style={{ padding: '0 0 6px' }}>
-                      Enter card names to label (one per line):
+                  {!bulkLabelModal.fromSelection && (
+                    <div className={styles.bulkLabelSection}>
+                      <div className={styles.contextMenuLabel} style={{ padding: '0 0 6px' }}>
+                        Enter card names to label (one per line):
+                      </div>
+                      <textarea
+                        ref={bulkLabelTextareaRef}
+                        className={styles.addCardTextarea}
+                        placeholder={'Paste from Excel or type card names — one per line'}
+                        value={bulkLabelModal.text}
+                        onChange={(e) =>
+                          setBulkLabelModal((prev) =>
+                            prev ? { ...prev, text: e.target.value } : null
+                          )
+                        }
+                        rows={5}
+                      />
+                      {(() => {
+                        const previewLines = bulkLabelModal.text
+                          .split('\n')
+                          .map((line) => line.trim())
+                          .filter(Boolean)
+                        return previewLines.length > 0 ? (
+                          <div className={styles.addCardPreviewList}>
+                            {previewLines.map((line, idx) => (
+                              <div key={idx} className={styles.addCardPreviewItem}>
+                                <span className={styles.addCardPreviewName}>{line}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null
+                      })()}
                     </div>
-                    <textarea
-                      ref={bulkLabelTextareaRef}
-                      className={styles.addCardTextarea}
-                      placeholder={'Paste from Excel or type card names — one per line'}
-                      value={bulkLabelModal.text}
-                      onChange={(e) =>
-                        setBulkLabelModal((prev) =>
-                          prev ? { ...prev, text: e.target.value } : null
-                        )
-                      }
-                      rows={5}
-                    />
-                    {(() => {
-                      const previewLines = bulkLabelModal.text
-                        .split('\n')
-                        .map((line) => line.trim())
-                        .filter(Boolean)
-                      return previewLines.length > 0 ? (
-                        <div className={styles.addCardPreviewList}>
-                          {previewLines.map((line, idx) => (
-                            <div key={idx} className={styles.addCardPreviewItem}>
-                              <span className={styles.addCardPreviewName}>{line}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null
-                    })()}
-                  </div>
+                  )}
                 </div>
                 <div className={styles.addCardModalFooter}>
                   <button className={styles.addCardCancelBtn} onClick={handleCloseBulkLabel}>
                     Cancel
                   </button>
-                  <button
-                    className={styles.addCardStartBtn}
-                    onClick={handleStartBulkLabel}
-                    disabled={
-                      bulkLabelModal.selectedLabelIds.size === 0 ||
-                      bulkLabelModal.text.trim().length === 0
-                    }
-                  >
-                    Preview (
-                    {
-                      bulkLabelModal.text
+                  {bulkLabelModal.fromSelection ? (
+                    <button
+                      className={styles.addCardStartBtn}
+                      onClick={handleStartBulkLabel}
+                      disabled={bulkLabelModal.selectedLabelIds.size === 0}
+                    >
+                      Apply to {selectedCardCount} card{selectedCardCount !== 1 ? 's' : ''}
+                    </button>
+                  ) : (
+                    <button
+                      className={styles.addCardStartBtn}
+                      onClick={handleStartBulkLabel}
+                      disabled={
+                        bulkLabelModal.selectedLabelIds.size === 0 ||
+                        bulkLabelModal.text.trim().length === 0
+                      }
+                    >
+                      Preview (
+                      {
+                        bulkLabelModal.text
+                          .split('\n')
+                          .map((s) => s.trim())
+                          .filter(Boolean).length
+                      }{' '}
+                      card
+                      {bulkLabelModal.text
                         .split('\n')
                         .map((s) => s.trim())
-                        .filter(Boolean).length
-                    }{' '}
-                    card
-                    {bulkLabelModal.text
-                      .split('\n')
-                      .map((s) => s.trim())
-                      .filter(Boolean).length !== 1
-                      ? 's'
-                      : ''}
-                    )
-                  </button>
+                        .filter(Boolean).length !== 1
+                        ? 's'
+                        : ''}
+                      )
+                    </button>
+                  )}
                 </div>
               </>
             )}
