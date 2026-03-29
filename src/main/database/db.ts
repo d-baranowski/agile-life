@@ -51,6 +51,7 @@ import sqlCardListEntriesSetFallback from './sql/card-list-entries/set-fallback.
 import sqlCardListEntriesClearForBoard from './sql/card-list-entries/clear-for-board.sql?raw'
 import sqlBoardsSetCardListEntriesInitialized from './sql/boards/set-card-list-entries-initialized.sql?raw'
 import sqlBoardsSetEpicBoard from './sql/boards/set-epic-board.sql?raw'
+import sqlBoardsSetMyMember from './sql/boards/set-my-member.sql?raw'
 import sqlTemplatesGetGroups from './sql/templates/get-groups.sql?raw'
 import sqlTemplatesInsertGroup from './sql/templates/insert-group.sql?raw'
 import sqlTemplatesUpdateGroup from './sql/templates/update-group.sql?raw'
@@ -116,6 +117,11 @@ export function getDb(): Database.Database {
     _db.exec(
       'ALTER TABLE board_configs ADD COLUMN story_points_config TEXT NOT NULL DEFAULT \'[{"labelName":"Large","points":5},{"labelName":"Medium","points":3},{"labelName":"Small","points":1}]\''
     )
+  } catch {
+    // Column already exists — nothing to do.
+  }
+  try {
+    _db.exec('ALTER TABLE board_configs ADD COLUMN my_member_id TEXT DEFAULT NULL')
   } catch {
     // Column already exists — nothing to do.
   }
@@ -225,6 +231,16 @@ export function deleteBoard(boardId: string): void {
 export function setEpicBoard(boardId: string, epicBoardId: string | null): BoardConfig {
   if (!getBoardById(boardId)) throw new Error(`Board not found: ${boardId}`)
   getDb().prepare(sqlBoardsSetEpicBoard).run({ boardId, epicBoardId })
+  return getBoardById(boardId)!
+}
+
+/**
+ * Set (or clear) the member identity for gamification on this board.
+ * Pass null for myMemberId to unset the identity.
+ */
+export function setMyMember(boardId: string, myMemberId: string | null): BoardConfig {
+  if (!getBoardById(boardId)) throw new Error(`Board not found: ${boardId}`)
+  getDb().prepare(sqlBoardsSetMyMember).run({ boardId, myMemberId })
   return getBoardById(boardId)!
 }
 
@@ -648,6 +664,7 @@ function rowToBoardConfig(row: Row): BoardConfig {
       : defaultStoryPoints,
     lastSyncedAt: (row.last_synced_at as string | null) ?? null,
     epicBoardId: (row.epic_board_id as string | null) ?? null,
+    myMemberId: (row.my_member_id as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   }

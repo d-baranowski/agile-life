@@ -1448,3 +1448,46 @@
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
+
+/* ── Gamification bar ─────────────────────────────────────────────────────── */
+
+.gamificationBar {
+  flex-shrink: 0;
+  padding: 3px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.gamificationTrack {
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+  cursor: default;
+}
+
+.gamificationFillPrev {
+  height: 100%;
+  background: var(--color-text-muted);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.gamificationFillHigh {
+  height: 100%;
+  background: #f5a623;
+  border-radius: 2px;
+}
+
+.gamificationFillCurrent {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.gamificationFillCurrentBeat {
+  background: #4caf50;
+}

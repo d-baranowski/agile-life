@@ -68,7 +68,11 @@ export const IPC_CHANNELS = {
   EPICS_GET_CARDS: 'epics:getCards',
   EPICS_SET_CARD_EPIC: 'epics:setCardEpic',
   EPICS_SET_BULK_CARD_EPIC: 'epics:setBulkCardEpic',
-  EPICS_GET_STORIES: 'epics:getStories'
+  EPICS_GET_STORIES: 'epics:getStories',
+
+  // Gamification
+  BOARDS_SET_MY_MEMBER: 'boards:setMyMember',
+  ANALYTICS_GAMIFICATION_STATS: 'analytics:gamificationStats'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

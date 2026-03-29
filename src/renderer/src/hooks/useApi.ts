@@ -24,6 +24,7 @@ import type {
   CardAgeStats,
   WeeklyHistory,
   StoryPointsUserStats,
+  GamificationStats,
   EpicWeeklyHistory
 } from '@shared/analytics.types'
 import type {
@@ -58,7 +59,9 @@ export const api = {
     getSavedCredentials: () =>
       invoke<SavedCredentials | null>(IPC_CHANNELS.BOARDS_GET_SAVED_CREDENTIALS),
     setEpicBoard: (storyBoardId: string, epicBoardId: string | null) =>
-      invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_EPIC_BOARD, storyBoardId, epicBoardId)
+      invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_EPIC_BOARD, storyBoardId, epicBoardId),
+    setMyMember: (boardId: string, myMemberId: string | null) =>
+      invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_MY_MEMBER, boardId, myMemberId)
   },
 
   trello: {
@@ -126,6 +129,21 @@ export const api = {
       invoke<StoryPointsUserStats[]>(
         IPC_CHANNELS.ANALYTICS_STORY_POINTS_7D,
         boardId,
+        storyPointsConfig
+      ),
+    /**
+     * Returns gamification stats (current-week SP, prev-week SP, yearly high)
+     * for a specific board member.
+     */
+    gamificationStats: (
+      boardId: string,
+      myMemberId: string,
+      storyPointsConfig: StoryPointRule[] = []
+    ) =>
+      invoke<GamificationStats>(
+        IPC_CHANNELS.ANALYTICS_GAMIFICATION_STATS,
+        boardId,
+        myMemberId,
         storyPointsConfig
       ),
     /** Returns story points completed per epic per week for the past 12 months. */
