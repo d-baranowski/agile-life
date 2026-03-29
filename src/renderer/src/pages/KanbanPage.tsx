@@ -61,13 +61,16 @@ function cardStoryPoints(card: KanbanCard, config: StoryPointRule[]): number {
 /**
  * Fires a confetti burst and plays a coin sound to celebrate completing a task.
  * The number of particles scales with the card's story-point value.
+ * @param points  Story-point value of the completed card.
+ * @param origin  Fractional viewport position {x, y} where the burst starts.
+ *                Defaults to the centre of the screen when omitted.
  */
-function triggerDoneEffect(points: number): void {
+function triggerDoneEffect(points: number, origin?: { x: number; y: number }): void {
   const particleCount = Math.min(points * 40, 300)
   confetti({
     particleCount,
     spread: 70,
-    origin: { y: 0.55 },
+    origin: origin ?? { x: 0.5, y: 0.55 },
     colors: ['#FFD700', '#FFA500', '#FF6347', '#7CFC00', '#00BFFF']
   })
   playCoinSound()
@@ -295,7 +298,20 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
       // ── Celebrate moving a card into a done column ──
       if (isDoneMove && movedCard) {
         const points = cardStoryPoints(movedCard, board.storyPointsConfig)
-        triggerDoneEffect(points)
+
+        // Compute the card's viewport position so confetti bursts from it.
+        // react-beautiful-dnd stamps data-rbd-draggable-id on each card element.
+        let origin: { x: number; y: number } | undefined
+        const el = document.querySelector<HTMLElement>(`[data-rbd-draggable-id="${draggableId}"]`)
+        if (el) {
+          const rect = el.getBoundingClientRect()
+          origin = {
+            x: (rect.left + rect.width / 2) / window.innerWidth,
+            y: (rect.top + rect.height / 2) / window.innerHeight
+          }
+        }
+
+        triggerDoneEffect(points, origin)
       }
     },
     [board.boardId, board.doneListNames, board.storyPointsConfig, columns]

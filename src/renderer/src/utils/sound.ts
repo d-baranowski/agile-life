@@ -7,6 +7,7 @@
  */
 
 const SOUND_PREF_KEY = 'agile-life-sound-effects-enabled'
+const SOUND_VOLUME_KEY = 'agile-life-sound-volume'
 
 /** Returns true when the user has NOT disabled sound effects. */
 export function isSoundEnabled(): boolean {
@@ -23,6 +24,30 @@ export function isSoundEnabled(): boolean {
 export function setSoundEnabled(enabled: boolean): void {
   try {
     localStorage.setItem(SOUND_PREF_KEY, String(enabled))
+  } catch {
+    // ignore – localStorage unavailable in some sandboxed contexts
+  }
+}
+
+/**
+ * Returns the current sound volume as a value between 0 and 1.
+ * Defaults to 0.5 when not set.
+ */
+export function getSoundVolume(): number {
+  try {
+    const stored = localStorage.getItem(SOUND_VOLUME_KEY)
+    if (stored === null) return 0.5
+    const parsed = parseFloat(stored)
+    return isNaN(parsed) ? 0.5 : Math.max(0, Math.min(1, parsed))
+  } catch {
+    return 0.5
+  }
+}
+
+/** Persists the user's preferred sound volume (0–1). */
+export function setSoundVolume(volume: number): void {
+  try {
+    localStorage.setItem(SOUND_VOLUME_KEY, String(Math.max(0, Math.min(1, volume))))
   } catch {
     // ignore – localStorage unavailable in some sandboxed contexts
   }
@@ -61,8 +86,10 @@ export function playCoinSound(): void {
       ctx.resume()
     }
 
+    // Scale the master gain by the user's volume preference (0.25 at max volume)
+    const volume = getSoundVolume()
     const masterGain = ctx.createGain()
-    masterGain.gain.setValueAtTime(0.25, ctx.currentTime)
+    masterGain.gain.setValueAtTime(0.25 * volume, ctx.currentTime)
     masterGain.connect(ctx.destination)
 
     const scheduleTone = (frequency: number, startOffset: number, duration: number): void => {
