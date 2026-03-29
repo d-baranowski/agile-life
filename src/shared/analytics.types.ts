@@ -49,3 +49,17 @@ export interface EpicWeeklyHistory {
   epicCardName: string
   storyPoints: number
 }
+
+/** Gamification stats for the current user on a board. */
+export interface GamificationStats {
+  /** Story points completed in the current calendar week. */
+  currentWeekPoints: number
+  /** Story points completed in the previous calendar week. */
+  prevWeekPoints: number
+  /** Highest single-week story-point total for the rolling year. */
+  yearlyHighScore: number
+  /** The week key (YYYY-Www) for the current week. */
+  currentWeek: string
+  /** The week key (YYYY-Www) for the previous week. */
+  prevWeek: string
+}

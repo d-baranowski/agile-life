@@ -4,6 +4,7 @@ import type { BoardConfig } from '@shared/board.types'
 import type { EpicCardOption, EpicStory } from '@shared/board.types'
 import type { KanbanColumn, KanbanCard, TrelloMember, TrelloLabel } from '@shared/trello.types'
 import type { TemplateGroup, TicketTemplate, GenerateCardsResult } from '@shared/template.types'
+import type { GamificationStats } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
@@ -136,6 +137,18 @@ function resolvePlaceholders(template: string, now: Date): string {
     .replace(/\{\{date\}\}/g, date)
 }
 
+/**
+ * Returns the CSS width percentage string for a gamification progress bar.
+ * When yearlyHighScore is 0 the bar is empty unless the user has points
+ * (in which case they are the only data point, so fill 100%).
+ */
+function gamificationBarWidth(points: number, yearlyHighScore: number): string {
+  if (yearlyHighScore > 0) {
+    return `${Math.min((points / yearlyHighScore) * 100, 100)}%`
+  }
+  return points > 0 ? '100%' : '0%'
+}
+
 // ─── component ───────────────────────────────────────────────────────────────
 
 export default function KanbanPage({ board, allBoards, syncVersion }: Props): JSX.Element {
@@ -185,6 +198,9 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [bulkLabelModal, setBulkLabelModal] = useState<BulkLabelModal | null>(null)
   const bulkLabelTextareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Gamification stats (loaded when myMemberId is set)
+  const [gamificationStats, setGamificationStats] = useState<GamificationStats | null>(null)
+
   const loadBoardData = useCallback(async () => {
     const [dataResult, membersResult, labelsResult] = await Promise.all([
       api.trello.getBoardData(board.boardId),
@@ -205,6 +221,19 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     }
     setLoading(false)
   }, [board.boardId, syncVersion])
+
+  // Load gamification stats whenever the board or syncVersion changes
+  useEffect(() => {
+    if (!board.myMemberId) {
+      setGamificationStats(null)
+      return
+    }
+    api.analytics
+      .gamificationStats(board.boardId, board.myMemberId, board.storyPointsConfig)
+      .then((result) => {
+        if (result.success && result.data) setGamificationStats(result.data)
+      })
+  }, [board.boardId, board.myMemberId, board.storyPointsConfig, syncVersion])
 
   useEffect(() => {
     setLoading(true)
@@ -1161,6 +1190,65 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           )}
         </div>
       </div>
+
+      {/* ── Gamification bar ── */}
+      {gamificationStats && (
+        <div className={styles.gamificationBar}>
+          {/* Previous week reference bar */}
+          <div
+            className={styles.gamificationTrack}
+            data-tooltip={`Last week: ${gamificationStats.prevWeekPoints} SP`}
+          >
+            <div
+              className={styles.gamificationFillPrev}
+              style={{
+                width: gamificationBarWidth(
+                  gamificationStats.prevWeekPoints,
+                  gamificationStats.yearlyHighScore
+                )
+              }}
+            />
+          </div>
+
+          {/* Yearly high score — shown above current week when current beats previous */}
+          {gamificationStats.currentWeekPoints > 0 &&
+            gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
+            gamificationStats.yearlyHighScore > gamificationStats.prevWeekPoints && (
+              <div
+                className={styles.gamificationTrack}
+                data-tooltip={`🏆 Year best: ${gamificationStats.yearlyHighScore} SP`}
+              >
+                <div className={styles.gamificationFillHigh} style={{ width: '100%' }} />
+              </div>
+            )}
+
+          {/* Current week bar */}
+          <div
+            className={styles.gamificationTrack}
+            data-tooltip={`${
+              gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
+              gamificationStats.currentWeekPoints > 0
+                ? '🔥 This week'
+                : 'This week'
+            }: ${gamificationStats.currentWeekPoints} SP`}
+          >
+            <div
+              className={`${styles.gamificationFillCurrent} ${
+                gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
+                gamificationStats.currentWeekPoints > 0
+                  ? styles.gamificationFillCurrentBeat
+                  : ''
+              }`}
+              style={{
+                width: gamificationBarWidth(
+                  gamificationStats.currentWeekPoints,
+                  gamificationStats.yearlyHighScore
+                )
+              }}
+            />
+          </div>
+        </div>
+      )}
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className={styles.board}>
           {filteredColumns.map((column) => (
