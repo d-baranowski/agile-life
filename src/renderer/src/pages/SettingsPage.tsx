@@ -6,6 +6,7 @@ import type {
   DoneCardDebugInfo,
   StoryPointRule
 } from '@shared/board.types'
+import type { TrelloMember } from '@shared/trello.types'
 import type { DbPathInfo, LogPathInfo } from '@shared/settings.types'
 import { api } from '../hooks/useApi'
 import styles from './SettingsPage.module.css'
@@ -74,10 +75,17 @@ export default function SettingsPage({
     api.logs.getPath().then((result) => {
       if (result.success && result.data) setLogPathInfo(result.data)
     })
+    api.trello.getBoardMembers(board.boardId).then((result) => {
+      if (result.success && result.data) setBoardMembers(result.data)
+    })
   }, [])
 
   const [epicBoardSaving, setEpicBoardSaving] = useState(false)
   const [epicBoardError, setEpicBoardError] = useState<string | null>(null)
+
+  const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
+  const [myMemberSaving, setMyMemberSaving] = useState(false)
+  const [myMemberError, setMyMemberError] = useState<string | null>(null)
 
   const doneListLabel = (board.doneListNames ?? ['Done']).join(', ')
 
@@ -157,6 +165,18 @@ export default function SettingsPage({
       onBoardUpdated(result.data)
     } else {
       setEpicBoardError(result.error ?? 'Failed to update epic board.')
+    }
+  }
+
+  const handleSetMyMember = async (myMemberId: string | null): Promise<void> => {
+    setMyMemberSaving(true)
+    setMyMemberError(null)
+    const result = await api.boards.setMyMember(board.boardId, myMemberId)
+    setMyMemberSaving(false)
+    if (result.success && result.data) {
+      onBoardUpdated(result.data)
+    } else {
+      setMyMemberError(result.error ?? 'Failed to update identity.')
     }
   }
 
@@ -340,6 +360,48 @@ export default function SettingsPage({
             <strong>
               {allBoards.find((b) => b.boardId === board.epicBoardId)?.boardName ??
                 board.epicBoardId}
+            </strong>
+            .
+          </p>
+        )}
+      </div>
+
+      {/* ── My Identity ── */}
+      <div className="card">
+        <h2 className={styles.cardTitle}>My Identity</h2>
+        <p className={styles.hint}>
+          Select which board member is <strong>you</strong>. When set, the Kanban board will show
+          your weekly story-point progress in the top bar.
+        </p>
+        {myMemberError && <div className={styles.errorBanner}>{myMemberError}</div>}
+        <div className={styles.form}>
+          <label className={styles.label}>
+            My Member
+            {boardMembers.length === 0 ? (
+              <p className={styles.hint}>
+                No members found. Sync the board first to populate the member list.
+              </p>
+            ) : (
+              <select
+                value={board.myMemberId ?? ''}
+                onChange={(e) => handleSetMyMember(e.target.value || null)}
+                disabled={myMemberSaving}
+              >
+                <option value="">— None —</option>
+                {boardMembers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.fullName} (@{m.username})
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
+        </div>
+        {board.myMemberId && (
+          <p className={styles.hint}>
+            ✓ Tracking gamification stats for{' '}
+            <strong>
+              {boardMembers.find((m) => m.id === board.myMemberId)?.fullName ?? board.myMemberId}
             </strong>
             .
           </p>

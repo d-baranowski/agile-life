@@ -16,7 +16,9 @@ import type {
   LabelUserStats,
   CardAgeStats,
   WeeklyHistory,
-  StoryPointsUserStats
+  StoryPointsUserStats,
+  EpicWeeklyHistory,
+  GamificationStats
 } from '@shared/analytics.types'
 import type { TrelloMember, TrelloLabel } from '@shared/trello.types'
 import type { StoryPointRule } from '@shared/board.types'
@@ -26,6 +28,7 @@ import sqlLabelUserStats from '../database/sql/analytics/label-user-stats.sql?ra
 import sqlCardAge from '../database/sql/analytics/card-age.sql?raw'
 import sqlWeeklyHistoryRaw from '../database/sql/analytics/weekly-history-raw.sql?raw'
 import sqlStoryPoints7dRaw from '../database/sql/analytics/story-points-7d-raw.sql?raw'
+import sqlEpicPointsHistoryRaw from '../database/sql/analytics/epic-points-history-raw.sql?raw'
 import log from '../logger'
 
 type Row = Record<string, unknown>
@@ -41,6 +44,14 @@ interface RawHistoryRow {
 interface RawStoryPointRow {
   userId: string | null
   userName: string
+  cardId: string
+  labelsJson: string
+}
+
+interface RawEpicHistoryRow {
+  week: string
+  epicCardId: string
+  epicCardName: string
   cardId: string
   labelsJson: string
 }
@@ -223,6 +234,121 @@ export function registerAnalyticsHandlers(): void {
         return { success: true, data }
       } catch (err) {
         log.error(`[analytics] storyPoints7d failed boardId=${boardId}:`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Epic story points per week (12 months) ─────────────────────────────────
+  //
+  // Returns story points completed per epic per ISO week for the past 12
+  // months.  Each card's point value is determined by matching its labels
+  // against the caller-supplied storyPointsConfig rules.
+
+  ipcMain.handle(
+    IPC_CHANNELS.ANALYTICS_EPIC_WEEKLY_HISTORY,
+    async (
+      _e,
+      boardId: string,
+      storyPointsConfig: StoryPointRule[]
+    ): Promise<IpcResult<EpicWeeklyHistory[]>> => {
+      try {
+        const rawRows = getDb()
+          .prepare(sqlEpicPointsHistoryRaw)
+          .all(boardId, boardId) as RawEpicHistoryRow[]
+
+        const aggregated = new Map<
+          string,
+          { week: string; epicCardId: string; epicCardName: string; storyPoints: number }
+        >()
+
+        for (const row of rawRows) {
+          const pts = cardStoryPoints(row.labelsJson, storyPointsConfig)
+          const key = `${row.week}|${row.epicCardId}`
+          if (!aggregated.has(key)) {
+            aggregated.set(key, {
+              week: row.week,
+              epicCardId: row.epicCardId,
+              epicCardName: row.epicCardName,
+              storyPoints: 0
+            })
+          }
+          aggregated.get(key)!.storyPoints += pts
+        }
+
+        const data = [...aggregated.values()].sort((a, b) => a.week.localeCompare(b.week))
+        log.debug(`[analytics] epicWeeklyHistory boardId=${boardId} → ${data.length} row(s)`)
+        return { success: true, data }
+      } catch (err) {
+        log.error(`[analytics] epicWeeklyHistory failed boardId=${boardId}:`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Gamification stats for the current user ─────────────────────────────────
+  //
+  // Returns current-week story points, previous-week story points, and yearly
+  // high score for the given member (myMemberId).  Uses the weekly-history-raw
+  // query data filtered to the specific member.
+
+  ipcMain.handle(
+    IPC_CHANNELS.ANALYTICS_GAMIFICATION_STATS,
+    async (
+      _e,
+      boardId: string,
+      myMemberId: string,
+      storyPointsConfig: StoryPointRule[]
+    ): Promise<IpcResult<GamificationStats>> => {
+      try {
+        // Get the current and previous week keys using SQLite's own strftime
+        // so they always match the format used in weekly-history-raw.sql.
+        // Note: %Y-W%W uses the calendar year and Monday-based week number
+        // (00-53).  Near year boundaries this can produce week "00" in early
+        // January — the same edge case is present in all analytics queries in
+        // this codebase, so it's acceptable here.
+        const weekRow = getDb()
+          .prepare(
+            `SELECT
+               strftime('%Y-W%W', 'now') AS current_week,
+               strftime('%Y-W%W', datetime('now', '-7 days')) AS prev_week`
+          )
+          .get() as { current_week: string; prev_week: string }
+
+        const { current_week: currentWeek, prev_week: prevWeek } = weekRow
+
+        // Fetch all weekly history for the board and filter for this member.
+        const rawRows = getDb()
+          .prepare(sqlWeeklyHistoryRaw)
+          .all(boardId, boardId) as RawHistoryRow[]
+
+        // Aggregate story points per week for the given member only.
+        const weekPoints = new Map<string, number>()
+        for (const row of rawRows) {
+          if (row.userId !== myMemberId) continue
+          const pts = cardStoryPoints(row.labelsJson, storyPointsConfig)
+          weekPoints.set(row.week, (weekPoints.get(row.week) ?? 0) + pts)
+        }
+
+        const currentWeekPoints = weekPoints.get(currentWeek) ?? 0
+        const prevWeekPoints = weekPoints.get(prevWeek) ?? 0
+        const yearlyHighScore = weekPoints.size > 0 ? Math.max(...weekPoints.values()) : 0
+
+        const data: GamificationStats = {
+          currentWeekPoints,
+          prevWeekPoints,
+          yearlyHighScore,
+          currentWeek,
+          prevWeek
+        }
+
+        log.debug(
+          `[analytics] gamificationStats boardId=${boardId} memberId=${myMemberId} ` +
+            `current=${currentWeekPoints} prev=${prevWeekPoints} high=${yearlyHighScore}`
+        )
+        return { success: true, data }
+      } catch (err) {
+        log.error(`[analytics] gamificationStats failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
