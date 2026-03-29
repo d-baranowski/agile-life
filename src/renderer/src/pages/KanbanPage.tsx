@@ -76,7 +76,8 @@ function triggerDoneEffect(points: number, origin?: { x: number; y: number }): v
     origin: origin ?? { x: 0.5, y: 0.55 },
     shapes: [textShape],
     scalar: 0.85,
-    ticks: 120,
+    ticks: 180,
+    decay: 0.97,
     gravity: 2,
     startVelocity: 30,
     drift: 0.02
