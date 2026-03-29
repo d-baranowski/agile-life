@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
 import type { BoardConfig } from '@shared/board.types'
 import type { EpicCardOption, EpicStory } from '@shared/board.types'
-import type { KanbanColumn, KanbanCard, TrelloMember } from '@shared/trello.types'
+import type { KanbanColumn, KanbanCard, TrelloMember, TrelloLabel } from '@shared/trello.types'
+import type { TemplateGroup, TicketTemplate, GenerateCardsResult } from '@shared/template.types'
 import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
@@ -37,6 +38,25 @@ interface AddCardModal {
   /** null = edit phase; non-null = queue/upload phase */
   queue: QueueItem[] | null
   uploading: boolean
+}
+
+interface BulkLabelQueueItem {
+  id: string
+  cardId: string
+  cardName: string
+  status: QueueItemStatus
+  notFound?: boolean
+}
+
+interface BulkLabelModal {
+  /** Labels selected to apply */
+  selectedLabelIds: Set<string>
+  text: string
+  /** null = edit phase; non-null = queue/upload phase */
+  queue: BulkLabelQueueItem[] | null
+  uploading: boolean
+  /** true when triggered from the multi-select bulk action bar (cards come from selectedCardIds) */
+  fromSelection?: boolean
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -82,6 +102,40 @@ function moveCard(
   })
 }
 
+// ─── Placeholder resolver (mirrors server-side logic for preview) ─────────────
+
+function resolvePlaceholders(template: string, now: Date): string {
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+  const monthPadded = String(month).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const date = `${year}-${monthPadded}-${day}`
+  const startOfYear = new Date(year, 0, 1)
+  const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / 86_400_000)
+  const adjustedDow = (startOfYear.getDay() + 6) % 7
+  const week = String(Math.floor((dayOfYear + adjustedDow) / 7) + 1).padStart(2, '0')
+  const MONTH_NAMES = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
+  ]
+  return template
+    .replace(/\{\{year\}\}/g, String(year))
+    .replace(/\{\{month\}\}/g, monthPadded)
+    .replace(/\{\{month_name\}\}/g, MONTH_NAMES[month - 1])
+    .replace(/\{\{week\}\}/g, week)
+    .replace(/\{\{date\}\}/g, date)
+}
+
 // ─── component ───────────────────────────────────────────────────────────────
 
 export default function KanbanPage({ board, allBoards, syncVersion }: Props): JSX.Element {
@@ -91,13 +145,15 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [epicFilter, setEpicFilter] = useState<string>('') // '' = all, '__none__' = no epic, epicCardId = specific epic
+  const [epicColumnFilter, setEpicColumnFilter] = useState<string>('') // '' = all, listId = specific epic column
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
   const contextMenuRef = useRef<HTMLDivElement>(null)
 
   // Multi-select state
-  const [isSelectMode, setIsSelectMode] = useState(false)
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
+  const [bulkEpicDropdownOpen, setBulkEpicDropdownOpen] = useState(false)
+  const bulkEpicDropdownRef = useRef<HTMLDivElement>(null)
   const [isBulkArchiving, setIsBulkArchiving] = useState(false)
 
   // Is this board a story board (has a linked epic board)?
@@ -123,10 +179,18 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [addCardModal, setAddCardModal] = useState<AddCardModal | null>(null)
   const addCardTextareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Board labels (loaded on mount)
+  const [boardLabels, setBoardLabels] = useState<TrelloLabel[]>([])
+
+  // Bulk label modal state
+  const [bulkLabelModal, setBulkLabelModal] = useState<BulkLabelModal | null>(null)
+  const bulkLabelTextareaRef = useRef<HTMLTextAreaElement>(null)
+
   const loadBoardData = useCallback(async () => {
-    const [dataResult, membersResult] = await Promise.all([
+    const [dataResult, membersResult, labelsResult] = await Promise.all([
       api.trello.getBoardData(board.boardId),
-      api.trello.getBoardMembers(board.boardId)
+      api.trello.getBoardMembers(board.boardId),
+      api.trello.getBoardLabels(board.boardId)
     ])
     if (dataResult.success && dataResult.data) {
       setColumns(dataResult.data)
@@ -137,18 +201,23 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     if (membersResult.success && membersResult.data) {
       setBoardMembers(membersResult.data)
     }
+    if (labelsResult.success && labelsResult.data) {
+      setBoardLabels(labelsResult.data)
+    }
     setLoading(false)
   }, [board.boardId, syncVersion])
 
   useEffect(() => {
     setLoading(true)
     setError(null)
+    setSelectedCardIds(new Set())
     loadBoardData()
   }, [loadBoardData])
 
   // Load epic card options when this is a story board
   useEffect(() => {
     setEpicFilter('')
+    setEpicColumnFilter('')
     if (!isStoryBoard) return
     api.epics.getCards(board.boardId).then((result) => {
       if (result.success && result.data) setEpicCardOptions(result.data)
@@ -254,6 +323,21 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
   const [showDuplicates, setShowDuplicates] = useState(false)
+  // Each toolbar section (empty-state vs main) has its own meatball state; only one is mounted at a time.
+  const [showEmptyMeatball, setShowEmptyMeatball] = useState(false)
+  const [showMainMeatball, setShowMainMeatball] = useState(false)
+  const emptyMeatballRef = useRef<HTMLDivElement>(null)
+  const mainMeatballRef = useRef<HTMLDivElement>(null)
+
+  // Generate-from-template modal state
+  const [showGenModal, setShowGenModal] = useState(false)
+  const [genGroups, setGenGroups] = useState<TemplateGroup[]>([])
+  const [genGroupId, setGenGroupId] = useState<number | null>(null)
+  const [genTemplates, setGenTemplates] = useState<TicketTemplate[]>([])
+  const [genLoading, setGenLoading] = useState(false)
+  const [genGenerating, setGenGenerating] = useState(false)
+  const [genResult, setGenResult] = useState<GenerateCardsResult | null>(null)
+  const [genError, setGenError] = useState<string | null>(null)
 
   const handleOpenLogs = useCallback(() => {
     api.logs.openFolder()
@@ -266,14 +350,82 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setShowTicketsModal(false)
         setEpicStoriesCard(null)
         setEpicDropdownCardId(null)
-        setIsSelectMode(false)
-        setSelectedCardIds(new Set())
         setAddCardModal((prev) => (prev?.uploading ? prev : null))
+        setShowGenModal(false)
+        setBulkEpicDropdownOpen(false)
+        setSelectedCardIds(new Set())
+        setShowEmptyMeatball(false)
+        setShowMainMeatball(false)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
+
+  // Close meatball menus when clicking outside
+  useEffect(() => {
+    if (!showEmptyMeatball && !showMainMeatball) return
+    const handleClick = (e: MouseEvent) => {
+      if (emptyMeatballRef.current && !emptyMeatballRef.current.contains(e.target as Node)) {
+        setShowEmptyMeatball(false)
+      }
+      if (mainMeatballRef.current && !mainMeatballRef.current.contains(e.target as Node)) {
+        setShowMainMeatball(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showEmptyMeatball, showMainMeatball])
+
+  // Open the generate-from-template modal and load groups
+  const handleOpenGenModal = useCallback(async () => {
+    setShowGenModal(true)
+    setGenGroupId(null)
+    setGenTemplates([])
+    setGenResult(null)
+    setGenError(null)
+    const result = await api.templates.getGroups(board.boardId)
+    if (result.success && result.data) {
+      setGenGroups(result.data)
+    } else {
+      setGenError(result.error ?? 'Failed to load template groups.')
+    }
+  }, [board.boardId])
+
+  // Load templates for the selected group (for preview)
+  const handleGenGroupChange = useCallback(
+    async (groupId: number) => {
+      setGenGroupId(groupId)
+      setGenResult(null)
+      setGenError(null)
+      setGenLoading(true)
+      const result = await api.templates.getTemplates(board.boardId, groupId)
+      setGenLoading(false)
+      if (result.success && result.data) {
+        setGenTemplates(result.data)
+      } else {
+        setGenError(result.error ?? 'Failed to load templates.')
+      }
+    },
+    [board.boardId]
+  )
+
+  // Generate cards from the selected group
+  const handleGenerateFromModal = useCallback(async () => {
+    if (genGroupId === null) return
+    setGenGenerating(true)
+    setGenResult(null)
+    setGenError(null)
+    const result = await api.templates.generateCards(board.boardId, genGroupId)
+    setGenGenerating(false)
+    if (result.success && result.data) {
+      setGenResult(result.data)
+      // Reload board data so newly created cards appear without a full sync
+      loadBoardData()
+    } else {
+      setGenError(result.error ?? 'Failed to generate cards.')
+    }
+  }, [board.boardId, genGroupId, loadBoardData])
 
   // Open epic stories modal (double-click on epic board card)
   const handleOpenEpicStories = useCallback(async (cardId: string, cardName: string) => {
@@ -307,6 +459,80 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     },
     [board.boardId, epicCardOptions]
   )
+
+  // Toggle selection of a single card
+  const handleToggleSelectCard = useCallback((cardId: string) => {
+    setSelectedCardIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(cardId)) {
+        next.delete(cardId)
+      } else {
+        next.add(cardId)
+      }
+      return next
+    })
+  }, [])
+
+  // Assign or clear an epic for all currently selected cards
+  const handleBulkSetEpic = useCallback(
+    async (epicCardId: string | null) => {
+      setBulkEpicDropdownOpen(false)
+      const cardIds = Array.from(selectedCardIds)
+      const epicName = epicCardId
+        ? (epicCardOptions.find((o) => o.id === epicCardId)?.name ?? null)
+        : null
+      // Optimistic update
+      setColumns((prev) =>
+        prev.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) =>
+            selectedCardIds.has(c.id) ? { ...c, epicCardId, epicCardName: epicName } : c
+          )
+        }))
+      )
+      setSelectedCardIds(new Set())
+      const result = await api.epics.setBulkCardEpic(board.boardId, cardIds, epicCardId)
+      if (!result.success) {
+        loadBoardData()
+        setToastMessage(result.error ?? 'Failed to update epic. Please try again.')
+      }
+    },
+    [board.boardId, selectedCardIds, epicCardOptions, loadBoardData]
+  )
+
+  const handleBulkArchive = useCallback(async () => {
+    if (selectedCardIds.size === 0) return
+    setIsBulkArchiving(true)
+    const cardIds = [...selectedCardIds]
+    // Optimistically remove selected cards from the UI
+    const prevColumns = columns
+    setColumns((prev) =>
+      prev.map((col) => ({ ...col, cards: col.cards.filter((c) => !selectedCardIds.has(c.id)) }))
+    )
+    setSelectedCardIds(new Set())
+    const result = await api.trello.archiveCards(board.boardId, cardIds)
+    setIsBulkArchiving(false)
+    if (!result.success) {
+      setColumns(prevColumns)
+      setToastMessage(result.error ?? 'Failed to archive cards. Please try again.')
+    } else if (result.data && result.data.skippedCount > 0) {
+      setToastMessage(
+        `Archived ${result.data.archivedCount} card(s). ${result.data.skippedCount} could not be archived.`
+      )
+    }
+  }, [board.boardId, columns, selectedCardIds])
+
+  // Close bulk epic dropdown on outside click
+  useEffect(() => {
+    if (!bulkEpicDropdownOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (bulkEpicDropdownRef.current && !bulkEpicDropdownRef.current.contains(e.target as Node)) {
+        setBulkEpicDropdownOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', handleClick)
+    return () => window.removeEventListener('mousedown', handleClick)
+  }, [bulkEpicDropdownOpen])
 
   // Close context menu on Escape or click outside
   useEffect(() => {
@@ -343,49 +569,6 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     },
     [board.boardId, columns]
   )
-
-  const handleToggleSelectMode = useCallback(() => {
-    setIsSelectMode((prev) => {
-      if (prev) setSelectedCardIds(new Set())
-      return !prev
-    })
-    setContextMenu(null)
-  }, [])
-
-  const handleToggleCardSelection = useCallback((cardId: string) => {
-    setSelectedCardIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(cardId)) {
-        next.delete(cardId)
-      } else {
-        next.add(cardId)
-      }
-      return next
-    })
-  }, [])
-
-  const handleBulkArchive = useCallback(async () => {
-    if (selectedCardIds.size === 0) return
-    setIsBulkArchiving(true)
-    const cardIds = [...selectedCardIds]
-    // Optimistically remove selected cards from the UI
-    const prevColumns = columns
-    setColumns((prev) =>
-      prev.map((col) => ({ ...col, cards: col.cards.filter((c) => !selectedCardIds.has(c.id)) }))
-    )
-    setSelectedCardIds(new Set())
-    setIsSelectMode(false)
-    const result = await api.trello.archiveCards(board.boardId, cardIds)
-    setIsBulkArchiving(false)
-    if (!result.success) {
-      setColumns(prevColumns)
-      setToastMessage(result.error ?? 'Failed to archive cards. Please try again.')
-    } else if (result.data && result.data.skippedCount > 0) {
-      setToastMessage(
-        `Archived ${result.data.archivedCount} card(s). ${result.data.skippedCount} could not be archived.`
-      )
-    }
-  }, [board.boardId, columns, selectedCardIds])
 
   const handleToggleMember = useCallback(
     async (cardId: string, memberId: string, assign: boolean) => {
@@ -425,6 +608,199 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     },
     [board.boardId, boardMembers, columns]
   )
+
+  // ── Single-card label toggle ──────────────────────────────────────────────
+
+  const handleToggleLabel = useCallback(
+    async (cardId: string, label: TrelloLabel, assign: boolean) => {
+      setContextMenu(null)
+
+      // Optimistically update the label list in the UI
+      const prevColumns = columns
+      setColumns((prev) =>
+        prev.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) => {
+            if (c.id !== cardId) return c
+            const updatedLabels = assign
+              ? c.labels.some((l) => l.id === label.id)
+                ? c.labels
+                : [...c.labels, label]
+              : c.labels.filter((l) => l.id !== label.id)
+            return { ...c, labels: updatedLabels }
+          })
+        }))
+      )
+
+      const result = await api.trello.assignCardLabel(board.boardId, cardId, label, assign)
+      if (result.success && result.data) {
+        setColumns((prev) =>
+          prev.map((col) => ({
+            ...col,
+            cards: col.cards.map((c) => (c.id === cardId ? { ...c, labels: result.data! } : c))
+          }))
+        )
+      } else {
+        setColumns(prevColumns)
+        setToastMessage(result.error ?? 'Failed to update label assignment. Please try again.')
+      }
+    },
+    [board.boardId, columns]
+  )
+
+  // ── Bulk label modal handlers ─────────────────────────────────────────────
+
+  const handleOpenBulkLabelFromBar = useCallback(() => {
+    setBulkLabelModal({
+      selectedLabelIds: new Set(),
+      text: '',
+      queue: null,
+      uploading: false,
+      fromSelection: true
+    })
+  }, [])
+
+  const handleCloseBulkLabel = useCallback(() => {
+    setBulkLabelModal((prev) => (prev?.uploading ? prev : null))
+  }, [])
+
+  const handleToggleBulkLabelSelection = useCallback((labelId: string) => {
+    setBulkLabelModal((prev) => {
+      if (!prev) return null
+      const next = new Set(prev.selectedLabelIds)
+      if (next.has(labelId)) {
+        next.delete(labelId)
+      } else {
+        next.add(labelId)
+      }
+      return { ...prev, selectedLabelIds: next }
+    })
+  }, [])
+
+  const handleStartBulkLabel = useCallback(() => {
+    setBulkLabelModal((prev) => {
+      if (!prev) return null
+      const allCards = columns.flatMap((col) => col.cards)
+
+      let queue: BulkLabelQueueItem[]
+
+      if (prev.fromSelection) {
+        const cardMap = new Map(allCards.map((c) => [c.id, c]))
+        queue = Array.from(selectedCardIds).map((cardId) => {
+          const card = cardMap.get(cardId)
+          return {
+            id: `${Date.now()}-${Math.random()}`,
+            cardId,
+            cardName: card?.name ?? cardId,
+            status: 'pending' as QueueItemStatus,
+            notFound: false
+          }
+        })
+      } else {
+        const cardsByName = new Map(allCards.map((c) => [c.name.toLowerCase(), c]))
+        const names = prev.text
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean)
+        queue = names.map((name) => {
+          const card = cardsByName.get(name.toLowerCase())
+          return {
+            id: `${Date.now()}-${Math.random()}`,
+            cardId: card?.id ?? '',
+            cardName: name,
+            status: card ? 'pending' : ('failed' as QueueItemStatus),
+            notFound: !card
+          }
+        })
+      }
+
+      return { ...prev, queue }
+    })
+  }, [columns, selectedCardIds])
+
+  const handleRunBulkLabel = useCallback(async () => {
+    setBulkLabelModal((prev) => (prev ? { ...prev, uploading: true } : null))
+
+    const snapshot = bulkLabelModal
+    if (!snapshot?.queue) return
+
+    const selectedLabels = boardLabels.filter((l) => snapshot.selectedLabelIds.has(l.id))
+
+    for (let i = 0; i < snapshot.queue.length; i++) {
+      const item = snapshot.queue[i]
+      if (item.notFound || item.status === 'failed') continue
+
+      setBulkLabelModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) => (q.id === item.id ? { ...q, status: 'running' } : q))
+        }
+      })
+
+      let success = true
+      let finalLabels: TrelloLabel[] | null = null
+      for (const label of selectedLabels) {
+        const result = await api.trello.assignCardLabel(board.boardId, item.cardId, label, true)
+        if (!result.success) {
+          success = false
+          break
+        }
+        if (result.data) finalLabels = result.data
+      }
+
+      if (finalLabels) {
+        const labelsSnapshot = finalLabels
+        setColumns((prev) =>
+          prev.map((col) => ({
+            ...col,
+            cards: col.cards.map((c) =>
+              c.id === item.cardId ? { ...c, labels: labelsSnapshot } : c
+            )
+          }))
+        )
+      }
+
+      setBulkLabelModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) =>
+            q.id === item.id ? { ...q, status: success ? 'done' : 'failed' } : q
+          )
+        }
+      })
+
+      if (i < snapshot.queue.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300))
+      }
+    }
+
+    setBulkLabelModal((prev) => (prev ? { ...prev, uploading: false } : null))
+    if (snapshot.fromSelection) {
+      setSelectedCardIds(new Set())
+    }
+  }, [board.boardId, boardLabels, bulkLabelModal])
+
+  const handleBulkLabelRetryItem = useCallback((itemId: string) => {
+    setBulkLabelModal((prev) => {
+      if (!prev?.queue) return prev
+      const updated = prev.queue.map((q) =>
+        q.id === itemId && !q.notFound ? { ...q, status: 'pending' as QueueItemStatus } : q
+      )
+      return { ...prev, queue: updated }
+    })
+  }, [])
+
+  const handleBulkLabelRetryAllFailed = useCallback(() => {
+    setBulkLabelModal((prev) => {
+      if (!prev?.queue) return prev
+      const updated = prev.queue.map((q) =>
+        q.status === 'failed' && !q.notFound ? { ...q, status: 'pending' as QueueItemStatus } : q
+      )
+      return { ...prev, queue: updated }
+    })
+  }, [])
 
   // ── Add-card modal handlers ───────────────────────────────────────────────
 
@@ -581,21 +957,60 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     return result
   }, [columns])
 
-  const filteredColumns =
-    searchQuery.trim() || epicFilter || showDuplicates
-      ? columns.map((col) => ({
-          ...col,
-          cards: col.cards.filter((card) => {
-            if (searchQuery.trim() && !fuzzyMatch(searchQuery, `${card.name} ${card.desc}`))
-              return false
-            if (epicFilter === '__none__' && card.epicCardId) return false
-            if (epicFilter && epicFilter !== '__none__' && card.epicCardId !== epicFilter)
-              return false
-            if (showDuplicates && !duplicateNames.has(card.name.trim().toLowerCase())) return false
-            return true
-          })
-        }))
-      : columns
+  // Derive unique epic columns from the loaded epic card options (for the column filter dropdown)
+  const epicColumns = useMemo(
+    () =>
+      epicCardOptions.reduce<{ listId: string; listName: string }[]>((acc, opt) => {
+        if (!acc.some((c) => c.listId === opt.listId)) {
+          acc.push({ listId: opt.listId, listName: opt.listName })
+        }
+        return acc
+      }, []),
+    [epicCardOptions]
+  )
+
+  // Build a set of epic card IDs that belong to the selected epic column (for efficient lookup)
+  const epicCardIdsInColumn = useMemo(
+    () =>
+      epicColumnFilter
+        ? new Set(
+            epicCardOptions.filter((opt) => opt.listId === epicColumnFilter).map((opt) => opt.id)
+          )
+        : null,
+    [epicCardOptions, epicColumnFilter]
+  )
+
+  const filteredColumns = useMemo(
+    () =>
+      searchQuery.trim() || epicFilter || epicColumnFilter || showDuplicates
+        ? columns.map((col) => ({
+            ...col,
+            cards: col.cards.filter((card) => {
+              if (searchQuery.trim() && !fuzzyMatch(searchQuery, `${card.name} ${card.desc}`))
+                return false
+              if (epicFilter === '__none__' && card.epicCardId) return false
+              if (epicFilter && epicFilter !== '__none__' && card.epicCardId !== epicFilter)
+                return false
+              if (epicCardIdsInColumn)
+                return card.epicCardId !== null && epicCardIdsInColumn.has(card.epicCardId)
+              if (showDuplicates && !duplicateNames.has(card.name.trim().toLowerCase()))
+                return false
+              return true
+            })
+          }))
+        : columns,
+    [
+      columns,
+      searchQuery,
+      epicFilter,
+      epicColumnFilter,
+      epicCardIdsInColumn,
+      showDuplicates,
+      duplicateNames
+    ]
+  )
+
+  const selectedCardCount = useMemo(() => selectedCardIds.size, [selectedCardIds])
 
   if (loading) {
     return (
@@ -633,9 +1048,38 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     return (
       <div className={styles.container}>
         <div className={styles.searchBar}>
-          <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
-            🎫 Number Tickets
-          </button>
+          <div ref={emptyMeatballRef} className={styles.meatballWrapper}>
+            <button
+              className={styles.meatballBtn}
+              onClick={() => setShowEmptyMeatball((v) => !v)}
+              title="More options"
+              aria-label="More options"
+            >
+              •••
+            </button>
+            {showEmptyMeatball && (
+              <div className={styles.meatballMenu}>
+                <button
+                  className={styles.meatballItem}
+                  onClick={() => {
+                    setShowTicketsModal(true)
+                    setShowEmptyMeatball(false)
+                  }}
+                >
+                  🎫 Number Tickets
+                </button>
+                <button
+                  className={styles.meatballItem}
+                  onClick={() => {
+                    handleOpenGenModal()
+                    setShowEmptyMeatball(false)
+                  }}
+                >
+                  📋 Generate from Template
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <div className={styles.emptyState}>
           <p>No data yet.</p>
@@ -663,7 +1107,10 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           <select
             className={styles.epicFilterSelect}
             value={epicFilter}
-            onChange={(e) => setEpicFilter(e.target.value)}
+            onChange={(e) => {
+              setEpicFilter(e.target.value)
+              setEpicColumnFilter('')
+            }}
             title="Filter by epic"
             aria-label="Filter cards by epic"
           >
@@ -676,23 +1123,66 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             ))}
           </select>
         )}
-        <button
-          className={`${styles.duplicatesBtn} ${showDuplicates ? styles.duplicatesBtnActive : ''}`}
-          onClick={() => setShowDuplicates((v) => !v)}
-          title={showDuplicates ? 'Show all cards' : 'Show only cards with duplicate titles'}
-        >
-          ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
-        </button>
-        <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
-          🎫 Number Tickets
-        </button>
-        <button
-          className={`${styles.numberTicketsBtn} ${isSelectMode ? styles.selectModeActive : ''}`}
-          onClick={handleToggleSelectMode}
-          title={isSelectMode ? 'Exit selection mode (Esc)' : 'Select cards to archive in bulk'}
-        >
-          {isSelectMode ? '✕ Cancel' : '☑ Select'}
-        </button>
+        {isStoryBoard && epicColumns.length > 0 && (
+          <select
+            className={styles.epicFilterSelect}
+            value={epicColumnFilter}
+            onChange={(e) => {
+              setEpicColumnFilter(e.target.value)
+              setEpicFilter('')
+            }}
+            title="Filter by epic column"
+            aria-label="Filter cards by epic column"
+          >
+            <option value="">📋 All epic columns</option>
+            {epicColumns.map((col) => (
+              <option key={col.listId} value={col.listId}>
+                {col.listName}
+              </option>
+            ))}
+          </select>
+        )}
+        <div ref={mainMeatballRef} className={styles.meatballWrapper}>
+          <button
+            className={`${styles.meatballBtn} ${showDuplicates ? styles.meatballBtnActive : ''}`}
+            onClick={() => setShowMainMeatball((v) => !v)}
+            title="More options"
+            aria-label="More options"
+          >
+            •••
+          </button>
+          {showMainMeatball && (
+            <div className={styles.meatballMenu}>
+              <button
+                className={`${styles.meatballItem} ${showDuplicates ? styles.meatballItemActive : ''}`}
+                onClick={() => {
+                  setShowDuplicates((v) => !v)
+                  setShowMainMeatball(false)
+                }}
+              >
+                ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
+              </button>
+              <button
+                className={styles.meatballItem}
+                onClick={() => {
+                  setShowTicketsModal(true)
+                  setShowMainMeatball(false)
+                }}
+              >
+                🎫 Number Tickets
+              </button>
+              <button
+                className={styles.meatballItem}
+                onClick={() => {
+                  handleOpenGenModal()
+                  setShowMainMeatball(false)
+                }}
+              >
+                📋 Generate from Template
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className={styles.board}>
@@ -719,17 +1209,15 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                         isEpicBoard={isEpicBoard}
                         epicCardOptions={epicCardOptions}
                         epicDropdownCardId={epicDropdownCardId}
-                        isSelectMode={isSelectMode}
-                        isSelected={selectedCardIds.has(card.id)}
-                        onToggleSelection={handleToggleCardSelection}
                         isDuplicate={duplicateNames.has(card.name.trim().toLowerCase())}
+                        isSelected={selectedCardIds.has(card.id)}
+                        onToggleSelect={handleToggleSelectCard}
                         onOpenEpicStories={handleOpenEpicStories}
                         onSetCardEpic={handleSetCardEpic}
                         onToggleEpicDropdown={(cardId) =>
                           setEpicDropdownCardId((prev) => (prev === cardId ? null : cardId))
                         }
                         onContextMenu={(e) => {
-                          if (isSelectMode) return
                           e.preventDefault()
                           setContextMenu({ x: e.clientX, y: e.clientY, card })
                         }}
@@ -751,6 +1239,66 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           ))}
         </div>
       </DragDropContext>
+
+      {/* ── Bulk action bar (shown when ≥1 card is selected) ── */}
+      {selectedCardCount > 0 && (
+        <div className={styles.bulkActionBar}>
+          <span className={styles.bulkActionCount}>
+            {selectedCardCount} card{selectedCardCount !== 1 ? 's' : ''} selected
+          </span>
+          <div className={styles.bulkActionControls}>
+            {isStoryBoard && (
+              <div ref={bulkEpicDropdownRef} className={styles.bulkEpicWrapper}>
+                <button
+                  className={styles.bulkEpicBtn}
+                  onClick={() => setBulkEpicDropdownOpen((prev) => !prev)}
+                >
+                  ⚡ Set Epic
+                </button>
+                {bulkEpicDropdownOpen && (
+                  <div className={styles.bulkEpicDropdown}>
+                    <button
+                      className={styles.bulkEpicDropdownItem}
+                      onClick={() => handleBulkSetEpic(null)}
+                    >
+                      — None
+                    </button>
+                    {epicCardOptions.map((opt) => (
+                      <button
+                        key={opt.id}
+                        className={styles.bulkEpicDropdownItem}
+                        onClick={() => handleBulkSetEpic(opt.id)}
+                      >
+                        <span className={styles.epicDropdownName}>{opt.name}</span>
+                        <span className={styles.epicDropdownList}>{opt.listName}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {isStoryBoard && boardLabels.length > 0 && (
+              <button className={styles.bulkEpicBtn} onClick={() => handleOpenBulkLabelFromBar()}>
+                🏷️ Set Label
+              </button>
+            )}
+            <button
+              className={styles.bulkArchiveBtn}
+              onClick={handleBulkArchive}
+              disabled={isBulkArchiving}
+            >
+              {isBulkArchiving ? 'Archiving…' : `🗄️ Archive ${selectedCardCount}`}
+            </button>
+            <button
+              className={styles.bulkClearBtn}
+              onClick={() => setSelectedCardIds(new Set())}
+              title="Clear selection (Esc)"
+            >
+              ✕ Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       {contextMenu && (
         <div
@@ -783,6 +1331,29 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
               })}
             </>
           )}
+          {boardLabels.length > 0 && (
+            <>
+              <div className={styles.contextMenuDivider} />
+              <div className={styles.contextMenuLabel}>Labels:</div>
+              {boardLabels.map((label) => {
+                const assigned = contextMenu.card.labels.some((l) => l.id === label.id)
+                return (
+                  <button
+                    key={label.id}
+                    className={styles.contextMenuItem}
+                    onClick={() => handleToggleLabel(contextMenu.card.id, label, !assigned)}
+                  >
+                    <span className={styles.contextMenuCheck}>{assigned ? '✓' : ''}</span>
+                    <span
+                      className={styles.contextMenuLabelDot}
+                      style={{ background: labelColor(label.color) }}
+                    />
+                    {label.name || label.color}
+                  </button>
+                )
+              })}
+            </>
+          )}
         </div>
       )}
 
@@ -791,22 +1362,6 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         onDismiss={() => setToastMessage(null)}
         onOpenLogs={handleOpenLogs}
       />
-
-      {/* ── Bulk action bar (shown when cards are selected) ── */}
-      {isSelectMode && selectedCardIds.size > 0 && (
-        <div className={styles.bulkActionBar}>
-          <span className={styles.bulkActionCount}>
-            {selectedCardIds.size} card{selectedCardIds.size !== 1 ? 's' : ''} selected
-          </span>
-          <button
-            className={styles.bulkArchiveBtn}
-            onClick={handleBulkArchive}
-            disabled={isBulkArchiving}
-          >
-            {isBulkArchiving ? 'Archiving…' : `🗄️ Archive ${selectedCardIds.size}`}
-          </button>
-        </div>
-      )}
 
       {ticketsModal}
 
@@ -869,6 +1424,126 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Generate from Template Modal ── */}
+      {showGenModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowGenModal(false)}>
+          <div className={styles.genModal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.genModalHeader}>
+              <h2 className={styles.genModalTitle}>📋 Generate from Template</h2>
+              <button
+                className={styles.modalClose}
+                onClick={() => setShowGenModal(false)}
+                title="Close (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className={styles.genModalBody}>
+              {genGroups.length === 0 ? (
+                <p className={styles.genEmptyState}>
+                  No template groups found for this board. Create groups in the Templates tab first.
+                </p>
+              ) : (
+                <>
+                  <div className={styles.genGroupRow}>
+                    <label className={styles.genLabel}>Template group</label>
+                    <select
+                      className={styles.genSelect}
+                      value={genGroupId ?? ''}
+                      onChange={(e) => handleGenGroupChange(Number(e.target.value))}
+                    >
+                      <option value="">— Select a group —</option>
+                      {genGroups.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {genGroupId !== null && (
+                    <div className={styles.genPreview}>
+                      <div className={styles.genPreviewTitle}>Preview</div>
+                      {genLoading ? (
+                        <div className={styles.genPreviewLoading}>
+                          <div
+                            className="spinner"
+                            style={{ width: 14, height: 14, borderWidth: 2 }}
+                          />
+                          <span>Loading…</span>
+                        </div>
+                      ) : genTemplates.length === 0 ? (
+                        <p className={styles.genEmptyState}>
+                          This group has no templates. Add templates in the Templates tab.
+                        </p>
+                      ) : (
+                        <ul className={styles.genPreviewList}>
+                          {genTemplates.map((t) => (
+                            <li key={t.id} className={styles.genPreviewItem}>
+                              <span className={styles.genPreviewCardTitle}>
+                                {resolvePlaceholders(t.titleTemplate, new Date())}
+                              </span>
+                              <span className={styles.genPreviewMeta}>→ {t.listName}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {genResult && (
+                    <div
+                      className={`${styles.genResultBanner} ${genResult.failed === 0 ? styles.genResultSuccess : styles.genResultError}`}
+                    >
+                      {genResult.created} card{genResult.created !== 1 ? 's' : ''} created
+                      {genResult.failed > 0 && `, ${genResult.failed} failed`}.
+                      {genResult.errors.length > 0 && (
+                        <ul className={styles.genResultErrors}>
+                          {genResult.errors.map((e, i) => (
+                            <li key={i}>{e}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {genError && (
+                    <div className={`${styles.genResultBanner} ${styles.genResultError}`}>
+                      {genError}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className={styles.genModalFooter}>
+              <button className="btn-secondary" onClick={() => setShowGenModal(false)}>
+                Close
+              </button>
+              {genGroups.length > 0 && (
+                <button
+                  className="btn-primary"
+                  onClick={handleGenerateFromModal}
+                  disabled={
+                    genGroupId === null || genTemplates.length === 0 || genLoading || genGenerating
+                  }
+                >
+                  {genGenerating ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />
+                      Generating…
+                    </span>
+                  ) : (
+                    '▶ Generate cards'
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1026,6 +1701,228 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           </div>
         </div>
       )}
+
+      {/* ── Bulk label modal ── */}
+      {bulkLabelModal && (
+        <div className={styles.modalOverlay} onClick={handleCloseBulkLabel}>
+          <div className={styles.addCardModal} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className={styles.addCardModalHeader}>
+              <span className={styles.addCardModalTitle}>
+                <strong>Bulk Label Cards</strong>
+              </span>
+              <button
+                className={styles.modalClose}
+                onClick={handleCloseBulkLabel}
+                disabled={bulkLabelModal.uploading}
+                title="Close (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Edit phase */}
+            {bulkLabelModal.queue === null && (
+              <>
+                <div className={styles.addCardModalBody}>
+                  <div className={styles.bulkLabelSection}>
+                    <div className={styles.contextMenuLabel} style={{ padding: '0 0 6px' }}>
+                      Select labels to apply:
+                    </div>
+                    <div className={styles.bulkLabelPickerGrid}>
+                      {boardLabels.map((label) => {
+                        const selected = bulkLabelModal.selectedLabelIds.has(label.id)
+                        return (
+                          <button
+                            key={label.id}
+                            className={`${styles.bulkLabelChip} ${selected ? styles.bulkLabelChipSelected : ''}`}
+                            onClick={() => handleToggleBulkLabelSelection(label.id)}
+                            style={
+                              { '--chip-color': labelColor(label.color) } as React.CSSProperties
+                            }
+                          >
+                            <span
+                              className={styles.bulkLabelChipDot}
+                              style={{ background: labelColor(label.color) }}
+                            />
+                            {label.name || label.color}
+                            {selected && <span className={styles.bulkLabelChipCheck}>✓</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  {!bulkLabelModal.fromSelection && (
+                    <div className={styles.bulkLabelSection}>
+                      <div className={styles.contextMenuLabel} style={{ padding: '0 0 6px' }}>
+                        Enter card names to label (one per line):
+                      </div>
+                      <textarea
+                        ref={bulkLabelTextareaRef}
+                        className={styles.addCardTextarea}
+                        placeholder={'Paste from Excel or type card names — one per line'}
+                        value={bulkLabelModal.text}
+                        onChange={(e) =>
+                          setBulkLabelModal((prev) =>
+                            prev ? { ...prev, text: e.target.value } : null
+                          )
+                        }
+                        rows={5}
+                      />
+                      {(() => {
+                        const previewLines = bulkLabelModal.text
+                          .split('\n')
+                          .map((line) => line.trim())
+                          .filter(Boolean)
+                        return previewLines.length > 0 ? (
+                          <div className={styles.addCardPreviewList}>
+                            {previewLines.map((line, idx) => (
+                              <div key={idx} className={styles.addCardPreviewItem}>
+                                <span className={styles.addCardPreviewName}>{line}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null
+                      })()}
+                    </div>
+                  )}
+                </div>
+                <div className={styles.addCardModalFooter}>
+                  <button className={styles.addCardCancelBtn} onClick={handleCloseBulkLabel}>
+                    Cancel
+                  </button>
+                  {bulkLabelModal.fromSelection ? (
+                    <button
+                      className={styles.addCardStartBtn}
+                      onClick={handleStartBulkLabel}
+                      disabled={bulkLabelModal.selectedLabelIds.size === 0}
+                    >
+                      Apply to {selectedCardCount} card{selectedCardCount !== 1 ? 's' : ''}
+                    </button>
+                  ) : (
+                    <button
+                      className={styles.addCardStartBtn}
+                      onClick={handleStartBulkLabel}
+                      disabled={
+                        bulkLabelModal.selectedLabelIds.size === 0 ||
+                        bulkLabelModal.text.trim().length === 0
+                      }
+                    >
+                      Preview (
+                      {
+                        bulkLabelModal.text
+                          .split('\n')
+                          .map((s) => s.trim())
+                          .filter(Boolean).length
+                      }{' '}
+                      card
+                      {bulkLabelModal.text
+                        .split('\n')
+                        .map((s) => s.trim())
+                        .filter(Boolean).length !== 1
+                        ? 's'
+                        : ''}
+                      )
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Queue phase */}
+            {bulkLabelModal.queue !== null &&
+              (() => {
+                const hasAnyFailed = bulkLabelModal.queue.some(
+                  (q) => q.status === 'failed' && !q.notFound
+                )
+                const allDone = bulkLabelModal.queue.every(
+                  (q) => q.status === 'done' || q.status === 'failed'
+                )
+                return (
+                  <>
+                    <div className={styles.addCardQueueList}>
+                      {bulkLabelModal.queue.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`${styles.addCardQueueItem} ${
+                            item.status === 'done'
+                              ? styles.queueItemDone
+                              : item.status === 'failed'
+                                ? styles.queueItemFailed
+                                : item.status === 'running'
+                                  ? styles.queueItemRunning
+                                  : ''
+                          }`}
+                        >
+                          <span className={styles.queueItemIcon}>
+                            {item.status === 'pending' && '⏳'}
+                            {item.status === 'running' && (
+                              <span
+                                className="spinner"
+                                style={{ width: 14, height: 14, borderWidth: 2 }}
+                              />
+                            )}
+                            {item.status === 'done' && '✓'}
+                            {item.status === 'failed' && '✕'}
+                          </span>
+                          <span className={styles.queueItemName}>
+                            {item.cardName}
+                            {item.notFound && (
+                              <span className={styles.bulkLabelNotFound}> (not found)</span>
+                            )}
+                          </span>
+                          {!bulkLabelModal.uploading &&
+                            item.status === 'failed' &&
+                            !item.notFound && (
+                              <button
+                                className={styles.queueRetryBtn}
+                                onClick={() => handleBulkLabelRetryItem(item.id)}
+                              >
+                                ↺ Retry
+                              </button>
+                            )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className={styles.addCardModalFooter}>
+                      {bulkLabelModal.uploading && (
+                        <span className={styles.uploadingLabel}>Applying labels…</span>
+                      )}
+                      {!bulkLabelModal.uploading && allDone && hasAnyFailed && (
+                        <button
+                          className={styles.addCardStartBtn}
+                          onClick={handleBulkLabelRetryAllFailed}
+                        >
+                          ↺ Retry all failed
+                        </button>
+                      )}
+                      {!bulkLabelModal.uploading && !allDone && (
+                        <button
+                          className={styles.addCardStartBtn}
+                          onClick={handleRunBulkLabel}
+                          disabled={bulkLabelModal.queue.every(
+                            (q) => q.status === 'failed' && q.notFound
+                          )}
+                        >
+                          Apply labels (
+                          {bulkLabelModal.queue.filter((q) => q.status === 'pending').length}{' '}
+                          remaining)
+                        </button>
+                      )}
+                      <button
+                        className={styles.addCardCancelBtn}
+                        onClick={handleCloseBulkLabel}
+                        disabled={bulkLabelModal.uploading}
+                      >
+                        {allDone && !bulkLabelModal.uploading ? 'Close' : 'Cancel'}
+                      </button>
+                    </div>
+                  </>
+                )
+              })()}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1039,10 +1936,9 @@ interface CardProps {
   isEpicBoard: boolean
   epicCardOptions: EpicCardOption[]
   epicDropdownCardId: string | null
-  isSelectMode: boolean
-  isSelected: boolean
-  onToggleSelection: (cardId: string) => void
   isDuplicate: boolean
+  isSelected: boolean
+  onToggleSelect: (cardId: string) => void
   onOpenEpicStories: (cardId: string, cardName: string) => void
   onSetCardEpic: (cardId: string, epicCardId: string | null) => void
   onToggleEpicDropdown: (cardId: string) => void
@@ -1056,10 +1952,9 @@ function DraggableCard({
   isEpicBoard,
   epicCardOptions,
   epicDropdownCardId,
-  isSelectMode,
-  isSelected,
-  onToggleSelection,
   isDuplicate,
+  isSelected,
+  onToggleSelect,
   onOpenEpicStories,
   onSetCardEpic,
   onToggleEpicDropdown,
@@ -1081,10 +1976,6 @@ function DraggableCard({
   }, [isDropdownOpen])
 
   const handleClick = () => {
-    if (isSelectMode) {
-      onToggleSelection(card.id)
-      return
-    }
     if (!isEpicBoard) return
     const now = Date.now()
     if (now - lastClickRef.current < 350) {
@@ -1095,35 +1986,42 @@ function DraggableCard({
   }
 
   return (
-    <Draggable draggableId={card.id} index={index} isDragDisabled={isSelectMode}>
+    <Draggable draggableId={card.id} index={index}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''} ${isSelected ? styles.cardSelected : ''} ${isDuplicate ? styles.cardDuplicate : ''}`}
+          className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''} ${isDuplicate ? styles.cardDuplicate : ''} ${isSelected ? styles.cardSelected : ''}`}
           onClick={handleClick}
           onContextMenu={onContextMenu}
-          title={
-            isEpicBoard && !isSelectMode ? 'Double-click to see stories in this epic' : undefined
-          }
+          title={isEpicBoard ? 'Double-click to see stories in this epic' : undefined}
         >
-          {isSelectMode && (
-            <span className={styles.cardCheckbox} aria-hidden="true">
-              {isSelected ? '☑' : '☐'}
+          <div className={styles.cardHeader}>
+            <span className={styles.cardName}>
+              {isDuplicate && (
+                <span className={styles.duplicateBadge} title="Duplicate title">
+                  ⊖
+                </span>
+              )}
+              {card.name}
             </span>
-          )}
-          <span className={styles.cardName}>
-            {isDuplicate && (
-              <span className={styles.duplicateBadge} title="Duplicate title">
-                ⊖
-              </span>
-            )}
-            {card.name}
-          </span>
+            <button
+                className={`${styles.cardCheckbox} ${isSelected ? styles.cardCheckboxChecked : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleSelect(card.id)
+                }}
+                title={isSelected ? 'Deselect card' : 'Select card'}
+                aria-label={isSelected ? 'Deselect card' : 'Select card'}
+                aria-pressed={isSelected}
+              >
+                {isSelected ? '✓' : ''}
+              </button>
+          </div>
 
           {/* Epic label (story board only) */}
-          {isStoryBoard && !isSelectMode && (
+          {isStoryBoard && (
             <div className={styles.epicRow}>
               <button
                 className={card.epicCardName ? styles.epicChip : styles.epicChipEmpty}
@@ -1176,21 +2074,26 @@ function DraggableCard({
           )}
 
           {/* Epic board hint */}
-          {isEpicBoard && !isSelectMode && (
+          {isEpicBoard && (
             <span className={styles.epicBoardHint}>⚡ Epic — double-click for stories</span>
           )}
 
           <div className={styles.cardFooter}>
             {card.labels.length > 0 && (
               <div className={styles.labels}>
-                {card.labels.map((label) => (
-                  <span
-                    key={label.id}
-                    className={styles.label}
-                    style={{ background: labelColor(label.color) }}
-                    title={label.name || label.color}
-                  />
-                ))}
+                {card.labels.map((label) => {
+                  const bg = labelColor(label.color)
+                  return (
+                    <span
+                      key={label.id}
+                      className={styles.label}
+                      style={{ background: bg, color: labelTextColor(bg) }}
+                      title={label.name || label.color}
+                    >
+                      {label.name || label.color}
+                    </span>
+                  )
+                })}
               </div>
             )}
 
@@ -1215,7 +2118,7 @@ function DraggableCard({
                   </span>
                 )}
 
-                {card.shortUrl && !isSelectMode && (
+                {card.shortUrl && (
                   <a
                     href={card.shortUrl}
                     target="_blank"
@@ -1253,6 +2156,24 @@ const LABEL_COLORS: Record<string, string> = {
 
 function labelColor(color: string): string {
   return LABEL_COLORS[color] ?? '#8892a4'
+}
+
+/**
+ * Returns '#fff' or '#222' depending on which gives better contrast against
+ * the given hex background colour (e.g. '#61bd4f').
+ * Uses the WCAG relative-luminance formula.
+ */
+function labelTextColor(hex: string): string {
+  // Normalise: strip '#', expand 3-char shorthand to 6-char full form
+  let c = hex.replace('#', '')
+  if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2]
+  if (c.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(c)) return '#fff'
+  const r = parseInt(c.substring(0, 2), 16) / 255
+  const g = parseInt(c.substring(2, 4), 16) / 255
+  const b = parseInt(c.substring(4, 6), 16) / 255
+  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+  return L > 0.179 ? '#222' : '#fff'
 }
 
 // ─── fuzzy matching ───────────────────────────────────────────────────────────

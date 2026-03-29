@@ -41,3 +41,11 @@ export interface StoryPointsUserStats {
   userName: string
   storyPoints: number
 }
+
+/** Story points completed per epic per week over the past 12 months. */
+export interface EpicWeeklyHistory {
+  week: string
+  epicCardId: string
+  epicCardName: string
+  storyPoints: number
+}

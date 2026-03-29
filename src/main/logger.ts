@@ -16,7 +16,7 @@ const defaultLogFilePath = log.transports.file.getFile().path
 // Apply a persisted custom log path if one has been configured.
 const savedLogPath = getLogPath()
 if (savedLogPath) {
-  log.transports.file.file = savedLogPath
+  log.transports.file.resolvePathFn = () => savedLogPath
 }
 
 export default log
@@ -37,8 +37,8 @@ export function getLogFilePath(): string {
  */
 export function applyLogPath(newPath: string | null): void {
   if (newPath) {
-    log.transports.file.file = newPath
+    log.transports.file.resolvePathFn = () => newPath
   } else {
-    log.transports.file.file = defaultLogFilePath
+    log.transports.file.resolvePathFn = () => defaultLogFilePath
   }
 }

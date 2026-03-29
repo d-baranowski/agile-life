@@ -6,6 +6,7 @@ import { registerBoardHandlers } from './ipc/boards'
 import { registerAnalyticsHandlers } from './ipc/analytics'
 import { registerTicketHandlers } from './ipc/tickets'
 import { registerSettingsHandlers } from './ipc/settings'
+import { registerTemplateHandlers } from './ipc/templates'
 import { registerLogHandlers } from './ipc/logs'
 import icon from '../../resources/icon.png?asset'
 
@@ -60,6 +61,7 @@ app.whenReady().then(() => {
   registerAnalyticsHandlers()
   registerTicketHandlers()
   registerSettingsHandlers()
+  registerTemplateHandlers()
   registerLogHandlers()
 
   // Default open or close DevTools by F12 in development

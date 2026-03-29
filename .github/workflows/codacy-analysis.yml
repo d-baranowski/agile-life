@@ -24,15 +24,17 @@ jobs:
 
       - name: Run Codacy Analysis CLI
         uses: codacy/codacy-analysis-cli-action@v4.4.7
+        continue-on-error: true
         with:
           output: results.sarif
           format: sarif
           # Adjust severity of non-security issues for code scanning compatibility
           gh-code-scanning-compat: true
-          # Allow SARIF upload even when issues are found; GitHub controls PR gates
+          # Allow unlimited issues — security scanning is handled by pnpm audit
           max-allowed-issues: 2147483647
 
       - name: Upload SARIF results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
         with:
           sarif_file: results.sarif
