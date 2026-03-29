@@ -42,6 +42,14 @@ export interface StoryPointsUserStats {
   storyPoints: number
 }
 
+/** Story points completed per epic per week over the past 12 months. */
+export interface EpicWeeklyHistory {
+  week: string
+  epicCardId: string
+  epicCardName: string
+  storyPoints: number
+}
+
 /** Gamification stats for the current user on a board. */
 export interface GamificationStats {
   /** Story points completed in the current calendar week. */

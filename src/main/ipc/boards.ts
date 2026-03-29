@@ -771,7 +771,7 @@ export function registerBoardHandlers(): void {
 
         log.info(`[boards] createCard listId=${listId} name="${name}"`)
         const client = new TrelloClient(config.apiKey, config.apiToken)
-        const trelloCard = await client.createCard(name, listId, 'bottom')
+        const trelloCard = await client.createCard(listId, name)
 
         insertCard(boardId, trelloCard)
 
@@ -788,7 +788,8 @@ export function registerBoardHandlers(): void {
             members: trelloCard.members ?? [],
             dateLastActivity: trelloCard.dateLastActivity ?? new Date().toISOString(),
             epicCardId: null,
-            epicCardName: null
+            epicCardName: null,
+            enteredAt: null
           }
         }
       } catch (err) {

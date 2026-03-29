@@ -3,7 +3,19 @@ import fs from 'fs'
 import path from 'path'
 import type { BoardConfig, BoardConfigInput, StoryPointRule } from '@shared/board.types'
 import { getDbPath } from '../settings/appSettings'
-import type { TrelloList, TrelloCard, TrelloAction, TrelloMember } from '@shared/trello.types'
+import type {
+  TrelloList,
+  TrelloCard,
+  TrelloAction,
+  TrelloMember,
+  TrelloLabel
+} from '@shared/trello.types'
+import type {
+  TemplateGroup,
+  TicketTemplate,
+  TemplateGroupInput,
+  TicketTemplateInput
+} from '@shared/template.types'
 import { encryptCredential, decryptCredential } from '../crypto'
 
 // ─── SQL imports ───────────────────────────────────────────────────────────────
@@ -40,6 +52,14 @@ import sqlCardListEntriesClearForBoard from './sql/card-list-entries/clear-for-b
 import sqlBoardsSetCardListEntriesInitialized from './sql/boards/set-card-list-entries-initialized.sql?raw'
 import sqlBoardsSetEpicBoard from './sql/boards/set-epic-board.sql?raw'
 import sqlBoardsSetMyMember from './sql/boards/set-my-member.sql?raw'
+import sqlTemplatesGetGroups from './sql/templates/get-groups.sql?raw'
+import sqlTemplatesInsertGroup from './sql/templates/insert-group.sql?raw'
+import sqlTemplatesUpdateGroup from './sql/templates/update-group.sql?raw'
+import sqlTemplatesDeleteGroup from './sql/templates/delete-group.sql?raw'
+import sqlTemplatesGetByGroup from './sql/templates/get-by-group.sql?raw'
+import sqlTemplatesInsert from './sql/templates/insert-template.sql?raw'
+import sqlTemplatesUpdate from './sql/templates/update-template.sql?raw'
+import sqlTemplatesDelete from './sql/templates/delete-template.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -102,6 +122,16 @@ export function getDb(): Database.Database {
   }
   try {
     _db.exec('ALTER TABLE board_configs ADD COLUMN my_member_id TEXT DEFAULT NULL')
+  } catch {
+    // Column already exists — nothing to do.
+  }
+  try {
+    _db.exec("ALTER TABLE ticket_templates ADD COLUMN label_ids TEXT NOT NULL DEFAULT '[]'")
+  } catch {
+    // Column already exists — nothing to do.
+  }
+  try {
+    _db.exec('ALTER TABLE ticket_templates ADD COLUMN epic_card_id TEXT DEFAULT NULL')
   } catch {
     // Column already exists — nothing to do.
   }
@@ -268,8 +298,8 @@ export function upsertCards(boardId: string, cards: TrelloCard[]): void {
         dateLastActivity: c.dateLastActivity,
         pos: c.pos,
         shortUrl: c.shortUrl,
-        labelsJson: JSON.stringify(c.labels),
-        membersJson: JSON.stringify(c.members)
+        labelsJson: JSON.stringify(c.labels ?? []),
+        membersJson: JSON.stringify(c.members ?? [])
       })
     }
   })(cards)
@@ -638,4 +668,148 @@ function rowToBoardConfig(row: Row): BoardConfig {
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   }
+}
+
+// ─── Template Groups ───────────────────────────────────────────────────────────
+
+export function getTemplateGroups(boardId: string): TemplateGroup[] {
+  return (getDb().prepare(sqlTemplatesGetGroups).all({ boardId }) as Row[]).map(rowToTemplateGroup)
+}
+
+export function createTemplateGroup(boardId: string, input: TemplateGroupInput): TemplateGroup {
+  const db = getDb()
+  const result = db.prepare(sqlTemplatesInsertGroup).run({ boardId, name: input.name })
+  const row = db
+    .prepare('SELECT id, board_id, name, created_at, updated_at FROM template_groups WHERE id = ?')
+    .get(result.lastInsertRowid) as Row
+  return rowToTemplateGroup(row)
+}
+
+export function updateTemplateGroup(
+  boardId: string,
+  id: number,
+  input: TemplateGroupInput
+): boolean {
+  const result = getDb().prepare(sqlTemplatesUpdateGroup).run({ id, boardId, name: input.name })
+  return result.changes > 0
+}
+
+export function deleteTemplateGroup(boardId: string, id: number): boolean {
+  const result = getDb().prepare(sqlTemplatesDeleteGroup).run({ id, boardId })
+  return result.changes > 0
+}
+
+// ─── Ticket Templates ──────────────────────────────────────────────────────────
+
+export function getTemplatesByGroup(boardId: string, groupId: number): TicketTemplate[] {
+  return (getDb().prepare(sqlTemplatesGetByGroup).all({ boardId, groupId }) as Row[]).map(
+    rowToTicketTemplate
+  )
+}
+
+export function createTicketTemplate(boardId: string, input: TicketTemplateInput): TicketTemplate {
+  const db = getDb()
+  const result = db.prepare(sqlTemplatesInsert).run({
+    boardId,
+    groupId: input.groupId,
+    name: input.name,
+    titleTemplate: input.titleTemplate,
+    descTemplate: input.descTemplate ?? '',
+    listId: input.listId,
+    listName: input.listName,
+    labelIds: JSON.stringify(input.labelIds ?? []),
+    epicCardId: input.epicCardId ?? null,
+    position: input.position ?? 0
+  })
+  const row = db
+    .prepare(
+      `SELECT id, board_id, group_id, name, title_template, desc_template,
+              list_id, list_name, label_ids, epic_card_id, position, created_at, updated_at
+       FROM ticket_templates WHERE id = ?`
+    )
+    .get(result.lastInsertRowid) as Row
+  return rowToTicketTemplate(row)
+}
+
+export function updateTicketTemplate(
+  boardId: string,
+  id: number,
+  input: TicketTemplateInput
+): boolean {
+  const result = getDb()
+    .prepare(sqlTemplatesUpdate)
+    .run({
+      id,
+      boardId,
+      name: input.name,
+      titleTemplate: input.titleTemplate,
+      descTemplate: input.descTemplate ?? '',
+      listId: input.listId,
+      listName: input.listName,
+      labelIds: JSON.stringify(input.labelIds ?? []),
+      epicCardId: input.epicCardId ?? null,
+      position: input.position ?? 0
+    })
+  return result.changes > 0
+}
+
+export function deleteTicketTemplate(boardId: string, id: number): boolean {
+  const result = getDb().prepare(sqlTemplatesDelete).run({ id, boardId })
+  return result.changes > 0
+}
+
+// ─── Template Row Mappers ──────────────────────────────────────────────────────
+
+function rowToTemplateGroup(row: Row): TemplateGroup {
+  return {
+    id: row.id as number,
+    boardId: row.board_id as string,
+    name: row.name as string,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string
+  }
+}
+
+function rowToTicketTemplate(row: Row): TicketTemplate {
+  return {
+    id: row.id as number,
+    boardId: row.board_id as string,
+    groupId: row.group_id as number,
+    name: row.name as string,
+    titleTemplate: row.title_template as string,
+    descTemplate: (row.desc_template as string) ?? '',
+    listId: row.list_id as string,
+    listName: row.list_name as string,
+    labelIds: row.label_ids ? (JSON.parse(row.label_ids as string) as string[]) : [],
+    epicCardId: (row.epic_card_id as string | null) ?? null,
+    position: row.position as number,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string
+  }
+}
+
+/**
+ * Returns distinct Trello labels seen on cards for the given board.
+ * Aggregated from the labels_json column of cached cards — requires at
+ * least one sync to have run.
+ */
+export function getBoardLabels(boardId: string): TrelloLabel[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT labels_json FROM trello_cards
+       WHERE board_id = ? AND labels_json IS NOT NULL AND labels_json != '[]'`
+    )
+    .all(boardId) as { labels_json: string }[]
+  const labelsMap = new Map<string, TrelloLabel>()
+  for (const r of rows) {
+    try {
+      const labels: TrelloLabel[] = JSON.parse(r.labels_json)
+      for (const l of labels) {
+        labelsMap.set(l.id, l)
+      }
+    } catch {
+      // Skip unparseable rows.
+    }
+  }
+  return [...labelsMap.values()]
 }

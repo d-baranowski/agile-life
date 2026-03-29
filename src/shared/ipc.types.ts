@@ -24,6 +24,7 @@ export const IPC_CHANNELS = {
   ANALYTICS_CARD_AGE: 'analytics:cardAge',
   ANALYTICS_WEEKLY_HISTORY: 'analytics:weeklyHistory',
   ANALYTICS_STORY_POINTS_7D: 'analytics:storyPointsWeekly',
+  ANALYTICS_EPIC_WEEKLY_HISTORY: 'analytics:epicWeeklyHistory',
 
   // Ticket numbering
   TICKETS_GET_CONFIG: 'tickets:getConfig',
@@ -31,6 +32,18 @@ export const IPC_CHANNELS = {
   TICKETS_APPLY_NUMBERING: 'tickets:applyNumbering',
   TICKETS_APPLY_SINGLE_CARD: 'tickets:applySingleCard',
   TICKETS_UPDATE_CONFIG: 'tickets:updateConfig',
+
+  // Ticket templates
+  TEMPLATES_GET_GROUPS: 'templates:getGroups',
+  TEMPLATES_CREATE_GROUP: 'templates:createGroup',
+  TEMPLATES_UPDATE_GROUP: 'templates:updateGroup',
+  TEMPLATES_DELETE_GROUP: 'templates:deleteGroup',
+  TEMPLATES_GET: 'templates:get',
+  TEMPLATES_CREATE: 'templates:create',
+  TEMPLATES_UPDATE: 'templates:update',
+  TEMPLATES_DELETE: 'templates:delete',
+  TEMPLATES_GENERATE_CARDS: 'templates:generateCards',
+  TEMPLATES_GET_BOARD_LABELS: 'templates:getBoardLabels',
 
   // App-level settings
   SETTINGS_GET_DB_PATH: 'settings:getDbPath',

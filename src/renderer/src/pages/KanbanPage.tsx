@@ -4,6 +4,7 @@ import type { BoardConfig } from '@shared/board.types'
 import type { EpicCardOption, EpicStory } from '@shared/board.types'
 import type { KanbanColumn, KanbanCard, TrelloMember } from '@shared/trello.types'
 import type { GamificationStats } from '@shared/analytics.types'
+import type { TemplateGroup, TicketTemplate, GenerateCardsResult } from '@shared/template.types'
 import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
@@ -93,6 +94,40 @@ function gamificationBarWidth(points: number, yearlyHighScore: number): string {
     return `${Math.min((points / yearlyHighScore) * 100, 100)}%`
   }
   return points > 0 ? '100%' : '0%'
+}
+
+// ─── Placeholder resolver (mirrors server-side logic for preview) ─────────────
+
+function resolvePlaceholders(template: string, now: Date): string {
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+  const monthPadded = String(month).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const date = `${year}-${monthPadded}-${day}`
+  const startOfYear = new Date(year, 0, 1)
+  const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / 86_400_000)
+  const adjustedDow = (startOfYear.getDay() + 6) % 7
+  const week = String(Math.floor((dayOfYear + adjustedDow) / 7) + 1).padStart(2, '0')
+  const MONTH_NAMES = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
+  ]
+  return template
+    .replace(/\{\{year\}\}/g, String(year))
+    .replace(/\{\{month\}\}/g, monthPadded)
+    .replace(/\{\{month_name\}\}/g, MONTH_NAMES[month - 1])
+    .replace(/\{\{week\}\}/g, week)
+    .replace(/\{\{date\}\}/g, date)
 }
 
 // ─── component ───────────────────────────────────────────────────────────────
@@ -286,6 +321,21 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
   const [showDuplicates, setShowDuplicates] = useState(false)
+  // Each toolbar section (empty-state vs main) has its own meatball state; only one is mounted at a time.
+  const [showEmptyMeatball, setShowEmptyMeatball] = useState(false)
+  const [showMainMeatball, setShowMainMeatball] = useState(false)
+  const emptyMeatballRef = useRef<HTMLDivElement>(null)
+  const mainMeatballRef = useRef<HTMLDivElement>(null)
+
+  // Generate-from-template modal state
+  const [showGenModal, setShowGenModal] = useState(false)
+  const [genGroups, setGenGroups] = useState<TemplateGroup[]>([])
+  const [genGroupId, setGenGroupId] = useState<number | null>(null)
+  const [genTemplates, setGenTemplates] = useState<TicketTemplate[]>([])
+  const [genLoading, setGenLoading] = useState(false)
+  const [genGenerating, setGenGenerating] = useState(false)
+  const [genResult, setGenResult] = useState<GenerateCardsResult | null>(null)
+  const [genError, setGenError] = useState<string | null>(null)
 
   const handleOpenLogs = useCallback(() => {
     api.logs.openFolder()
@@ -299,13 +349,81 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setEpicStoriesCard(null)
         setEpicDropdownCardId(null)
         setAddCardModal((prev) => (prev?.uploading ? prev : null))
+        setShowGenModal(false)
         setBulkEpicDropdownOpen(false)
         setSelectedCardIds(new Set())
+        setShowEmptyMeatball(false)
+        setShowMainMeatball(false)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
+
+  // Close meatball menus when clicking outside
+  useEffect(() => {
+    if (!showEmptyMeatball && !showMainMeatball) return
+    const handleClick = (e: MouseEvent) => {
+      if (emptyMeatballRef.current && !emptyMeatballRef.current.contains(e.target as Node)) {
+        setShowEmptyMeatball(false)
+      }
+      if (mainMeatballRef.current && !mainMeatballRef.current.contains(e.target as Node)) {
+        setShowMainMeatball(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showEmptyMeatball, showMainMeatball])
+
+  // Open the generate-from-template modal and load groups
+  const handleOpenGenModal = useCallback(async () => {
+    setShowGenModal(true)
+    setGenGroupId(null)
+    setGenTemplates([])
+    setGenResult(null)
+    setGenError(null)
+    const result = await api.templates.getGroups(board.boardId)
+    if (result.success && result.data) {
+      setGenGroups(result.data)
+    } else {
+      setGenError(result.error ?? 'Failed to load template groups.')
+    }
+  }, [board.boardId])
+
+  // Load templates for the selected group (for preview)
+  const handleGenGroupChange = useCallback(
+    async (groupId: number) => {
+      setGenGroupId(groupId)
+      setGenResult(null)
+      setGenError(null)
+      setGenLoading(true)
+      const result = await api.templates.getTemplates(board.boardId, groupId)
+      setGenLoading(false)
+      if (result.success && result.data) {
+        setGenTemplates(result.data)
+      } else {
+        setGenError(result.error ?? 'Failed to load templates.')
+      }
+    },
+    [board.boardId]
+  )
+
+  // Generate cards from the selected group
+  const handleGenerateFromModal = useCallback(async () => {
+    if (genGroupId === null) return
+    setGenGenerating(true)
+    setGenResult(null)
+    setGenError(null)
+    const result = await api.templates.generateCards(board.boardId, genGroupId)
+    setGenGenerating(false)
+    if (result.success && result.data) {
+      setGenResult(result.data)
+      // Reload board data so newly created cards appear without a full sync
+      loadBoardData()
+    } else {
+      setGenError(result.error ?? 'Failed to generate cards.')
+    }
+  }, [board.boardId, genGroupId, loadBoardData])
 
   // Open epic stories modal (double-click on epic board card)
   const handleOpenEpicStories = useCallback(async (cardId: string, cardName: string) => {
@@ -713,9 +831,38 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     return (
       <div className={styles.container}>
         <div className={styles.searchBar}>
-          <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
-            🎫 Number Tickets
-          </button>
+          <div ref={emptyMeatballRef} className={styles.meatballWrapper}>
+            <button
+              className={styles.meatballBtn}
+              onClick={() => setShowEmptyMeatball((v) => !v)}
+              title="More options"
+              aria-label="More options"
+            >
+              •••
+            </button>
+            {showEmptyMeatball && (
+              <div className={styles.meatballMenu}>
+                <button
+                  className={styles.meatballItem}
+                  onClick={() => {
+                    setShowTicketsModal(true)
+                    setShowEmptyMeatball(false)
+                  }}
+                >
+                  🎫 Number Tickets
+                </button>
+                <button
+                  className={styles.meatballItem}
+                  onClick={() => {
+                    handleOpenGenModal()
+                    setShowEmptyMeatball(false)
+                  }}
+                >
+                  📋 Generate from Template
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <div className={styles.emptyState}>
           <p>No data yet.</p>
@@ -778,16 +925,47 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             ))}
           </select>
         )}
-        <button
-          className={`${styles.duplicatesBtn} ${showDuplicates ? styles.duplicatesBtnActive : ''}`}
-          onClick={() => setShowDuplicates((v) => !v)}
-          title={showDuplicates ? 'Show all cards' : 'Show only cards with duplicate titles'}
-        >
-          ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
-        </button>
-        <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
-          🎫 Number Tickets
-        </button>
+        <div ref={mainMeatballRef} className={styles.meatballWrapper}>
+          <button
+            className={`${styles.meatballBtn} ${showDuplicates ? styles.meatballBtnActive : ''}`}
+            onClick={() => setShowMainMeatball((v) => !v)}
+            title="More options"
+            aria-label="More options"
+          >
+            •••
+          </button>
+          {showMainMeatball && (
+            <div className={styles.meatballMenu}>
+              <button
+                className={`${styles.meatballItem} ${showDuplicates ? styles.meatballItemActive : ''}`}
+                onClick={() => {
+                  setShowDuplicates((v) => !v)
+                  setShowMainMeatball(false)
+                }}
+              >
+                ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
+              </button>
+              <button
+                className={styles.meatballItem}
+                onClick={() => {
+                  setShowTicketsModal(true)
+                  setShowMainMeatball(false)
+                }}
+              >
+                🎫 Number Tickets
+              </button>
+              <button
+                className={styles.meatballItem}
+                onClick={() => {
+                  handleOpenGenModal()
+                  setShowMainMeatball(false)
+                }}
+              >
+                📋 Generate from Template
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Gamification bar ── */}
@@ -1058,6 +1236,126 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Generate from Template Modal ── */}
+      {showGenModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowGenModal(false)}>
+          <div className={styles.genModal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.genModalHeader}>
+              <h2 className={styles.genModalTitle}>📋 Generate from Template</h2>
+              <button
+                className={styles.modalClose}
+                onClick={() => setShowGenModal(false)}
+                title="Close (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className={styles.genModalBody}>
+              {genGroups.length === 0 ? (
+                <p className={styles.genEmptyState}>
+                  No template groups found for this board. Create groups in the Templates tab first.
+                </p>
+              ) : (
+                <>
+                  <div className={styles.genGroupRow}>
+                    <label className={styles.genLabel}>Template group</label>
+                    <select
+                      className={styles.genSelect}
+                      value={genGroupId ?? ''}
+                      onChange={(e) => handleGenGroupChange(Number(e.target.value))}
+                    >
+                      <option value="">— Select a group —</option>
+                      {genGroups.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {genGroupId !== null && (
+                    <div className={styles.genPreview}>
+                      <div className={styles.genPreviewTitle}>Preview</div>
+                      {genLoading ? (
+                        <div className={styles.genPreviewLoading}>
+                          <div
+                            className="spinner"
+                            style={{ width: 14, height: 14, borderWidth: 2 }}
+                          />
+                          <span>Loading…</span>
+                        </div>
+                      ) : genTemplates.length === 0 ? (
+                        <p className={styles.genEmptyState}>
+                          This group has no templates. Add templates in the Templates tab.
+                        </p>
+                      ) : (
+                        <ul className={styles.genPreviewList}>
+                          {genTemplates.map((t) => (
+                            <li key={t.id} className={styles.genPreviewItem}>
+                              <span className={styles.genPreviewCardTitle}>
+                                {resolvePlaceholders(t.titleTemplate, new Date())}
+                              </span>
+                              <span className={styles.genPreviewMeta}>→ {t.listName}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {genResult && (
+                    <div
+                      className={`${styles.genResultBanner} ${genResult.failed === 0 ? styles.genResultSuccess : styles.genResultError}`}
+                    >
+                      {genResult.created} card{genResult.created !== 1 ? 's' : ''} created
+                      {genResult.failed > 0 && `, ${genResult.failed} failed`}.
+                      {genResult.errors.length > 0 && (
+                        <ul className={styles.genResultErrors}>
+                          {genResult.errors.map((e, i) => (
+                            <li key={i}>{e}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {genError && (
+                    <div className={`${styles.genResultBanner} ${styles.genResultError}`}>
+                      {genError}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className={styles.genModalFooter}>
+              <button className="btn-secondary" onClick={() => setShowGenModal(false)}>
+                Close
+              </button>
+              {genGroups.length > 0 && (
+                <button
+                  className="btn-primary"
+                  onClick={handleGenerateFromModal}
+                  disabled={
+                    genGroupId === null || genTemplates.length === 0 || genLoading || genGenerating
+                  }
+                >
+                  {genGenerating ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />
+                      Generating…
+                    </span>
+                  ) : (
+                    '▶ Generate cards'
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1375,14 +1673,19 @@ function DraggableCard({
           <div className={styles.cardFooter}>
             {card.labels.length > 0 && (
               <div className={styles.labels}>
-                {card.labels.map((label) => (
-                  <span
-                    key={label.id}
-                    className={styles.label}
-                    style={{ background: labelColor(label.color) }}
-                    title={label.name || label.color}
-                  />
-                ))}
+                {card.labels.map((label) => {
+                  const bg = labelColor(label.color)
+                  return (
+                    <span
+                      key={label.id}
+                      className={styles.label}
+                      style={{ background: bg, color: labelTextColor(bg) }}
+                      title={label.name || label.color}
+                    >
+                      {label.name || label.color}
+                    </span>
+                  )
+                })}
               </div>
             )}
 
@@ -1445,6 +1748,24 @@ const LABEL_COLORS: Record<string, string> = {
 
 function labelColor(color: string): string {
   return LABEL_COLORS[color] ?? '#8892a4'
+}
+
+/**
+ * Returns '#fff' or '#222' depending on which gives better contrast against
+ * the given hex background colour (e.g. '#61bd4f').
+ * Uses the WCAG relative-luminance formula.
+ */
+function labelTextColor(hex: string): string {
+  // Normalise: strip '#', expand 3-char shorthand to 6-char full form
+  let c = hex.replace('#', '')
+  if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2]
+  if (c.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(c)) return '#fff'
+  const r = parseInt(c.substring(0, 2), 16) / 255
+  const g = parseInt(c.substring(2, 4), 16) / 255
+  const b = parseInt(c.substring(4, 6), 16) / 255
+  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+  return L > 0.179 ? '#222' : '#fff'
 }
 
 // ─── fuzzy matching ───────────────────────────────────────────────────────────

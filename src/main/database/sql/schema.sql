@@ -110,3 +110,38 @@ CREATE TABLE IF NOT EXISTS board_members (
   PRIMARY KEY (id, board_id),
   FOREIGN KEY (board_id) REFERENCES board_configs(board_id) ON DELETE CASCADE
 );
+
+-- Named collections of ticket templates.
+-- A group is the unit of "generate all" — one button press creates one card
+-- per template inside the group.
+CREATE TABLE IF NOT EXISTS template_groups (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id   TEXT    NOT NULL,
+  name       TEXT    NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (board_id) REFERENCES board_configs(board_id) ON DELETE CASCADE
+);
+
+-- Individual card templates belonging to a template group.
+-- title_template and desc_template may contain mustache-style placeholders:
+--   {{week}}, {{year}}, {{month}}, {{month_name}}, {{date}}
+CREATE TABLE IF NOT EXISTS ticket_templates (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id       TEXT    NOT NULL,
+  group_id       INTEGER NOT NULL,
+  name           TEXT    NOT NULL,
+  title_template TEXT    NOT NULL,
+  desc_template  TEXT    NOT NULL DEFAULT '',
+  list_id        TEXT    NOT NULL,
+  list_name      TEXT    NOT NULL DEFAULT '',
+  position       INTEGER NOT NULL DEFAULT 0,
+  created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (board_id)  REFERENCES board_configs(board_id) ON DELETE CASCADE,
+  FOREIGN KEY (group_id)  REFERENCES template_groups(id)     ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_template_groups_board    ON template_groups(board_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_templates_board   ON ticket_templates(board_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_templates_group   ON ticket_templates(group_id);
