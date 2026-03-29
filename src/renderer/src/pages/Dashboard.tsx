@@ -452,6 +452,45 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
             )}
           </section>
 
+          {/* ── Story Points by Epic per Week ── */}
+          {board.epicBoardId && (
+            <section>
+              <div className={styles.chartHeader}>
+                <h2 className={styles.sectionTitle}>Story Points by Epic — Past 12 Months</h2>
+                {allEpicWeeks.length > 0 && (
+                  <div className={styles.chartNav}>
+                    <button
+                      className={styles.chartNavBtn}
+                      onClick={() => setEpicHistoryOffset((o) => Math.min(o + 1, maxEpicOffset))}
+                      disabled={clampedEpicOffset >= maxEpicOffset}
+                      title="View older weeks"
+                    >
+                      ◀
+                    </button>
+                    <span className={styles.chartNavLabel}>{epicPageRangeLabel}</span>
+                    <button
+                      className={styles.chartNavBtn}
+                      onClick={() => setEpicHistoryOffset((o) => Math.max(o - 1, 0))}
+                      disabled={clampedEpicOffset === 0}
+                      title="View newer weeks"
+                    >
+                      ▶
+                    </button>
+                  </div>
+                )}
+              </div>
+              {allEpicWeeks.length === 0 ? (
+                <p className="text-muted">
+                  No epic data yet. Click ↻ Fetch from Trello to import your board data.
+                </p>
+              ) : (
+                <div className={styles.chartWrap}>
+                  <Bar data={epicChartData} options={epicChartOptions} />
+                </div>
+              )}
+            </section>
+          )}
+
           {/* ── Tickets by Label ── */}
           {Object.keys(labelGroups).length > 0 && (
             <section>
