@@ -140,7 +140,7 @@ export default function App(): JSX.Element {
       </header>
 
       {/* ── Main Content ── */}
-      <main className={styles.main}>
+      <main className={`${styles.main}${activeTab === 'kanban' ? ` ${styles.mainKanban}` : ''}`}>
         {showRegistration ? (
           <BoardRegistration
             onBoardAdded={handleBoardAdded}

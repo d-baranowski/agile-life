@@ -24,7 +24,8 @@ import type {
   CardAgeStats,
   WeeklyHistory,
   StoryPointsUserStats,
-  EpicWeeklyHistory
+  EpicWeeklyHistory,
+  GamificationStats
 } from '@shared/analytics.types'
 import type {
   TicketNumberingConfig,
@@ -61,7 +62,9 @@ export const api = {
       invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_EPIC_BOARD, storyBoardId, epicBoardId),
     getLastSelected: () => invoke<string | null>(IPC_CHANNELS.BOARDS_GET_LAST_SELECTED),
     setLastSelected: (boardId: string) =>
-      invoke<void>(IPC_CHANNELS.BOARDS_SET_LAST_SELECTED, boardId)
+      invoke<void>(IPC_CHANNELS.BOARDS_SET_LAST_SELECTED, boardId),
+    setMyMember: (boardId: string, myMemberId: string | null) =>
+      invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_MY_MEMBER, boardId, myMemberId)
   },
 
   trello: {
@@ -142,6 +145,21 @@ export const api = {
       invoke<EpicWeeklyHistory[]>(
         IPC_CHANNELS.ANALYTICS_EPIC_WEEKLY_HISTORY,
         boardId,
+        storyPointsConfig
+      ),
+    /**
+     * Returns gamification stats (current-week SP, prev-week SP, yearly high)
+     * for a specific board member.
+     */
+    gamificationStats: (
+      boardId: string,
+      myMemberId: string,
+      storyPointsConfig: StoryPointRule[] = []
+    ) =>
+      invoke<GamificationStats>(
+        IPC_CHANNELS.ANALYTICS_GAMIFICATION_STATS,
+        boardId,
+        myMemberId,
         storyPointsConfig
       )
   },
