@@ -292,6 +292,8 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
   const [showDuplicates, setShowDuplicates] = useState(false)
+  const [showMeatballMenu, setShowMeatballMenu] = useState(false)
+  const meatballRef = useRef<HTMLDivElement>(null)
 
   // Generate-from-template modal state
   const [showGenModal, setShowGenModal] = useState(false)
@@ -318,11 +320,24 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setShowGenModal(false)
         setBulkEpicDropdownOpen(false)
         setSelectedCardIds(new Set())
+        setShowMeatballMenu(false)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
+
+  // Close meatball menu when clicking outside
+  useEffect(() => {
+    if (!showMeatballMenu) return
+    const handleClick = (e: MouseEvent) => {
+      if (meatballRef.current && !meatballRef.current.contains(e.target as Node)) {
+        setShowMeatballMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showMeatballMenu])
 
   // Open the generate-from-template modal and load groups
   const handleOpenGenModal = useCallback(async () => {
@@ -780,13 +795,37 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     return (
       <div className={styles.container}>
         <div className={styles.searchBar}>
-          <div className={styles.toolbarActions}>
-            <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
-              🎫 Number Tickets
+          <div ref={meatballRef} className={styles.meatballWrapper}>
+            <button
+              className={styles.meatballBtn}
+              onClick={() => setShowMeatballMenu((v) => !v)}
+              title="More options"
+              aria-label="More options"
+            >
+              •••
             </button>
-            <button className={styles.numberTicketsBtn} onClick={handleOpenGenModal}>
-              📋 Generate from Template
-            </button>
+            {showMeatballMenu && (
+              <div className={styles.meatballMenu}>
+                <button
+                  className={styles.meatballItem}
+                  onClick={() => {
+                    setShowTicketsModal(true)
+                    setShowMeatballMenu(false)
+                  }}
+                >
+                  🎫 Number Tickets
+                </button>
+                <button
+                  className={styles.meatballItem}
+                  onClick={() => {
+                    handleOpenGenModal()
+                    setShowMeatballMenu(false)
+                  }}
+                >
+                  📋 Generate from Template
+                </button>
+              </div>
+            )}
           </div>
         </div>
         <div className={styles.emptyState}>
@@ -850,20 +889,46 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             ))}
           </select>
         )}
-        <button
-          className={`${styles.duplicatesBtn} ${showDuplicates ? styles.duplicatesBtnActive : ''}`}
-          onClick={() => setShowDuplicates((v) => !v)}
-          title={showDuplicates ? 'Show all cards' : 'Show only cards with duplicate titles'}
-        >
-          ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
-        </button>
-        <div className={styles.toolbarActions}>
-          <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
-            🎫 Number Tickets
+        <div ref={meatballRef} className={styles.meatballWrapper}>
+          <button
+            className={`${styles.meatballBtn} ${showDuplicates ? styles.meatballBtnActive : ''}`}
+            onClick={() => setShowMeatballMenu((v) => !v)}
+            title="More options"
+            aria-label="More options"
+          >
+            •••
           </button>
-          <button className={styles.numberTicketsBtn} onClick={handleOpenGenModal}>
-            📋 Generate from Template
-          </button>
+          {showMeatballMenu && (
+            <div className={styles.meatballMenu}>
+              <button
+                className={`${styles.meatballItem} ${showDuplicates ? styles.meatballItemActive : ''}`}
+                onClick={() => {
+                  setShowDuplicates((v) => !v)
+                  setShowMeatballMenu(false)
+                }}
+              >
+                ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
+              </button>
+              <button
+                className={styles.meatballItem}
+                onClick={() => {
+                  setShowTicketsModal(true)
+                  setShowMeatballMenu(false)
+                }}
+              >
+                🎫 Number Tickets
+              </button>
+              <button
+                className={styles.meatballItem}
+                onClick={() => {
+                  handleOpenGenModal()
+                  setShowMeatballMenu(false)
+                }}
+              >
+                📋 Generate from Template
+              </button>
+            </div>
+          )}
         </div>
       </div>
       <DragDropContext onDragEnd={handleDragEnd}>
@@ -1506,16 +1571,19 @@ function DraggableCard({
           <div className={styles.cardFooter}>
             {card.labels.length > 0 && (
               <div className={styles.labels}>
-                {card.labels.map((label) => (
-                  <span
-                    key={label.id}
-                    className={styles.label}
-                    style={{ background: labelColor(label.color) }}
-                    title={label.name || label.color}
-                  >
-                    {label.name || label.color}
-                  </span>
-                ))}
+                {card.labels.map((label) => {
+                  const bg = labelColor(label.color)
+                  return (
+                    <span
+                      key={label.id}
+                      className={styles.label}
+                      style={{ background: bg, color: labelTextColor(bg) }}
+                      title={label.name || label.color}
+                    >
+                      {label.name || label.color}
+                    </span>
+                  )
+                })}
               </div>
             )}
 
@@ -1578,6 +1646,21 @@ const LABEL_COLORS: Record<string, string> = {
 
 function labelColor(color: string): string {
   return LABEL_COLORS[color] ?? '#8892a4'
+}
+
+/**
+ * Returns '#fff' or '#222' depending on which gives better contrast against
+ * the given hex background colour (e.g. '#61bd4f').
+ * Uses the WCAG relative-luminance formula.
+ */
+function labelTextColor(hex: string): string {
+  const c = hex.replace('#', '')
+  const r = parseInt(c.substring(0, 2), 16) / 255
+  const g = parseInt(c.substring(2, 4), 16) / 255
+  const b = parseInt(c.substring(4, 6), 16) / 255
+  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+  return L > 0.179 ? '#222' : '#fff'
 }
 
 // ─── fuzzy matching ───────────────────────────────────────────────────────────
