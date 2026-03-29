@@ -2007,17 +2007,17 @@ function DraggableCard({
               {card.name}
             </span>
             <button
-                className={`${styles.cardCheckbox} ${isSelected ? styles.cardCheckboxChecked : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleSelect(card.id)
-                }}
-                title={isSelected ? 'Deselect card' : 'Select card'}
-                aria-label={isSelected ? 'Deselect card' : 'Select card'}
-                aria-pressed={isSelected}
-              >
-                {isSelected ? '✓' : ''}
-              </button>
+              className={`${styles.cardCheckbox} ${isSelected ? styles.cardCheckboxChecked : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleSelect(card.id)
+              }}
+              title={isSelected ? 'Deselect card' : 'Select card'}
+              aria-label={isSelected ? 'Deselect card' : 'Select card'}
+              aria-pressed={isSelected}
+            >
+              {isSelected ? '✓' : ''}
+            </button>
           </div>
 
           {/* Epic label (story board only) */}

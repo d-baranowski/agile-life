@@ -146,18 +146,16 @@ export function registerBoardHandlers(): void {
     }
   )
 
-  ipcMain.handle(
-    async (): Promise<IpcResult<SavedCredentials | null>> => {
-      try {
-        const boards = getAllBoards()
-        if (boards.length === 0) return { success: true, data: null }
-        const { apiKey, apiToken } = boards[0]
-        return { success: true, data: { apiKey, apiToken } }
-      } catch (err) {
-        return { success: false, error: String(err) }
-      }
+  ipcMain.handle(async (): Promise<IpcResult<SavedCredentials | null>> => {
+    try {
+      const boards = getAllBoards()
+      if (boards.length === 0) return { success: true, data: null }
+      const { apiKey, apiToken } = boards[0]
+      return { success: true, data: { apiKey, apiToken } }
+    } catch (err) {
+      return { success: false, error: String(err) }
     }
-  )
+  })
 
   ipcMain.handle(
     IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO,
