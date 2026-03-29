@@ -292,8 +292,11 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
   const [showDuplicates, setShowDuplicates] = useState(false)
-  const [showMeatballMenu, setShowMeatballMenu] = useState(false)
-  const meatballRef = useRef<HTMLDivElement>(null)
+  // Each toolbar section (empty-state vs main) has its own meatball state; only one is mounted at a time.
+  const [showEmptyMeatball, setShowEmptyMeatball] = useState(false)
+  const [showMainMeatball, setShowMainMeatball] = useState(false)
+  const emptyMeatballRef = useRef<HTMLDivElement>(null)
+  const mainMeatballRef = useRef<HTMLDivElement>(null)
 
   // Generate-from-template modal state
   const [showGenModal, setShowGenModal] = useState(false)
@@ -320,24 +323,28 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setShowGenModal(false)
         setBulkEpicDropdownOpen(false)
         setSelectedCardIds(new Set())
-        setShowMeatballMenu(false)
+        setShowEmptyMeatball(false)
+        setShowMainMeatball(false)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
 
-  // Close meatball menu when clicking outside
+  // Close meatball menus when clicking outside
   useEffect(() => {
-    if (!showMeatballMenu) return
+    if (!showEmptyMeatball && !showMainMeatball) return
     const handleClick = (e: MouseEvent) => {
-      if (meatballRef.current && !meatballRef.current.contains(e.target as Node)) {
-        setShowMeatballMenu(false)
+      if (emptyMeatballRef.current && !emptyMeatballRef.current.contains(e.target as Node)) {
+        setShowEmptyMeatball(false)
+      }
+      if (mainMeatballRef.current && !mainMeatballRef.current.contains(e.target as Node)) {
+        setShowMainMeatball(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [showMeatballMenu])
+  }, [showEmptyMeatball, showMainMeatball])
 
   // Open the generate-from-template modal and load groups
   const handleOpenGenModal = useCallback(async () => {
@@ -795,22 +802,22 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     return (
       <div className={styles.container}>
         <div className={styles.searchBar}>
-          <div ref={meatballRef} className={styles.meatballWrapper}>
+          <div ref={emptyMeatballRef} className={styles.meatballWrapper}>
             <button
               className={styles.meatballBtn}
-              onClick={() => setShowMeatballMenu((v) => !v)}
+              onClick={() => setShowEmptyMeatball((v) => !v)}
               title="More options"
               aria-label="More options"
             >
               •••
             </button>
-            {showMeatballMenu && (
+            {showEmptyMeatball && (
               <div className={styles.meatballMenu}>
                 <button
                   className={styles.meatballItem}
                   onClick={() => {
                     setShowTicketsModal(true)
-                    setShowMeatballMenu(false)
+                    setShowEmptyMeatball(false)
                   }}
                 >
                   🎫 Number Tickets
@@ -819,7 +826,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                   className={styles.meatballItem}
                   onClick={() => {
                     handleOpenGenModal()
-                    setShowMeatballMenu(false)
+                    setShowEmptyMeatball(false)
                   }}
                 >
                   📋 Generate from Template
@@ -889,22 +896,22 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             ))}
           </select>
         )}
-        <div ref={meatballRef} className={styles.meatballWrapper}>
+        <div ref={mainMeatballRef} className={styles.meatballWrapper}>
           <button
             className={`${styles.meatballBtn} ${showDuplicates ? styles.meatballBtnActive : ''}`}
-            onClick={() => setShowMeatballMenu((v) => !v)}
+            onClick={() => setShowMainMeatball((v) => !v)}
             title="More options"
             aria-label="More options"
           >
             •••
           </button>
-          {showMeatballMenu && (
+          {showMainMeatball && (
             <div className={styles.meatballMenu}>
               <button
                 className={`${styles.meatballItem} ${showDuplicates ? styles.meatballItemActive : ''}`}
                 onClick={() => {
                   setShowDuplicates((v) => !v)
-                  setShowMeatballMenu(false)
+                  setShowMainMeatball(false)
                 }}
               >
                 ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
@@ -913,7 +920,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 className={styles.meatballItem}
                 onClick={() => {
                   setShowTicketsModal(true)
-                  setShowMeatballMenu(false)
+                  setShowMainMeatball(false)
                 }}
               >
                 🎫 Number Tickets
@@ -922,7 +929,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 className={styles.meatballItem}
                 onClick={() => {
                   handleOpenGenModal()
-                  setShowMeatballMenu(false)
+                  setShowMainMeatball(false)
                 }}
               >
                 📋 Generate from Template
@@ -1654,7 +1661,10 @@ function labelColor(color: string): string {
  * Uses the WCAG relative-luminance formula.
  */
 function labelTextColor(hex: string): string {
-  const c = hex.replace('#', '')
+  // Normalise: strip '#', expand 3-char shorthand to 6-char full form
+  let c = hex.replace('#', '')
+  if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2]
+  if (c.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(c)) return '#fff'
   const r = parseInt(c.substring(0, 2), 16) / 255
   const g = parseInt(c.substring(2, 4), 16) / 255
   const b = parseInt(c.substring(4, 6), 16) / 255
