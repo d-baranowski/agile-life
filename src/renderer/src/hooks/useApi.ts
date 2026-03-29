@@ -90,6 +90,15 @@ export const api = {
         memberId,
         assign
       ),
+    /** Adds or removes a member assignment on multiple cards; returns updated member lists keyed by cardId. */
+    bulkAssignMember: (boardId: string, cardIds: string[], memberId: string, assign: boolean) =>
+      invoke<Record<string, TrelloMember[]>>(
+        IPC_CHANNELS.TRELLO_BULK_ASSIGN_MEMBER,
+        boardId,
+        cardIds,
+        memberId,
+        assign
+      ),
     /** Creates a new card on Trello and in the local cache, returns the new KanbanCard. */
     createCard: (boardId: string, listId: string, name: string) =>
       invoke<KanbanColumn['cards'][number]>(IPC_CHANNELS.TRELLO_CREATE_CARD, boardId, listId, name),

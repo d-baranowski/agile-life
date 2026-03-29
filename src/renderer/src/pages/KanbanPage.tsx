@@ -95,6 +95,12 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
   const contextMenuRef = useRef<HTMLDivElement>(null)
 
+  // ── Bulk selection state ────────────────────────────────────────────────────
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
+  const [isBulkSelecting, setIsBulkSelecting] = useState(false)
+  const [bulkMemberDropdownOpen, setBulkMemberDropdownOpen] = useState(false)
+  const [isBulkAssigning, setIsBulkAssigning] = useState(false)
+
   // Is this board a story board (has a linked epic board)?
   const isStoryBoard = !!board.epicBoardId
   // Is this board acting as an epic board for some other board?
@@ -376,6 +382,57 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     [board.boardId, boardMembers, columns]
   )
 
+  // ── Bulk selection helpers ────────────────────────────────────────────────
+
+  const toggleCardSelection = useCallback((cardId: string) => {
+    setSelectedCardIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(cardId)) {
+        next.delete(cardId)
+      } else {
+        next.add(cardId)
+      }
+      return next
+    })
+  }, [])
+
+  const clearSelection = useCallback(() => {
+    setSelectedCardIds(new Set())
+    setIsBulkSelecting(false)
+    setBulkMemberDropdownOpen(false)
+  }, [])
+
+  const handleBulkAssignMember = useCallback(
+    async (memberId: string, assign: boolean) => {
+      if (selectedCardIds.size === 0) return
+      setBulkMemberDropdownOpen(false)
+      setIsBulkAssigning(true)
+
+      const cardIds = [...selectedCardIds]
+      const result = await api.trello.bulkAssignMember(board.boardId, cardIds, memberId, assign)
+
+      setIsBulkAssigning(false)
+
+      if (result.success && result.data) {
+        const updatedMap = result.data
+        setColumns((prev) =>
+          prev.map((col) => ({
+            ...col,
+            cards: col.cards.map((c) =>
+              updatedMap[c.id] !== undefined ? { ...c, members: updatedMap[c.id] } : c
+            )
+          }))
+        )
+        setToastMessage(
+          `Member ${assign ? 'assigned to' : 'removed from'} ${cardIds.length} card${cardIds.length !== 1 ? 's' : ''}.`
+        )
+      } else {
+        setToastMessage(result.error ?? 'Failed to bulk-assign member. Please try again.')
+      }
+    },
+    [board.boardId, selectedCardIds]
+  )
+
   // ── Add-card modal handlers ───────────────────────────────────────────────
 
   // Open the modal in edit phase for a given column
@@ -633,10 +690,72 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         >
           ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
         </button>
+        <button
+          className={`${styles.selectModeBtn} ${isBulkSelecting ? styles.selectModeBtnActive : ''}`}
+          onClick={() => {
+            if (isBulkSelecting) {
+              clearSelection()
+            } else {
+              setIsBulkSelecting(true)
+            }
+          }}
+          title={isBulkSelecting ? 'Exit selection mode' : 'Select cards for bulk actions'}
+        >
+          ☑ Select
+        </button>
         <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
           🎫 Number Tickets
         </button>
       </div>
+
+      {/* ── Bulk action bar ── */}
+      {isBulkSelecting && (
+        <div className={styles.bulkActionBar}>
+          <span className={styles.bulkSelectionCount}>
+            {selectedCardIds.size} card{selectedCardIds.size !== 1 ? 's' : ''} selected
+          </span>
+          {boardMembers.length > 0 && selectedCardIds.size > 0 && (
+            <div className={styles.bulkMemberDropdownWrapper}>
+              <button
+                className={styles.bulkActionBtn}
+                onClick={() => setBulkMemberDropdownOpen((v) => !v)}
+                disabled={isBulkAssigning}
+              >
+                {isBulkAssigning ? '…' : '👤 Set Member'}
+              </button>
+              {bulkMemberDropdownOpen && (
+                <div className={styles.bulkMemberDropdown}>
+                  <div className={styles.bulkMemberDropdownLabel}>Assign to:</div>
+                  {boardMembers.map((member) => (
+                    <button
+                      key={member.id}
+                      className={styles.bulkMemberDropdownItem}
+                      onClick={() => handleBulkAssignMember(member.id, true)}
+                    >
+                      {member.fullName}
+                    </button>
+                  ))}
+                  <div className={styles.bulkMemberDropdownDivider} />
+                  <div className={styles.bulkMemberDropdownLabel}>Remove from:</div>
+                  {boardMembers.map((member) => (
+                    <button
+                      key={`remove-${member.id}`}
+                      className={styles.bulkMemberDropdownItem}
+                      onClick={() => handleBulkAssignMember(member.id, false)}
+                    >
+                      {member.fullName}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <button className={styles.bulkClearBtn} onClick={clearSelection}>
+            ✕ Clear
+          </button>
+        </div>
+      )}
+
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className={styles.board}>
           {filteredColumns.map((column) => (
@@ -663,6 +782,9 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                         epicCardOptions={epicCardOptions}
                         epicDropdownCardId={epicDropdownCardId}
                         isDuplicate={duplicateNames.has(card.name.trim().toLowerCase())}
+                        isBulkSelecting={isBulkSelecting}
+                        isSelected={selectedCardIds.has(card.id)}
+                        onToggleSelect={toggleCardSelection}
                         onOpenEpicStories={handleOpenEpicStories}
                         onSetCardEpic={handleSetCardEpic}
                         onToggleEpicDropdown={(cardId) =>
@@ -963,6 +1085,9 @@ interface CardProps {
   epicCardOptions: EpicCardOption[]
   epicDropdownCardId: string | null
   isDuplicate: boolean
+  isBulkSelecting: boolean
+  isSelected: boolean
+  onToggleSelect: (cardId: string) => void
   onOpenEpicStories: (cardId: string, cardName: string) => void
   onSetCardEpic: (cardId: string, epicCardId: string | null) => void
   onToggleEpicDropdown: (cardId: string) => void
@@ -977,6 +1102,9 @@ function DraggableCard({
   epicCardOptions,
   epicDropdownCardId,
   isDuplicate,
+  isBulkSelecting,
+  isSelected,
+  onToggleSelect,
   onOpenEpicStories,
   onSetCardEpic,
   onToggleEpicDropdown,
@@ -998,6 +1126,10 @@ function DraggableCard({
   }, [isDropdownOpen])
 
   const handleClick = () => {
+    if (isBulkSelecting) {
+      onToggleSelect(card.id)
+      return
+    }
     if (!isEpicBoard) return
     const now = Date.now()
     if (now - lastClickRef.current < 350) {
@@ -1014,11 +1146,21 @@ function DraggableCard({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''} ${isDuplicate ? styles.cardDuplicate : ''}`}
+          className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''} ${isDuplicate ? styles.cardDuplicate : ''} ${isSelected ? styles.cardSelected : ''}`}
           onClick={handleClick}
           onContextMenu={onContextMenu}
           title={isEpicBoard ? 'Double-click to see stories in this epic' : undefined}
         >
+          {isBulkSelecting && (
+            <input
+              type="checkbox"
+              className={styles.cardCheckbox}
+              checked={isSelected}
+              onChange={() => onToggleSelect(card.id)}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Select card: ${card.name}`}
+            />
+          )}
           <span className={styles.cardName}>
             {isDuplicate && (
               <span className={styles.duplicateBadge} title="Duplicate title">

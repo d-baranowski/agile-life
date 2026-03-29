@@ -713,6 +713,71 @@ export function registerBoardHandlers(): void {
     }
   )
 
+  // ── Bulk-assign a member to multiple cards ──────────────────────────────────
+  //
+  // Iterates over each cardId and calls addCardMember / removeCardMember on
+  // Trello, then updates the local SQLite cache for each card.  Returns a
+  // map of cardId → updated TrelloMember[] so the renderer can patch state.
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_BULK_ASSIGN_MEMBER,
+    async (
+      _e,
+      boardId: string,
+      cardIds: string[],
+      memberId: string,
+      assign: boolean
+    ): Promise<IpcResult<Record<string, TrelloMember[]>>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) {
+          log.warn(`[boards] bulkAssignMember: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
+
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        const boardMembers = getBoardMembers(boardId)
+        const assignedMember = boardMembers.find((m) => m.id === memberId)
+
+        const result: Record<string, TrelloMember[]> = {}
+
+        for (const cardId of cardIds) {
+          log.info(
+            `[boards] bulkAssignMember cardId=${cardId} memberId=${memberId} assign=${assign}`
+          )
+          if (assign) {
+            await client.addCardMember(cardId, memberId)
+          } else {
+            await client.removeCardMember(cardId, memberId)
+          }
+
+          const membersJson = getCardMembersJson(cardId)
+          if (membersJson === undefined) {
+            log.warn(`[boards] bulkAssignMember: card not found cardId=${cardId}`)
+            continue
+          }
+
+          const currentMembers: TrelloMember[] = JSON.parse(membersJson)
+          let updatedMembers: TrelloMember[]
+          if (assign && assignedMember) {
+            updatedMembers = currentMembers.some((m) => m.id === memberId)
+              ? currentMembers
+              : [...currentMembers, assignedMember]
+          } else {
+            updatedMembers = currentMembers.filter((m) => m.id !== memberId)
+          }
+
+          updateCardMembers(cardId, updatedMembers)
+          result[cardId] = updatedMembers
+        }
+
+        return { success: true, data: result }
+      } catch (err) {
+        log.error(`[boards] bulkAssignMember failed memberId=${memberId}:`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
   // ── Create a new card in a list ─────────────────────────────────────────────
   //
   // Creates the card on Trello, then inserts it into the local SQLite cache.
