@@ -23,7 +23,8 @@ import type {
   LabelUserStats,
   CardAgeStats,
   WeeklyHistory,
-  StoryPointsUserStats
+  StoryPointsUserStats,
+  EpicWeeklyHistory
 } from '@shared/analytics.types'
 import type {
   TicketNumberingConfig,
@@ -124,6 +125,13 @@ export const api = {
     storyPoints7d: (boardId: string, storyPointsConfig: StoryPointRule[] = []) =>
       invoke<StoryPointsUserStats[]>(
         IPC_CHANNELS.ANALYTICS_STORY_POINTS_7D,
+        boardId,
+        storyPointsConfig
+      ),
+    /** Returns story points completed per epic per week for the past 12 months. */
+    epicWeeklyHistory: (boardId: string, storyPointsConfig: StoryPointRule[] = []) =>
+      invoke<EpicWeeklyHistory[]>(
+        IPC_CHANNELS.ANALYTICS_EPIC_WEEKLY_HISTORY,
         boardId,
         storyPointsConfig
       )
