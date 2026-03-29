@@ -126,9 +126,15 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [epicFilter, setEpicFilter] = useState<string>('') // '' = all, '__none__' = no epic, epicCardId = specific epic
+  const [epicColumnFilter, setEpicColumnFilter] = useState<string>('') // '' = all, listId = specific epic column
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
   const contextMenuRef = useRef<HTMLDivElement>(null)
+
+  // Multi-select state (story boards only)
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
+  const [bulkEpicDropdownOpen, setBulkEpicDropdownOpen] = useState(false)
+  const bulkEpicDropdownRef = useRef<HTMLDivElement>(null)
 
   // Is this board a story board (has a linked epic board)?
   const isStoryBoard = !!board.epicBoardId
@@ -173,12 +179,14 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   useEffect(() => {
     setLoading(true)
     setError(null)
+    setSelectedCardIds(new Set())
     loadBoardData()
   }, [loadBoardData])
 
   // Load epic card options when this is a story board
   useEffect(() => {
     setEpicFilter('')
+    setEpicColumnFilter('')
     if (!isStoryBoard) return
     api.epics.getCards(board.boardId).then((result) => {
       if (result.success && result.data) setEpicCardOptions(result.data)
@@ -308,6 +316,8 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setEpicDropdownCardId(null)
         setAddCardModal((prev) => (prev?.uploading ? prev : null))
         setShowGenModal(false)
+        setBulkEpicDropdownOpen(false)
+        setSelectedCardIds(new Set())
       }
     }
     window.addEventListener('keydown', handleKey)
@@ -396,6 +406,58 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     },
     [board.boardId, epicCardOptions]
   )
+
+  // Toggle selection of a single card
+  const handleToggleSelectCard = useCallback((cardId: string) => {
+    setSelectedCardIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(cardId)) {
+        next.delete(cardId)
+      } else {
+        next.add(cardId)
+      }
+      return next
+    })
+  }, [])
+
+  // Assign or clear an epic for all currently selected cards
+  const handleBulkSetEpic = useCallback(
+    async (epicCardId: string | null) => {
+      setBulkEpicDropdownOpen(false)
+      const cardIds = Array.from(selectedCardIds)
+      const epicName = epicCardId
+        ? (epicCardOptions.find((o) => o.id === epicCardId)?.name ?? null)
+        : null
+      // Optimistic update
+      setColumns((prev) =>
+        prev.map((col) => ({
+          ...col,
+          cards: col.cards.map((c) =>
+            selectedCardIds.has(c.id) ? { ...c, epicCardId, epicCardName: epicName } : c
+          )
+        }))
+      )
+      setSelectedCardIds(new Set())
+      const result = await api.epics.setBulkCardEpic(board.boardId, cardIds, epicCardId)
+      if (!result.success) {
+        loadBoardData()
+        setToastMessage(result.error ?? 'Failed to update epic. Please try again.')
+      }
+    },
+    [board.boardId, selectedCardIds, epicCardOptions, loadBoardData]
+  )
+
+  // Close bulk epic dropdown on outside click
+  useEffect(() => {
+    if (!bulkEpicDropdownOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (bulkEpicDropdownRef.current && !bulkEpicDropdownRef.current.contains(e.target as Node)) {
+        setBulkEpicDropdownOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', handleClick)
+    return () => window.removeEventListener('mousedown', handleClick)
+  }, [bulkEpicDropdownOpen])
 
   // Close context menu on Escape or click outside
   useEffect(() => {
@@ -627,21 +689,60 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     return result
   }, [columns])
 
-  const filteredColumns =
-    searchQuery.trim() || epicFilter || showDuplicates
-      ? columns.map((col) => ({
-          ...col,
-          cards: col.cards.filter((card) => {
-            if (searchQuery.trim() && !fuzzyMatch(searchQuery, `${card.name} ${card.desc}`))
-              return false
-            if (epicFilter === '__none__' && card.epicCardId) return false
-            if (epicFilter && epicFilter !== '__none__' && card.epicCardId !== epicFilter)
-              return false
-            if (showDuplicates && !duplicateNames.has(card.name.trim().toLowerCase())) return false
-            return true
-          })
-        }))
-      : columns
+  // Derive unique epic columns from the loaded epic card options (for the column filter dropdown)
+  const epicColumns = useMemo(
+    () =>
+      epicCardOptions.reduce<{ listId: string; listName: string }[]>((acc, opt) => {
+        if (!acc.some((c) => c.listId === opt.listId)) {
+          acc.push({ listId: opt.listId, listName: opt.listName })
+        }
+        return acc
+      }, []),
+    [epicCardOptions]
+  )
+
+  // Build a set of epic card IDs that belong to the selected epic column (for efficient lookup)
+  const epicCardIdsInColumn = useMemo(
+    () =>
+      epicColumnFilter
+        ? new Set(
+            epicCardOptions.filter((opt) => opt.listId === epicColumnFilter).map((opt) => opt.id)
+          )
+        : null,
+    [epicCardOptions, epicColumnFilter]
+  )
+
+  const filteredColumns = useMemo(
+    () =>
+      searchQuery.trim() || epicFilter || epicColumnFilter || showDuplicates
+        ? columns.map((col) => ({
+            ...col,
+            cards: col.cards.filter((card) => {
+              if (searchQuery.trim() && !fuzzyMatch(searchQuery, `${card.name} ${card.desc}`))
+                return false
+              if (epicFilter === '__none__' && card.epicCardId) return false
+              if (epicFilter && epicFilter !== '__none__' && card.epicCardId !== epicFilter)
+                return false
+              if (epicCardIdsInColumn)
+                return card.epicCardId !== null && epicCardIdsInColumn.has(card.epicCardId)
+              if (showDuplicates && !duplicateNames.has(card.name.trim().toLowerCase()))
+                return false
+              return true
+            })
+          }))
+        : columns,
+    [
+      columns,
+      searchQuery,
+      epicFilter,
+      epicColumnFilter,
+      epicCardIdsInColumn,
+      showDuplicates,
+      duplicateNames
+    ]
+  )
+
+  const selectedCardCount = useMemo(() => selectedCardIds.size, [selectedCardIds])
 
   if (loading) {
     return (
@@ -714,7 +815,10 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           <select
             className={styles.epicFilterSelect}
             value={epicFilter}
-            onChange={(e) => setEpicFilter(e.target.value)}
+            onChange={(e) => {
+              setEpicFilter(e.target.value)
+              setEpicColumnFilter('')
+            }}
             title="Filter by epic"
             aria-label="Filter cards by epic"
           >
@@ -723,6 +827,25 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             {epicCardOptions.map((opt) => (
               <option key={opt.id} value={opt.id}>
                 {opt.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {isStoryBoard && epicColumns.length > 0 && (
+          <select
+            className={styles.epicFilterSelect}
+            value={epicColumnFilter}
+            onChange={(e) => {
+              setEpicColumnFilter(e.target.value)
+              setEpicFilter('')
+            }}
+            title="Filter by epic column"
+            aria-label="Filter cards by epic column"
+          >
+            <option value="">📋 All epic columns</option>
+            {epicColumns.map((col) => (
+              <option key={col.listId} value={col.listId}>
+                {col.listName}
               </option>
             ))}
           </select>
@@ -769,6 +892,8 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                         epicCardOptions={epicCardOptions}
                         epicDropdownCardId={epicDropdownCardId}
                         isDuplicate={duplicateNames.has(card.name.trim().toLowerCase())}
+                        isSelected={selectedCardIds.has(card.id)}
+                        onToggleSelect={handleToggleSelectCard}
                         onOpenEpicStories={handleOpenEpicStories}
                         onSetCardEpic={handleSetCardEpic}
                         onToggleEpicDropdown={(cardId) =>
@@ -796,6 +921,52 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           ))}
         </div>
       </DragDropContext>
+
+      {/* ── Bulk action bar (shown when ≥1 card is selected on a story board) ── */}
+      {isStoryBoard && selectedCardCount > 0 && (
+        <div className={styles.bulkActionBar}>
+          <span className={styles.bulkActionCount}>
+            {selectedCardCount} card{selectedCardCount !== 1 ? 's' : ''} selected
+          </span>
+          <div className={styles.bulkActionControls}>
+            <div ref={bulkEpicDropdownRef} className={styles.bulkEpicWrapper}>
+              <button
+                className={styles.bulkEpicBtn}
+                onClick={() => setBulkEpicDropdownOpen((prev) => !prev)}
+              >
+                ⚡ Set Epic
+              </button>
+              {bulkEpicDropdownOpen && (
+                <div className={styles.bulkEpicDropdown}>
+                  <button
+                    className={styles.bulkEpicDropdownItem}
+                    onClick={() => handleBulkSetEpic(null)}
+                  >
+                    — None
+                  </button>
+                  {epicCardOptions.map((opt) => (
+                    <button
+                      key={opt.id}
+                      className={styles.bulkEpicDropdownItem}
+                      onClick={() => handleBulkSetEpic(opt.id)}
+                    >
+                      <span className={styles.epicDropdownName}>{opt.name}</span>
+                      <span className={styles.epicDropdownList}>{opt.listName}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              className={styles.bulkClearBtn}
+              onClick={() => setSelectedCardIds(new Set())}
+              title="Clear selection (Esc)"
+            >
+              ✕ Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       {contextMenu && (
         <div
@@ -1189,6 +1360,8 @@ interface CardProps {
   epicCardOptions: EpicCardOption[]
   epicDropdownCardId: string | null
   isDuplicate: boolean
+  isSelected: boolean
+  onToggleSelect: (cardId: string) => void
   onOpenEpicStories: (cardId: string, cardName: string) => void
   onSetCardEpic: (cardId: string, epicCardId: string | null) => void
   onToggleEpicDropdown: (cardId: string) => void
@@ -1203,6 +1376,8 @@ function DraggableCard({
   epicCardOptions,
   epicDropdownCardId,
   isDuplicate,
+  isSelected,
+  onToggleSelect,
   onOpenEpicStories,
   onSetCardEpic,
   onToggleEpicDropdown,
@@ -1240,19 +1415,35 @@ function DraggableCard({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''} ${isDuplicate ? styles.cardDuplicate : ''}`}
+          className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''} ${isDuplicate ? styles.cardDuplicate : ''} ${isSelected ? styles.cardSelected : ''}`}
           onClick={handleClick}
           onContextMenu={onContextMenu}
           title={isEpicBoard ? 'Double-click to see stories in this epic' : undefined}
         >
-          <span className={styles.cardName}>
-            {isDuplicate && (
-              <span className={styles.duplicateBadge} title="Duplicate title">
-                ⊖
-              </span>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardName}>
+              {isDuplicate && (
+                <span className={styles.duplicateBadge} title="Duplicate title">
+                  ⊖
+                </span>
+              )}
+              {card.name}
+            </span>
+            {isStoryBoard && (
+              <button
+                className={`${styles.cardCheckbox} ${isSelected ? styles.cardCheckboxChecked : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleSelect(card.id)
+                }}
+                title={isSelected ? 'Deselect card' : 'Select card'}
+                aria-label={isSelected ? 'Deselect card' : 'Select card'}
+                aria-pressed={isSelected}
+              >
+                {isSelected ? '✓' : ''}
+              </button>
             )}
-            {card.name}
-          </span>
+          </div>
 
           {/* Epic label (story board only) */}
           {isStoryBoard && (

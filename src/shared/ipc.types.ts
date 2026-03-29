@@ -66,6 +66,7 @@ export const IPC_CHANNELS = {
   BOARDS_SET_EPIC_BOARD: 'boards:setEpicBoard',
   EPICS_GET_CARDS: 'epics:getCards',
   EPICS_SET_CARD_EPIC: 'epics:setCardEpic',
+  EPICS_SET_BULK_CARD_EPIC: 'epics:setBulkCardEpic',
   EPICS_GET_STORIES: 'epics:getStories'
 } as const
 

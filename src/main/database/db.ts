@@ -332,6 +332,7 @@ interface CardRow {
 interface EpicCardRow {
   id: string
   name: string
+  list_id: string
   list_name: string
 }
 
@@ -369,6 +370,19 @@ export function updateCardPos(cardId: string, pos: number): void {
 /** Set the epic card reference on a story card (null clears it). */
 export function setCardEpic(cardId: string, epicCardId: string | null): void {
   getDb().prepare(sqlCardsSetEpic).run({ cardId, epicCardId })
+}
+
+/** Set the epic card reference on multiple story cards in a single transaction. */
+export function setBulkCardEpic(cardIds: string[], epicCardId: string | null): void {
+  const db = getDb()
+  const stmt = db.prepare(sqlCardsSetEpic)
+  // db.transaction() returns a function; calling it with cardIds runs all
+  // stmt.run() calls atomically inside a single SQLite transaction.
+  db.transaction((ids: string[]) => {
+    for (const cardId of ids) {
+      stmt.run({ cardId, epicCardId })
+    }
+  })(cardIds)
 }
 
 /** Returns open cards from the epic board linked to the given story board. */
