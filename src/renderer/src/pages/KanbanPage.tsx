@@ -68,18 +68,18 @@ function cardStoryPoints(card: KanbanCard, config: StoryPointRule[]): number {
 function triggerDoneEffect(points: number, origin?: { x: number; y: number }): void {
   const particleCount = Math.min(points * 20, 150)
   const label = `+${points}`
-  const textShape = confetti.shapeFromText({ text: label, scalar: 0.6, color: '#FFD700' })
+  const textShape = confetti.shapeFromText({ text: label, scalar: 0.85, color: '#FFD700' })
 
   confetti({
     particleCount,
     spread: 60,
     origin: origin ?? { x: 0.5, y: 0.55 },
     shapes: [textShape],
-    scalar: 0.6,
+    scalar: 0.85,
     ticks: 120,
     gravity: 2,
     startVelocity: 30,
-    drift: 0.1
+    drift: 0.02
   })
   playCoinSound()
 }
