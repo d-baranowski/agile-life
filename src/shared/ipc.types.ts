@@ -5,6 +5,7 @@ export const IPC_CHANNELS = {
   BOARDS_UPDATE: 'boards:update',
   BOARDS_DELETE: 'boards:delete',
   BOARDS_FETCH_FROM_TRELLO: 'boards:fetchFromTrello',
+  BOARDS_GET_SAVED_CREDENTIALS: 'boards:getSavedCredentials',
 
   // Trello data
   TRELLO_GET_LISTS: 'trello:getLists',
@@ -31,6 +32,18 @@ export const IPC_CHANNELS = {
   TICKETS_APPLY_SINGLE_CARD: 'tickets:applySingleCard',
   TICKETS_UPDATE_CONFIG: 'tickets:updateConfig',
 
+  // Ticket templates
+  TEMPLATES_GET_GROUPS: 'templates:getGroups',
+  TEMPLATES_CREATE_GROUP: 'templates:createGroup',
+  TEMPLATES_UPDATE_GROUP: 'templates:updateGroup',
+  TEMPLATES_DELETE_GROUP: 'templates:deleteGroup',
+  TEMPLATES_GET: 'templates:get',
+  TEMPLATES_CREATE: 'templates:create',
+  TEMPLATES_UPDATE: 'templates:update',
+  TEMPLATES_DELETE: 'templates:delete',
+  TEMPLATES_GENERATE_CARDS: 'templates:generateCards',
+  TEMPLATES_GET_BOARD_LABELS: 'templates:getBoardLabels',
+
   // App-level settings
   SETTINGS_GET_DB_PATH: 'settings:getDbPath',
   SETTINGS_SET_DB_PATH: 'settings:setDbPath',
@@ -48,13 +61,12 @@ export const IPC_CHANNELS = {
   TRELLO_GET_BOARD_MEMBERS: 'trello:getBoardMembers',
   TRELLO_ASSIGN_CARD_MEMBER: 'trello:assignCardMember',
   TRELLO_CREATE_CARD: 'trello:createCard',
-  TRELLO_GET_BOARD_LABELS: 'trello:getBoardLabels',
-  TRELLO_ASSIGN_CARD_LABEL: 'trello:assignCardLabel',
 
   // Epic / Story board linking
   BOARDS_SET_EPIC_BOARD: 'boards:setEpicBoard',
   EPICS_GET_CARDS: 'epics:getCards',
   EPICS_SET_CARD_EPIC: 'epics:setCardEpic',
+  EPICS_SET_BULK_CARD_EPIC: 'epics:setBulkCardEpic',
   EPICS_GET_STORIES: 'epics:getStories'
 } as const
 

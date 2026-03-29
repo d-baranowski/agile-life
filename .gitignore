@@ -14,3 +14,8 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 package-lock.json
+
+# TypeScript compiler emit (use `tsc --noEmit` for type-checking; bundling is done by electron-vite)
+src/**/*.js
+src/**/*.jsx
+electron.vite.config.js

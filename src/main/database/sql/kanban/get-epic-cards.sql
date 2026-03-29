@@ -1,6 +1,6 @@
 -- Returns all open cards from the epic board linked to the given story board.
 -- Used to populate the epic assignment dropdown in the story kanban view.
-SELECT c.id, c.name, l.name AS list_name
+SELECT c.id, c.name, c.list_id, l.name AS list_name
 FROM trello_cards c
 JOIN trello_lists l ON l.id = c.list_id
 WHERE c.board_id = (

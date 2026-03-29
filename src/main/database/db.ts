@@ -10,6 +10,13 @@ import type {
   TrelloMember,
   TrelloLabel
 } from '@shared/trello.types'
+import type {
+  TemplateGroup,
+  TicketTemplate,
+  TemplateGroupInput,
+  TicketTemplateInput
+} from '@shared/template.types'
+import { encryptCredential, decryptCredential } from '../crypto'
 
 // ─── SQL imports ───────────────────────────────────────────────────────────────
 import schemaSql from './sql/schema.sql?raw'
@@ -44,6 +51,14 @@ import sqlCardListEntriesSetFallback from './sql/card-list-entries/set-fallback.
 import sqlCardListEntriesClearForBoard from './sql/card-list-entries/clear-for-board.sql?raw'
 import sqlBoardsSetCardListEntriesInitialized from './sql/boards/set-card-list-entries-initialized.sql?raw'
 import sqlBoardsSetEpicBoard from './sql/boards/set-epic-board.sql?raw'
+import sqlTemplatesGetGroups from './sql/templates/get-groups.sql?raw'
+import sqlTemplatesInsertGroup from './sql/templates/insert-group.sql?raw'
+import sqlTemplatesUpdateGroup from './sql/templates/update-group.sql?raw'
+import sqlTemplatesDeleteGroup from './sql/templates/delete-group.sql?raw'
+import sqlTemplatesGetByGroup from './sql/templates/get-by-group.sql?raw'
+import sqlTemplatesInsert from './sql/templates/insert-template.sql?raw'
+import sqlTemplatesUpdate from './sql/templates/update-template.sql?raw'
+import sqlTemplatesDelete from './sql/templates/delete-template.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -104,6 +119,16 @@ export function getDb(): Database.Database {
   } catch {
     // Column already exists — nothing to do.
   }
+  try {
+    _db.exec("ALTER TABLE ticket_templates ADD COLUMN label_ids TEXT NOT NULL DEFAULT '[]'")
+  } catch {
+    // Column already exists — nothing to do.
+  }
+  try {
+    _db.exec('ALTER TABLE ticket_templates ADD COLUMN epic_card_id TEXT DEFAULT NULL')
+  } catch {
+    // Column already exists — nothing to do.
+  }
 
   // Ensure board_members table exists for existing databases that pre-date the
   // schema addition.  CREATE TABLE IF NOT EXISTS is idempotent and safe.
@@ -117,6 +142,28 @@ export function getDb(): Database.Database {
       FOREIGN KEY (board_id) REFERENCES board_configs(board_id) ON DELETE CASCADE
     )
   `)
+
+  // ── Encrypt any pre-existing plaintext credentials ─────────────────────────
+  // Boards added before this migration store api_key / api_token as plaintext.
+  // Detect them by the absence of the "enc:" prefix and re-write them using
+  // encryptCredential so that all stored values are consistently encrypted.
+  const plainBoards = _db
+    .prepare(
+      "SELECT board_id, api_key, api_token FROM board_configs WHERE api_key NOT LIKE 'enc:%' OR api_token NOT LIKE 'enc:%'"
+    )
+    .all() as Array<{ board_id: string; api_key: string; api_token: string }>
+  const encStmt = _db.prepare(
+    'UPDATE board_configs SET api_key = ?, api_token = ? WHERE board_id = ?'
+  )
+  for (const board of plainBoards) {
+    // decryptCredential is a no-op for plaintext values, so this is safe even
+    // if one credential is already encrypted and the other is not.
+    encStmt.run(
+      encryptCredential(decryptCredential(board.api_key)),
+      encryptCredential(decryptCredential(board.api_token)),
+      board.board_id
+    )
+  }
 
   return _db
 }
@@ -137,8 +184,8 @@ export function addBoard(input: BoardConfigInput): BoardConfig {
   const result = db.prepare(sqlBoardsInsert).run({
     boardId: input.boardId,
     boardName: input.boardName,
-    apiKey: input.apiKey,
-    apiToken: input.apiToken,
+    apiKey: encryptCredential(input.apiKey),
+    apiToken: encryptCredential(input.apiToken),
     projectCode: input.projectCode.toUpperCase(),
     nextTicketNumber: input.nextTicketNumber,
     doneListNames: JSON.stringify(input.doneListNames)
@@ -156,8 +203,8 @@ export function updateBoard(boardId: string, updates: Partial<BoardConfigInput>)
     .run({
       boardId,
       boardName: updates.boardName ?? existing.boardName,
-      apiKey: updates.apiKey ?? existing.apiKey,
-      apiToken: updates.apiToken ?? existing.apiToken,
+      apiKey: encryptCredential(updates.apiKey ?? existing.apiKey),
+      apiToken: encryptCredential(updates.apiToken ?? existing.apiToken),
       projectCode: (updates.projectCode ?? existing.projectCode).toUpperCase(),
       nextTicketNumber: updates.nextTicketNumber ?? existing.nextTicketNumber,
       doneListNames: JSON.stringify(updates.doneListNames ?? existing.doneListNames),
@@ -235,8 +282,8 @@ export function upsertCards(boardId: string, cards: TrelloCard[]): void {
         dateLastActivity: c.dateLastActivity,
         pos: c.pos,
         shortUrl: c.shortUrl,
-        labelsJson: JSON.stringify(c.labels),
-        membersJson: JSON.stringify(c.members)
+        labelsJson: JSON.stringify(c.labels ?? []),
+        membersJson: JSON.stringify(c.members ?? [])
       })
     }
   })(cards)
@@ -285,6 +332,7 @@ interface CardRow {
 interface EpicCardRow {
   id: string
   name: string
+  list_id: string
   list_name: string
 }
 
@@ -322,6 +370,19 @@ export function updateCardPos(cardId: string, pos: number): void {
 /** Set the epic card reference on a story card (null clears it). */
 export function setCardEpic(cardId: string, epicCardId: string | null): void {
   getDb().prepare(sqlCardsSetEpic).run({ cardId, epicCardId })
+}
+
+/** Set the epic card reference on multiple story cards in a single transaction. */
+export function setBulkCardEpic(cardIds: string[], epicCardId: string | null): void {
+  const db = getDb()
+  const stmt = db.prepare(sqlCardsSetEpic)
+  // db.transaction() returns a function; calling it with cardIds runs all
+  // stmt.run() calls atomically inside a single SQLite transaction.
+  db.transaction((ids: string[]) => {
+    for (const cardId of ids) {
+      stmt.run({ cardId, epicCardId })
+    }
+  })(cardIds)
 }
 
 /** Returns open cards from the epic board linked to the given story board. */
@@ -363,47 +424,6 @@ export function updateCardMembers(cardId: string, members: TrelloMember[]): void
   getDb()
     .prepare(sqlCardsUpdateMembers)
     .run({ cardId, membersJson: JSON.stringify(members) })
-}
-
-/** Update the labels_json for a card after a label assignment change. */
-export function updateCardLabels(cardId: string, labels: TrelloLabel[]): void {
-  getDb()
-    .prepare('UPDATE trello_cards SET labels_json = @labelsJson WHERE id = @cardId')
-    .run({ cardId, labelsJson: JSON.stringify(labels) })
-}
-
-/** Returns the labels_json string for a card, or undefined if not found. */
-export function getCardLabelsJson(cardId: string): string | undefined {
-  const row = getDb().prepare('SELECT labels_json FROM trello_cards WHERE id = ?').get(cardId) as
-    | { labels_json: string }
-    | undefined
-  return row?.labels_json
-}
-
-/**
- * Returns all distinct labels used on open cards for a board,
- * aggregated from the local labels_json cache.
- */
-export function getBoardLabels(boardId: string): TrelloLabel[] {
-  const rows = getDb()
-    .prepare(
-      `SELECT DISTINCT labels_json FROM trello_cards
-       WHERE board_id = ? AND closed = 0 AND labels_json != '[]'`
-    )
-    .all(boardId) as { labels_json: string }[]
-
-  const seen = new Set<string>()
-  const labels: TrelloLabel[] = []
-  for (const row of rows) {
-    const parsed: TrelloLabel[] = JSON.parse(row.labels_json)
-    for (const label of parsed) {
-      if (!seen.has(label.id)) {
-        seen.add(label.id)
-        labels.push(label)
-      }
-    }
-  }
-  return labels
 }
 
 // ─── Board Members ─────────────────────────────────────────────────────────────
@@ -618,8 +638,8 @@ function rowToBoardConfig(row: Row): BoardConfig {
     id: row.id as number,
     boardId: row.board_id as string,
     boardName: row.board_name as string,
-    apiKey: row.api_key as string,
-    apiToken: row.api_token as string,
+    apiKey: decryptCredential(row.api_key as string),
+    apiToken: decryptCredential(row.api_token as string),
     projectCode: row.project_code as string,
     nextTicketNumber: row.next_ticket_number as number,
     doneListNames: JSON.parse(row.done_list_names as string),
@@ -631,4 +651,148 @@ function rowToBoardConfig(row: Row): BoardConfig {
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
   }
+}
+
+// ─── Template Groups ───────────────────────────────────────────────────────────
+
+export function getTemplateGroups(boardId: string): TemplateGroup[] {
+  return (getDb().prepare(sqlTemplatesGetGroups).all({ boardId }) as Row[]).map(rowToTemplateGroup)
+}
+
+export function createTemplateGroup(boardId: string, input: TemplateGroupInput): TemplateGroup {
+  const db = getDb()
+  const result = db.prepare(sqlTemplatesInsertGroup).run({ boardId, name: input.name })
+  const row = db
+    .prepare('SELECT id, board_id, name, created_at, updated_at FROM template_groups WHERE id = ?')
+    .get(result.lastInsertRowid) as Row
+  return rowToTemplateGroup(row)
+}
+
+export function updateTemplateGroup(
+  boardId: string,
+  id: number,
+  input: TemplateGroupInput
+): boolean {
+  const result = getDb().prepare(sqlTemplatesUpdateGroup).run({ id, boardId, name: input.name })
+  return result.changes > 0
+}
+
+export function deleteTemplateGroup(boardId: string, id: number): boolean {
+  const result = getDb().prepare(sqlTemplatesDeleteGroup).run({ id, boardId })
+  return result.changes > 0
+}
+
+// ─── Ticket Templates ──────────────────────────────────────────────────────────
+
+export function getTemplatesByGroup(boardId: string, groupId: number): TicketTemplate[] {
+  return (getDb().prepare(sqlTemplatesGetByGroup).all({ boardId, groupId }) as Row[]).map(
+    rowToTicketTemplate
+  )
+}
+
+export function createTicketTemplate(boardId: string, input: TicketTemplateInput): TicketTemplate {
+  const db = getDb()
+  const result = db.prepare(sqlTemplatesInsert).run({
+    boardId,
+    groupId: input.groupId,
+    name: input.name,
+    titleTemplate: input.titleTemplate,
+    descTemplate: input.descTemplate ?? '',
+    listId: input.listId,
+    listName: input.listName,
+    labelIds: JSON.stringify(input.labelIds ?? []),
+    epicCardId: input.epicCardId ?? null,
+    position: input.position ?? 0
+  })
+  const row = db
+    .prepare(
+      `SELECT id, board_id, group_id, name, title_template, desc_template,
+              list_id, list_name, label_ids, epic_card_id, position, created_at, updated_at
+       FROM ticket_templates WHERE id = ?`
+    )
+    .get(result.lastInsertRowid) as Row
+  return rowToTicketTemplate(row)
+}
+
+export function updateTicketTemplate(
+  boardId: string,
+  id: number,
+  input: TicketTemplateInput
+): boolean {
+  const result = getDb()
+    .prepare(sqlTemplatesUpdate)
+    .run({
+      id,
+      boardId,
+      name: input.name,
+      titleTemplate: input.titleTemplate,
+      descTemplate: input.descTemplate ?? '',
+      listId: input.listId,
+      listName: input.listName,
+      labelIds: JSON.stringify(input.labelIds ?? []),
+      epicCardId: input.epicCardId ?? null,
+      position: input.position ?? 0
+    })
+  return result.changes > 0
+}
+
+export function deleteTicketTemplate(boardId: string, id: number): boolean {
+  const result = getDb().prepare(sqlTemplatesDelete).run({ id, boardId })
+  return result.changes > 0
+}
+
+// ─── Template Row Mappers ──────────────────────────────────────────────────────
+
+function rowToTemplateGroup(row: Row): TemplateGroup {
+  return {
+    id: row.id as number,
+    boardId: row.board_id as string,
+    name: row.name as string,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string
+  }
+}
+
+function rowToTicketTemplate(row: Row): TicketTemplate {
+  return {
+    id: row.id as number,
+    boardId: row.board_id as string,
+    groupId: row.group_id as number,
+    name: row.name as string,
+    titleTemplate: row.title_template as string,
+    descTemplate: (row.desc_template as string) ?? '',
+    listId: row.list_id as string,
+    listName: row.list_name as string,
+    labelIds: row.label_ids ? (JSON.parse(row.label_ids as string) as string[]) : [],
+    epicCardId: (row.epic_card_id as string | null) ?? null,
+    position: row.position as number,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string
+  }
+}
+
+/**
+ * Returns distinct Trello labels seen on cards for the given board.
+ * Aggregated from the labels_json column of cached cards — requires at
+ * least one sync to have run.
+ */
+export function getBoardLabels(boardId: string): TrelloLabel[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT labels_json FROM trello_cards
+       WHERE board_id = ? AND labels_json IS NOT NULL AND labels_json != '[]'`
+    )
+    .all(boardId) as { labels_json: string }[]
+  const labelsMap = new Map<string, TrelloLabel>()
+  for (const r of rows) {
+    try {
+      const labels: TrelloLabel[] = JSON.parse(r.labels_json)
+      for (const l of labels) {
+        labelsMap.set(l.id, l)
+      }
+    } catch {
+      // Skip unparseable rows.
+    }
+  }
+  return [...labelsMap.values()]
 }

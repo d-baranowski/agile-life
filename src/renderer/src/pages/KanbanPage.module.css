@@ -13,6 +13,82 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbarActions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  align-items: center;
+}
+
+/* ── Meatball menu ────────────────────────────────────────────────────────── */
+
+.meatballWrapper {
+  position: relative;
+  margin-left: auto;
+}
+
+.meatballBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.78rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+}
+
+.meatballBtn:hover,
+.meatballBtnActive {
+  background: rgba(147, 112, 219, 0.15);
+  border-color: var(--color-accent);
+}
+
+.meatballMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 500;
+  min-width: 210px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.meatballItem {
+  display: block;
+  width: 100%;
+  padding: 9px 14px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.meatballItem:hover {
+  background: rgba(147, 112, 219, 0.12);
+}
+
+.meatballItemActive {
+  color: var(--color-accent);
+  font-weight: 600;
 }
 
 .searchInput {
@@ -158,10 +234,61 @@
   transform: rotate(1.5deg);
 }
 
+.cardSelected {
+  border-color: rgba(147, 112, 219, 0.7);
+  background: rgba(147, 112, 219, 0.07);
+}
+
+/* ── Card header row (name + checkbox) ───────────────────────────────────── */
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
 .cardName {
   font-size: 0.82rem;
   color: var(--color-text);
   line-height: 1.4;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Card selection checkbox ──────────────────────────────────────────────── */
+
+.cardCheckbox {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--transition),
+    background var(--transition),
+    border-color var(--transition);
+  padding: 0;
+  line-height: 1;
+}
+
+.card:hover .cardCheckbox,
+.cardSelected .cardCheckbox {
+  opacity: 1;
+}
+
+.cardCheckboxChecked {
+  background: rgba(147, 112, 219, 0.85);
+  border-color: rgba(147, 112, 219, 0.9);
+  opacity: 1;
 }
 
 /* ── Card footer (labels + actions row) ───────────────────────────────────── */
@@ -230,10 +357,15 @@
 
 .label {
   display: inline-block;
-  height: 6px;
-  min-width: 36px;
+  padding: 2px 8px;
   border-radius: 3px;
-  opacity: 0.85;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
 }
 
 /* ── Members ──────────────────────────────────────────────────────────────── */
@@ -340,6 +472,53 @@
   background: var(--color-surface-2);
 }
 
+/* ── Duplicates button ────────────────────────────────────────────────────── */
+
+.duplicatesBtn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    color var(--transition);
+  white-space: nowrap;
+}
+
+.duplicatesBtn:hover {
+  border-color: #e8b84b;
+  background: var(--color-surface-2);
+}
+
+.duplicatesBtnActive {
+  border-color: #e8b84b;
+  background: rgba(232, 184, 75, 0.12);
+  color: #e8b84b;
+}
+
+/* ── Duplicate card highlight ─────────────────────────────────────────────── */
+
+.cardDuplicate {
+  border-color: rgba(232, 184, 75, 0.5);
+}
+
+.cardDuplicate:hover {
+  border-color: #e8b84b;
+}
+
+.duplicateBadge {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 0.75rem;
+  color: #e8b84b;
+  flex-shrink: 0;
+}
+
 /* ── Epic board badge on card ────────────────────────────────────────────── */
 
 .epicBoardHint {
@@ -420,6 +599,31 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+}
+
+.epicDropdownSearch {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+  z-index: 1;
+}
+
+.epicDropdownSearchInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  outline: none;
+}
+
+.epicDropdownSearchInput:focus {
+  border-color: var(--color-accent, #9370db);
 }
 
 .epicDropdownItem {
@@ -967,69 +1171,280 @@
   cursor: default;
 }
 
-/* ── Context-menu label dot ──────────────────────────────────────────────── */
+/* ── Generate-from-Template Modal ────────────────────────────────────────── */
 
-.contextMenuLabelDot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+.genModal {
+  position: relative;
+  background: var(--color-bg);
+  width: 100%;
+  max-width: 520px;
+  max-height: 80vh;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  align-self: center;
+}
+
+.genModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: var(--color-surface);
+}
+
+.genModalTitle {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.genModalBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.genModalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: var(--color-surface);
+}
+
+.genGroupRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.genLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.genSelect {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.genSelect:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.genPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.genPreviewTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.genPreviewLoading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.genPreviewList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.genPreviewItem {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+}
+
+.genPreviewCardTitle {
+  font-size: 13px;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.genPreviewMeta {
+  font-size: 11px;
+  color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
-/* ── Bulk label modal ────────────────────────────────────────────────────── */
+.genEmptyState {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin: 0;
+}
 
-.bulkLabelSection {
+.genResultBanner {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.genResultSuccess {
+  background: rgba(39, 174, 96, 0.15);
+  border: 1px solid rgba(39, 174, 96, 0.3);
+  color: #27ae60;
+}
+
+.genResultError {
+  background: rgba(231, 76, 60, 0.15);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  color: var(--color-danger);
+}
+
+.genResultErrors {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+}
+
+/* ── Bulk action bar ──────────────────────────────────────────────────────── */
+
+.bulkActionBar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--color-surface);
+  border: 1px solid rgba(147, 112, 219, 0.5);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+.bulkActionCount {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #9370db;
+}
+
+.bulkActionControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bulkEpicWrapper {
+  position: relative;
+}
+
+.bulkEpicBtn {
+  padding: 5px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(147, 112, 219, 0.5);
+  background: rgba(147, 112, 219, 0.15);
+  color: #9370db;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+}
+
+.bulkEpicBtn:hover {
+  background: rgba(147, 112, 219, 0.28);
+  border-color: rgba(147, 112, 219, 0.8);
+}
+
+.bulkEpicDropdown {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  min-width: 200px;
+  max-width: 280px;
+  max-height: 280px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
 
-.bulkLabelPickerGrid {
+.bulkEpicDropdownItem {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition);
+  gap: 2px;
 }
 
-.bulkLabelChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: 999px;
+.bulkEpicDropdownItem:last-child {
+  border-bottom: none;
+}
+
+.bulkEpicDropdownItem:hover {
+  background: var(--color-surface-2);
+}
+
+.bulkClearBtn {
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 0.8rem;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
   cursor: pointer;
   transition:
     border-color var(--transition),
-    background var(--transition);
+    color var(--transition);
 }
 
-.bulkLabelChip:hover {
-  border-color: var(--chip-color, var(--color-accent));
-}
-
-.bulkLabelChipSelected {
-  border-color: var(--chip-color, var(--color-accent));
-  background: color-mix(in srgb, var(--chip-color, var(--color-accent)) 15%, transparent);
-}
-
-.bulkLabelChipDot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.bulkLabelChipCheck {
-  margin-left: 2px;
-  color: var(--chip-color, var(--color-accent));
-  font-weight: 700;
-  font-size: 0.75rem;
-}
-
-.bulkLabelNotFound {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  font-style: italic;
+.bulkClearBtn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }

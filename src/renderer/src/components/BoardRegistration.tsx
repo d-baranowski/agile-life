@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { BoardConfig } from '@shared/board.types'
 import type { TrelloBoard } from '@shared/trello.types'
 import { api } from '../hooks/useApi'
@@ -62,6 +62,16 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
   const normalizedApiKey = normalizeApiKey(apiKey)
   const normalizedApiToken = normalizeApiToken(apiToken)
   const authorizeUrl = normalizedApiKey ? getTrelloAuthorizeUrl(normalizedApiKey) : ''
+
+  // Pre-fill credentials from the most recently saved board, if any
+  useEffect(() => {
+    api.boards.getSavedCredentials().then((result) => {
+      if (result.success && result.data) {
+        setApiKey(result.data.apiKey)
+        setApiToken(result.data.apiToken)
+      }
+    })
+  }, [])
 
   // ── Step 1: Validate credentials & fetch boards ───────────────────────────
   const handleFetchBoards = async () => {
@@ -139,7 +149,12 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
       apiToken: normalizedApiToken,
       projectCode: projectCode.toUpperCase(),
       nextTicketNumber: 1,
-      doneListNames: parsedDoneNames.length > 0 ? parsedDoneNames : ['Done']
+      doneListNames: parsedDoneNames.length > 0 ? parsedDoneNames : ['Done'],
+      storyPointsConfig: [
+        { labelName: 'Large', points: 5 },
+        { labelName: 'Medium', points: 3 },
+        { labelName: 'Small', points: 1 }
+      ]
     })
 
     setLoading(false)

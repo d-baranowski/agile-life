@@ -13,7 +13,8 @@ import type {
   DoneCardDebugInfo,
   EpicCardOption,
   EpicStory,
-  StoryPointRule
+  StoryPointRule,
+  SavedCredentials
 } from '@shared/board.types'
 import type { TrelloBoard, KanbanColumn, TrelloMember, TrelloLabel } from '@shared/trello.types'
 import type {
@@ -29,6 +30,13 @@ import type {
   UnnumberedCard,
   ApplyNumberingResult
 } from '@shared/ticket.types'
+import type {
+  TemplateGroup,
+  TicketTemplate,
+  TemplateGroupInput,
+  TicketTemplateInput,
+  GenerateCardsResult
+} from '@shared/template.types'
 import type { DbPathInfo, LogPathInfo } from '@shared/settings.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
@@ -46,6 +54,8 @@ export const api = {
     delete: (boardId: string) => invoke<void>(IPC_CHANNELS.BOARDS_DELETE, boardId),
     fetchFromTrello: (apiKey: string, apiToken: string) =>
       invoke<TrelloBoard[]>(IPC_CHANNELS.BOARDS_FETCH_FROM_TRELLO, apiKey, apiToken),
+    getSavedCredentials: () =>
+      invoke<SavedCredentials | null>(IPC_CHANNELS.BOARDS_GET_SAVED_CREDENTIALS),
     setEpicBoard: (storyBoardId: string, epicBoardId: string | null) =>
       invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_EPIC_BOARD, storyBoardId, epicBoardId)
   },
@@ -92,13 +102,7 @@ export const api = {
       invoke<KanbanColumn['cards'][number]>(IPC_CHANNELS.TRELLO_CREATE_CARD, boardId, listId, name),
     /** Archives open cards in the "done" lists that have been in done for olderThanWeeks weeks. */
     archiveDoneCards: (boardId: string, olderThanWeeks: number) =>
-      invoke<ArchiveResult>(IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS, boardId, olderThanWeeks),
-    /** Returns all labels defined on the board (from Trello API + local cache). */
-    getBoardLabels: (boardId: string) =>
-      invoke<TrelloLabel[]>(IPC_CHANNELS.TRELLO_GET_BOARD_LABELS, boardId),
-    /** Adds or removes a label on a card and returns the updated label list. */
-    assignCardLabel: (boardId: string, cardId: string, label: TrelloLabel, assign: boolean) =>
-      invoke<TrelloLabel[]>(IPC_CHANNELS.TRELLO_ASSIGN_CARD_LABEL, boardId, cardId, label, assign)
+      invoke<ArchiveResult>(IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS, boardId, olderThanWeeks)
   },
 
   analytics: {
@@ -151,6 +155,39 @@ export const api = {
       invoke<DbPathInfo>(IPC_CHANNELS.SETTINGS_SET_DB_PATH, resetToDefault)
   },
 
+  templates: {
+    /** Returns all template groups for the board. */
+    getGroups: (boardId: string) =>
+      invoke<TemplateGroup[]>(IPC_CHANNELS.TEMPLATES_GET_GROUPS, boardId),
+    /** Creates a new template group. */
+    createGroup: (boardId: string, input: TemplateGroupInput) =>
+      invoke<TemplateGroup>(IPC_CHANNELS.TEMPLATES_CREATE_GROUP, boardId, input),
+    /** Updates the name of a template group. */
+    updateGroup: (boardId: string, id: number, input: TemplateGroupInput) =>
+      invoke<void>(IPC_CHANNELS.TEMPLATES_UPDATE_GROUP, boardId, id, input),
+    /** Deletes a template group and all its templates. */
+    deleteGroup: (boardId: string, id: number) =>
+      invoke<void>(IPC_CHANNELS.TEMPLATES_DELETE_GROUP, boardId, id),
+    /** Returns all templates in a group. */
+    getTemplates: (boardId: string, groupId: number) =>
+      invoke<TicketTemplate[]>(IPC_CHANNELS.TEMPLATES_GET, boardId, groupId),
+    /** Creates a new template in a group. */
+    createTemplate: (boardId: string, input: TicketTemplateInput) =>
+      invoke<TicketTemplate>(IPC_CHANNELS.TEMPLATES_CREATE, boardId, input),
+    /** Updates an existing template. */
+    updateTemplate: (boardId: string, id: number, input: TicketTemplateInput) =>
+      invoke<void>(IPC_CHANNELS.TEMPLATES_UPDATE, boardId, id, input),
+    /** Deletes a template. */
+    deleteTemplate: (boardId: string, id: number) =>
+      invoke<void>(IPC_CHANNELS.TEMPLATES_DELETE, boardId, id),
+    /** Generates Trello cards from all templates in a group. */
+    generateCards: (boardId: string, groupId: number) =>
+      invoke<GenerateCardsResult>(IPC_CHANNELS.TEMPLATES_GENERATE_CARDS, boardId, groupId),
+    /** Returns distinct labels seen on cards for the board (from cached card data). */
+    getBoardLabels: (boardId: string) =>
+      invoke<TrelloLabel[]>(IPC_CHANNELS.TEMPLATES_GET_BOARD_LABELS, boardId)
+  },
+
   logs: {
     /** Returns the current log file path info (path, default path, isCustom). */
     getPath: () => invoke<LogPathInfo>(IPC_CHANNELS.LOGS_GET_PATH),
@@ -172,6 +209,9 @@ export const api = {
     /** Assigns or clears the epic for a story card. */
     setCardEpic: (boardId: string, cardId: string, epicCardId: string | null) =>
       invoke<void>(IPC_CHANNELS.EPICS_SET_CARD_EPIC, boardId, cardId, epicCardId),
+    /** Assigns or clears the epic for multiple story cards in a single operation. */
+    setBulkCardEpic: (boardId: string, cardIds: string[], epicCardId: string | null) =>
+      invoke<void>(IPC_CHANNELS.EPICS_SET_BULK_CARD_EPIC, boardId, cardIds, epicCardId),
     /** Returns all story cards assigned to the given epic card. */
     getStories: (epicCardId: string) =>
       invoke<EpicStory[]>(IPC_CHANNELS.EPICS_GET_STORIES, epicCardId)

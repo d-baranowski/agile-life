@@ -1,3 +1,9 @@
+/** Trello credentials saved from an existing board, used to pre-fill the registration wizard. */
+export interface SavedCredentials {
+  apiKey: string
+  apiToken: string
+}
+
 /** Maps a label name to a story-point value for analytics calculations. */
 export interface StoryPointRule {
   labelName: string
@@ -52,6 +58,7 @@ export interface DoneCardPreview {
 export interface EpicCardOption {
   id: string
   name: string
+  listId: string
   listName: string
 }
 
