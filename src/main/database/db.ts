@@ -426,6 +426,21 @@ export function updateCardMembers(cardId: string, members: TrelloMember[]): void
     .run({ cardId, membersJson: JSON.stringify(members) })
 }
 
+/** Update the labels_json for a card after a label assignment change. */
+export function updateCardLabels(cardId: string, labels: TrelloLabel[]): void {
+  getDb()
+    .prepare('UPDATE trello_cards SET labels_json = @labelsJson WHERE id = @cardId')
+    .run({ cardId, labelsJson: JSON.stringify(labels) })
+}
+
+/** Returns the labels_json string for a card, or undefined if not found. */
+export function getCardLabelsJson(cardId: string): string | undefined {
+  const row = getDb().prepare('SELECT labels_json FROM trello_cards WHERE id = ?').get(cardId) as
+    | { labels_json: string }
+    | undefined
+  return row?.labels_json
+}
+
 // ─── Board Members ─────────────────────────────────────────────────────────────
 
 interface MemberRow {

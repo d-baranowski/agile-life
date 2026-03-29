@@ -103,7 +103,13 @@ export const api = {
       invoke<KanbanColumn['cards'][number]>(IPC_CHANNELS.TRELLO_CREATE_CARD, boardId, listId, name),
     /** Archives open cards in the "done" lists that have been in done for olderThanWeeks weeks. */
     archiveDoneCards: (boardId: string, olderThanWeeks: number) =>
-      invoke<ArchiveResult>(IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS, boardId, olderThanWeeks)
+      invoke<ArchiveResult>(IPC_CHANNELS.TRELLO_ARCHIVE_DONE_CARDS, boardId, olderThanWeeks),
+    /** Returns all labels defined on the board (from Trello API + local cache). */
+    getBoardLabels: (boardId: string) =>
+      invoke<TrelloLabel[]>(IPC_CHANNELS.TRELLO_GET_BOARD_LABELS, boardId),
+    /** Adds or removes a label on a card and returns the updated label list. */
+    assignCardLabel: (boardId: string, cardId: string, label: TrelloLabel, assign: boolean) =>
+      invoke<TrelloLabel[]>(IPC_CHANNELS.TRELLO_ASSIGN_CARD_LABEL, boardId, cardId, label, assign)
   },
 
   analytics: {
