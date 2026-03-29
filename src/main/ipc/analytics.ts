@@ -16,7 +16,8 @@ import type {
   LabelUserStats,
   CardAgeStats,
   WeeklyHistory,
-  StoryPointsUserStats
+  StoryPointsUserStats,
+  EpicWeeklyHistory
 } from '@shared/analytics.types'
 import type { TrelloMember, TrelloLabel } from '@shared/trello.types'
 import type { StoryPointRule } from '@shared/board.types'
@@ -26,6 +27,7 @@ import sqlLabelUserStats from '../database/sql/analytics/label-user-stats.sql?ra
 import sqlCardAge from '../database/sql/analytics/card-age.sql?raw'
 import sqlWeeklyHistoryRaw from '../database/sql/analytics/weekly-history-raw.sql?raw'
 import sqlStoryPoints7dRaw from '../database/sql/analytics/story-points-7d-raw.sql?raw'
+import sqlEpicPointsHistoryRaw from '../database/sql/analytics/epic-points-history-raw.sql?raw'
 import log from '../logger'
 
 type Row = Record<string, unknown>
@@ -41,6 +43,14 @@ interface RawHistoryRow {
 interface RawStoryPointRow {
   userId: string | null
   userName: string
+  cardId: string
+  labelsJson: string
+}
+
+interface RawEpicHistoryRow {
+  week: string
+  epicCardId: string
+  epicCardName: string
   cardId: string
   labelsJson: string
 }
@@ -223,6 +233,53 @@ export function registerAnalyticsHandlers(): void {
         return { success: true, data }
       } catch (err) {
         log.error(`[analytics] storyPoints7d failed boardId=${boardId}:`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Epic story points per week (12 months) ─────────────────────────────────
+  //
+  // Returns story points completed per epic per ISO week for the past 12
+  // months.  Each card's point value is determined by matching its labels
+  // against the caller-supplied storyPointsConfig rules.
+
+  ipcMain.handle(
+    IPC_CHANNELS.ANALYTICS_EPIC_WEEKLY_HISTORY,
+    async (
+      _e,
+      boardId: string,
+      storyPointsConfig: StoryPointRule[]
+    ): Promise<IpcResult<EpicWeeklyHistory[]>> => {
+      try {
+        const rawRows = getDb()
+          .prepare(sqlEpicPointsHistoryRaw)
+          .all(boardId, boardId) as RawEpicHistoryRow[]
+
+        const aggregated = new Map<
+          string,
+          { week: string; epicCardId: string; epicCardName: string; storyPoints: number }
+        >()
+
+        for (const row of rawRows) {
+          const pts = cardStoryPoints(row.labelsJson, storyPointsConfig)
+          const key = `${row.week}|${row.epicCardId}`
+          if (!aggregated.has(key)) {
+            aggregated.set(key, {
+              week: row.week,
+              epicCardId: row.epicCardId,
+              epicCardName: row.epicCardName,
+              storyPoints: 0
+            })
+          }
+          aggregated.get(key)!.storyPoints += pts
+        }
+
+        const data = [...aggregated.values()].sort((a, b) => a.week.localeCompare(b.week))
+        log.debug(`[analytics] epicWeeklyHistory boardId=${boardId} → ${data.length} row(s)`)
+        return { success: true, data }
+      } catch (err) {
+        log.error(`[analytics] epicWeeklyHistory failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }
