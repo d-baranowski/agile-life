@@ -974,7 +974,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           {/* Previous week reference bar */}
           <div
             className={styles.gamificationTrack}
-            title={`Last week: ${gamificationStats.prevWeekPoints} SP`}
+            data-tooltip={`Last week: ${gamificationStats.prevWeekPoints} SP`}
           >
             <div
               className={styles.gamificationFillPrev}
@@ -993,7 +993,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             gamificationStats.yearlyHighScore > gamificationStats.prevWeekPoints && (
               <div
                 className={styles.gamificationTrack}
-                title={`🏆 Year best: ${gamificationStats.yearlyHighScore} SP`}
+                data-tooltip={`🏆 Year best: ${gamificationStats.yearlyHighScore} SP`}
               >
                 <div className={styles.gamificationFillHigh} style={{ width: '100%' }} />
               </div>
@@ -1002,7 +1002,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           {/* Current week bar */}
           <div
             className={styles.gamificationTrack}
-            title={`${
+            data-tooltip={`${
               gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
               gamificationStats.currentWeekPoints > 0
                 ? '🔥 This week'
