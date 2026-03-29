@@ -14,6 +14,7 @@ import type {
   GenerateCardsResult
 } from '@shared/template.types'
 import { api } from '../hooks/useApi'
+import { EpicSelect } from '../components/EpicSelect'
 import styles from './TemplatesPage.module.css'
 
 interface Props {
@@ -178,18 +179,7 @@ function TemplateForm({
         {epicCards.length > 0 && (
           <div className={styles.formField}>
             <label className={styles.formLabel}>Epic (optional)</label>
-            <select
-              className={styles.formSelect}
-              value={epicCardId}
-              onChange={(e) => setEpicCardId(e.target.value)}
-            >
-              <option value="">— None —</option>
-              {epicCards.map((e) => (
-                <option key={e.id} value={e.id}>
-                  [{e.listName}] {e.name}
-                </option>
-              ))}
-            </select>
+            <EpicSelect epicCards={epicCards} value={epicCardId} onChange={setEpicCardId} />
           </div>
         )}
 
