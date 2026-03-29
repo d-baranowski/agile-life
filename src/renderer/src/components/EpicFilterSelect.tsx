@@ -66,7 +66,7 @@ export function EpicFilterSelect({ epicCards, value, onChange }: Props): JSX.Ele
       </button>
 
       {open && (
-        <div className={selectStyles.dropdown}>
+        <div className={styles.dropdown}>
           <div className={selectStyles.searchWrapper}>
             <input
               ref={searchRef}
