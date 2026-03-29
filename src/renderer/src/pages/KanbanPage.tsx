@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
+import confetti from 'canvas-confetti'
 import type { BoardConfig } from '@shared/board.types'
-import type { EpicCardOption, EpicStory } from '@shared/board.types'
+import type { EpicCardOption, EpicStory, StoryPointRule } from '@shared/board.types'
 import type { KanbanColumn, KanbanCard, TrelloMember } from '@shared/trello.types'
 import type { TemplateGroup, TicketTemplate, GenerateCardsResult } from '@shared/template.types'
 import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
 import TicketNumberingPage from './TicketNumberingPage'
+import { playCoinSound } from '../utils/sound'
 import styles from './KanbanPage.module.css'
 
 interface Props {
@@ -41,6 +43,46 @@ interface AddCardModal {
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the story-point value for a card based on its labels.
+ * Mirrors the server-side `cardStoryPoints` function in analytics.ts.
+ * Falls back to 1 when no label matches any configured rule.
+ */
+function cardStoryPoints(card: KanbanCard, config: StoryPointRule[]): number {
+  if (!config || config.length === 0) return 1
+  const rulesMap = new Map(config.map((r) => [r.labelName.trim().toLowerCase(), r.points]))
+  for (const label of card.labels) {
+    const pts = rulesMap.get((label.name || '').trim().toLowerCase())
+    if (pts !== undefined) return pts
+  }
+  return 1
+}
+
+/**
+ * Fires a confetti burst and plays a coin sound to celebrate completing a task.
+ * The number of particles scales with the card's story-point value.
+ * @param points  Story-point value of the completed card.
+ * @param origin  Fractional viewport position {x, y} where the burst starts.
+ *                Defaults to the centre of the screen when omitted.
+ */
+function triggerDoneEffect(points: number, origin?: { x: number; y: number }): void {
+  const particleCount = Math.min(points * 20, 150)
+  const label = `+${points} pt${points !== 1 ? 's' : ''}`
+  const textShape = confetti.shapeFromText({ text: label, scalar: 2, color: '#FFD700' })
+
+  confetti({
+    particleCount,
+    spread: 60,
+    origin: origin ?? { x: 0.5, y: 0.55 },
+    shapes: [textShape],
+    scalar: 2,
+    ticks: 60,
+    gravity: 1.5,
+    startVelocity: 30
+  })
+  playCoinSound()
+}
 
 /** Parse card names from a multiline textarea value (one per non-blank line). */
 function parseCardNames(text: string): string[] {
@@ -130,6 +172,9 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
   const contextMenuRef = useRef<HTMLDivElement>(null)
+  // Track the most-recent pointer position so we can fire confetti from the drop location
+  // without waiting for React to re-render or querying the DOM after an async API call.
+  const lastPointerPos = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 })
 
   // Multi-select state (story boards only)
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
@@ -182,6 +227,19 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     setSelectedCardIds(new Set())
     loadBoardData()
   }, [loadBoardData])
+
+  // Keep lastPointerPos in sync with the cursor so handleDragEnd can read the
+  // drop position immediately, without querying the DOM after a re-render.
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent): void => {
+      lastPointerPos.current = {
+        x: e.clientX / window.innerWidth,
+        y: e.clientY / window.innerHeight
+      }
+    }
+    document.addEventListener('pointermove', onPointerMove)
+    return () => document.removeEventListener('pointermove', onPointerMove)
+  }, [])
 
   // Load epic card options when this is a story board
   useEffect(() => {
@@ -249,6 +307,13 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
       const toCol = columns.find((c) => c.id === toColId)
       if (!toCol) return
 
+      // Detect whether the destination is a "done" column so we can fire the celebration effect.
+      const fromCol = columns.find((c) => c.id === fromColId)
+      const movedCard = fromCol?.cards[source.index]
+      const isDoneMove = board.doneListNames.some(
+        (name) => name.trim().toLowerCase() === toCol.name.trim().toLowerCase()
+      )
+
       // Compute a stable pos for the new position in the target column so
       // Trello and the local DB stay in sync after cross-column moves.
       const destCards = toCol.cards
@@ -264,6 +329,15 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
               : 65536
 
       const prevColumns = columns
+
+      // ── Celebrate moving a card into a done column ──
+      // Fire immediately (optimistically) using the last known pointer position as the
+      // confetti origin, so there is no perceived delay waiting for the Trello API.
+      if (isDoneMove && movedCard) {
+        const points = cardStoryPoints(movedCard, board.storyPointsConfig)
+        triggerDoneEffect(points, lastPointerPos.current)
+      }
+
       // Optimistically update UI: move card into new column with the computed pos
       setColumns((prev) => {
         const cols = moveCard(prev, fromColId, toColId, source.index, destination.index)
@@ -287,7 +361,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setToastMessage(syncResult.error ?? 'Failed to move card. Please try again.')
       }
     },
-    [board.boardId, columns]
+    [board.boardId, board.doneListNames, board.storyPointsConfig, columns]
   )
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
