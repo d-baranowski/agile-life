@@ -58,7 +58,10 @@ export const api = {
     getSavedCredentials: () =>
       invoke<SavedCredentials | null>(IPC_CHANNELS.BOARDS_GET_SAVED_CREDENTIALS),
     setEpicBoard: (storyBoardId: string, epicBoardId: string | null) =>
-      invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_EPIC_BOARD, storyBoardId, epicBoardId)
+      invoke<BoardConfig>(IPC_CHANNELS.BOARDS_SET_EPIC_BOARD, storyBoardId, epicBoardId),
+    getLastSelected: () => invoke<string | null>(IPC_CHANNELS.BOARDS_GET_LAST_SELECTED),
+    setLastSelected: (boardId: string) =>
+      invoke<void>(IPC_CHANNELS.BOARDS_SET_LAST_SELECTED, boardId)
   },
 
   trello: {

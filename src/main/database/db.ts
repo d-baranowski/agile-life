@@ -129,6 +129,11 @@ export function getDb(): Database.Database {
   } catch {
     // Column already exists — nothing to do.
   }
+  try {
+    _db.exec('ALTER TABLE board_configs ADD COLUMN last_selected INTEGER NOT NULL DEFAULT 0')
+  } catch {
+    // Column already exists — nothing to do.
+  }
 
   // Ensure board_members table exists for existing databases that pre-date the
   // schema addition.  CREATE TABLE IF NOT EXISTS is idempotent and safe.
@@ -226,6 +231,29 @@ export function setEpicBoard(boardId: string, epicBoardId: string | null): Board
   if (!getBoardById(boardId)) throw new Error(`Board not found: ${boardId}`)
   getDb().prepare(sqlBoardsSetEpicBoard).run({ boardId, epicBoardId })
   return getBoardById(boardId)!
+}
+
+/**
+ * Returns the boardId of the board most recently selected by the user, or
+ * undefined if no board has been explicitly selected yet.
+ */
+export function getLastSelectedBoardId(): string | undefined {
+  const row = getDb()
+    .prepare('SELECT board_id FROM board_configs WHERE last_selected = 1 LIMIT 1')
+    .get() as { board_id: string } | undefined
+  return row?.board_id
+}
+
+/**
+ * Marks the given board as the last-selected one.  Clears the flag on all
+ * other boards so that at most one row ever has last_selected = 1.
+ */
+export function setLastSelectedBoardId(boardId: string): void {
+  const db = getDb()
+  db.transaction(() => {
+    db.prepare('UPDATE board_configs SET last_selected = 0').run()
+    db.prepare('UPDATE board_configs SET last_selected = 1 WHERE board_id = ?').run(boardId)
+  })()
 }
 
 // ─── Lists ─────────────────────────────────────────────────────────────────────

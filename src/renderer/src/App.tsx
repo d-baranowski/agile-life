@@ -23,11 +23,17 @@ export default function App(): JSX.Element {
   const [syncError, setSyncError] = useState<string | null>(null)
 
   const loadBoards = useCallback(async () => {
-    const result = await api.boards.getAll()
-    if (result.success && result.data) {
-      setBoards(result.data)
-      if (result.data.length > 0 && !selectedBoardId) {
-        setSelectedBoardId(result.data[0].boardId)
+    const [boardsResult, lastSelectedResult] = await Promise.all([
+      api.boards.getAll(),
+      api.boards.getLastSelected()
+    ])
+    if (boardsResult.success && boardsResult.data) {
+      setBoards(boardsResult.data)
+      if (boardsResult.data.length > 0 && !selectedBoardId) {
+        const lastId = lastSelectedResult.success ? lastSelectedResult.data : null
+        const validLast =
+          lastId && boardsResult.data.some((b) => b.boardId === lastId) ? lastId : null
+        setSelectedBoardId(validLast ?? boardsResult.data[0].boardId)
       }
     }
     setLoading(false)
@@ -39,16 +45,24 @@ export default function App(): JSX.Element {
 
   const selectedBoard = boards.find((b) => b.boardId === selectedBoardId) ?? null
 
+  const handleSelectBoard = useCallback((boardId: string) => {
+    setSelectedBoardId(boardId)
+    api.boards.setLastSelected(boardId)
+  }, [])
+
   const handleBoardAdded = (board: BoardConfig) => {
     setBoards((prev) => [...prev, board])
     setSelectedBoardId(board.boardId)
+    api.boards.setLastSelected(board.boardId)
     setShowRegistration(false)
   }
 
   const handleBoardDeleted = (boardId: string) => {
     setBoards((prev) => prev.filter((b) => b.boardId !== boardId))
     if (selectedBoardId === boardId) {
-      setSelectedBoardId(boards.find((b) => b.boardId !== boardId)?.boardId ?? null)
+      const next = boards.find((b) => b.boardId !== boardId)?.boardId ?? null
+      setSelectedBoardId(next)
+      if (next) api.boards.setLastSelected(next)
     }
   }
 
@@ -89,7 +103,7 @@ export default function App(): JSX.Element {
           <BoardSwitcher
             boards={boards}
             selectedBoardId={selectedBoardId}
-            onSelect={setSelectedBoardId}
+            onSelect={handleSelectBoard}
             onAddNew={() => setShowRegistration(true)}
           />
           <button
