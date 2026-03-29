@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import type { EpicCardOption } from '@shared/board.types'
 import { fuzzyMatch } from './EpicSelect'
-import styles from './EpicSelect.module.css'
+import styles from './EpicFilterSelect.module.css'
+import selectStyles from './EpicSelect.module.css'
 
 const ALL_VALUE = ''
 const NONE_VALUE = '__none__'
@@ -65,12 +66,12 @@ export function EpicFilterSelect({ epicCards, value, onChange }: Props): JSX.Ele
       </button>
 
       {open && (
-        <div className={styles.dropdown}>
-          <div className={styles.searchWrapper}>
+        <div className={selectStyles.dropdown}>
+          <div className={selectStyles.searchWrapper}>
             <input
               ref={searchRef}
               type="text"
-              className={styles.searchInput}
+              className={selectStyles.searchInput}
               placeholder="Search epics…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -78,14 +79,14 @@ export function EpicFilterSelect({ epicCards, value, onChange }: Props): JSX.Ele
           </div>
           <button
             type="button"
-            className={`${styles.option} ${value === ALL_VALUE ? styles.optionActive : ''}`}
+            className={`${selectStyles.option} ${value === ALL_VALUE ? selectStyles.optionActive : ''}`}
             onClick={() => select(ALL_VALUE)}
           >
             ⚡ All epics
           </button>
           <button
             type="button"
-            className={`${styles.option} ${value === NONE_VALUE ? styles.optionActive : ''}`}
+            className={`${selectStyles.option} ${value === NONE_VALUE ? selectStyles.optionActive : ''}`}
             onClick={() => select(NONE_VALUE)}
           >
             — No epic
@@ -94,15 +95,15 @@ export function EpicFilterSelect({ epicCards, value, onChange }: Props): JSX.Ele
             <button
               key={opt.id}
               type="button"
-              className={`${styles.option} ${value === opt.id ? styles.optionActive : ''}`}
+              className={`${selectStyles.option} ${value === opt.id ? selectStyles.optionActive : ''}`}
               onClick={() => select(opt.id)}
             >
-              <span className={styles.optionName}>{opt.name}</span>
-              <span className={styles.optionList}>{opt.listName}</span>
+              <span className={selectStyles.optionName}>{opt.name}</span>
+              <span className={selectStyles.optionList}>{opt.listName}</span>
             </button>
           ))}
           {filtered.length === 0 && searchQuery.trim() && (
-            <span className={styles.empty}>No epics found</span>
+            <span className={selectStyles.empty}>No epics found</span>
           )}
         </div>
       )}
