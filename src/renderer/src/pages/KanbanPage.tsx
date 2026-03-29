@@ -679,12 +679,14 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     return (
       <div className={styles.container}>
         <div className={styles.searchBar}>
-          <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
-            🎫 Number Tickets
-          </button>
-          <button className={styles.numberTicketsBtn} onClick={handleOpenGenModal}>
-            📋 Generate from Template
-          </button>
+          <div className={styles.toolbarActions}>
+            <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
+              🎫 Number Tickets
+            </button>
+            <button className={styles.numberTicketsBtn} onClick={handleOpenGenModal}>
+              📋 Generate from Template
+            </button>
+          </div>
         </div>
         <div className={styles.emptyState}>
           <p>No data yet.</p>
@@ -732,12 +734,14 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         >
           ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
         </button>
-        <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
-          🎫 Number Tickets
-        </button>
-        <button className={styles.numberTicketsBtn} onClick={handleOpenGenModal}>
-          📋 Generate from Template
-        </button>
+        <div className={styles.toolbarActions}>
+          <button className={styles.numberTicketsBtn} onClick={() => setShowTicketsModal(true)}>
+            🎫 Number Tickets
+          </button>
+          <button className={styles.numberTicketsBtn} onClick={handleOpenGenModal}>
+            📋 Generate from Template
+          </button>
+        </div>
       </div>
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className={styles.board}>
@@ -1317,7 +1321,9 @@ function DraggableCard({
                     className={styles.label}
                     style={{ background: labelColor(label.color) }}
                     title={label.name || label.color}
-                  />
+                  >
+                    {label.name || label.color}
+                  </span>
                 ))}
               </div>
             )}

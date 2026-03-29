@@ -236,14 +236,14 @@ export function registerTemplateHandlers(): void {
 
             const card = await client.createCard(tmpl.listId, title, desc, tmpl.labelIds)
 
+            // Persist to local cache first so the card row exists before
+            // we set the epic foreign-key reference.
+            upsertCards(boardId, [card])
+
             // Assign the epic card if configured on the template.
             if (tmpl.epicCardId) {
               setCardEpic(card.id, tmpl.epicCardId)
             }
-
-            // Persist to local cache so the kanban board reflects the new card
-            // immediately (without needing a full sync).
-            upsertCards(boardId, [card])
 
             created++
           } catch (err) {
