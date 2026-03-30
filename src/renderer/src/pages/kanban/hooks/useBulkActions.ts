@@ -10,6 +10,9 @@ import type {
 } from '../kanban.types'
 import { api } from '../../../hooks/useApi'
 
+/** Delay between sequential Trello API requests to avoid 429 rate-limiting. */
+const BULK_DELAY_MS = 350
+
 export function useBulkActions(
   boardId: string,
   columns: KanbanColumn[],
@@ -119,7 +122,7 @@ export function useBulkActions(
       })
 
       if (i < initialQueue.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 350))
+        await new Promise((resolve) => setTimeout(resolve, BULK_DELAY_MS))
       }
     }
 
@@ -173,7 +176,7 @@ export function useBulkActions(
       })
 
       if (i < pendingItems.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 350))
+        await new Promise((resolve) => setTimeout(resolve, BULK_DELAY_MS))
       }
     }
 
@@ -271,7 +274,7 @@ export function useBulkActions(
       })
 
       if (i < initialQueue.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 350))
+        await new Promise((resolve) => setTimeout(resolve, BULK_DELAY_MS))
       }
     }
 
@@ -328,7 +331,7 @@ export function useBulkActions(
       })
 
       if (i < pendingItems.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 350))
+        await new Promise((resolve) => setTimeout(resolve, BULK_DELAY_MS))
       }
     }
 

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { EpicCardOption } from '@shared/board.types'
-import { fuzzyMatch } from './EpicSelect'
+import { fuzzyMatch } from '../lib/fuzzy-match'
 import styles from './EpicFilterSelect.module.css'
 import selectStyles from './EpicSelect.module.css'
 
