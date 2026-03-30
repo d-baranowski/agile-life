@@ -1,5 +1,4 @@
 import styled from 'styled-components'
-import { SectionTitle } from './dashboard-layout.styled'
 
 export const ChartWrapper = styled.div`
   height: 320px;
@@ -15,7 +14,7 @@ export const ChartHeader = styled.div`
   justify-content: space-between;
   margin-bottom: 12px;
 
-  ${SectionTitle} {
+  & > h2 {
     margin-bottom: 0;
   }
 `
