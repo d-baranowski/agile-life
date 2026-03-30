@@ -4,7 +4,23 @@ import type { KanbanColumn, TrelloLabel } from '@shared/trello.types'
 import type { TicketTemplate, TicketTemplateInput } from '@shared/template.types'
 import { labelColor } from '../../lib/label-colors'
 import { EpicSelect } from '../../components/EpicSelect'
-import styles from '../TemplatesPage.module.css'
+import {
+  ModalOverlay,
+  ModalContent,
+  ModalTitle,
+  ModalFooter
+} from './styled/templates-modal.styled'
+import {
+  FormField,
+  FormLabel,
+  FormInput,
+  FormSelect,
+  FormTextarea,
+  FormHint,
+  LabelPicker,
+  LabelChip,
+  ResultBanner
+} from './styled/templates-form.styled'
 
 const PLACEHOLDER_HINT =
   'Supported placeholders: {{year}}, {{month}}, {{month_name}}, {{week}}, {{date}}'
@@ -53,88 +69,81 @@ export default function TemplateForm(props: Props): JSX.Element {
   }
 
   return (
-    <div className={styles.overlay}>
-      <div className={styles.modal}>
-        <div className={styles.modalTitle}>{initial ? 'Edit Template' : 'New Template'}</div>
+    <ModalOverlay>
+      <ModalContent>
+        <ModalTitle>{initial ? 'Edit Template' : 'New Template'}</ModalTitle>
 
-        {error && <div className={`${styles.resultBanner} ${styles.error}`}>{error}</div>}
+        {error && <ResultBanner $variant="error">{error}</ResultBanner>}
 
-        <div className={styles.formField}>
-          <label className={styles.formLabel}>Template name</label>
-          <input
-            className={styles.formInput}
+        <FormField>
+          <FormLabel>Template name</FormLabel>
+          <FormInput
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Weekly retrospective"
             autoFocus
           />
-        </div>
+        </FormField>
 
-        <div className={styles.formField}>
-          <label className={styles.formLabel}>Card title</label>
-          <input
-            className={styles.formInput}
+        <FormField>
+          <FormLabel>Card title</FormLabel>
+          <FormInput
             value={titleTemplate}
             onChange={(e) => setTitleTemplate(e.target.value)}
             placeholder="e.g. Retro {{year}}-W{{week}}"
           />
-          <span className={styles.formHint}>{PLACEHOLDER_HINT}</span>
-        </div>
+          <FormHint>{PLACEHOLDER_HINT}</FormHint>
+        </FormField>
 
-        <div className={styles.formField}>
-          <label className={styles.formLabel}>Description (optional)</label>
-          <textarea
-            className={styles.formTextarea}
+        <FormField>
+          <FormLabel>Description (optional)</FormLabel>
+          <FormTextarea
             value={descTemplate}
             onChange={(e) => setDescTemplate(e.target.value)}
             placeholder="e.g. Sprint {{week}} retrospective for {{year}}"
           />
-          <span className={styles.formHint}>{PLACEHOLDER_HINT}</span>
-        </div>
+          <FormHint>{PLACEHOLDER_HINT}</FormHint>
+        </FormField>
 
-        <div className={styles.formField}>
-          <label className={styles.formLabel}>Target list</label>
-          <select
-            className={styles.formSelect}
-            value={listId}
-            onChange={(e) => setListId(e.target.value)}
-          >
+        <FormField>
+          <FormLabel>Target list</FormLabel>
+          <FormSelect value={listId} onChange={(e) => setListId(e.target.value)}>
             {lists.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}
               </option>
             ))}
-          </select>
-        </div>
+          </FormSelect>
+        </FormField>
 
         {boardLabels.length > 0 && (
-          <div className={styles.formField}>
-            <label className={styles.formLabel}>Labels (optional)</label>
-            <div className={styles.labelPicker}>
+          <FormField>
+            <FormLabel>Labels (optional)</FormLabel>
+            <LabelPicker>
               {boardLabels.map((label) => (
-                <button
+                <LabelChip
                   key={label.id}
                   type="button"
-                  className={`${styles.labelChip} ${selectedLabelIds.includes(label.id) ? styles.labelChipSelected : ''}`}
+                  $selected={selectedLabelIds.includes(label.id)}
                   style={{ backgroundColor: labelColor(label.color) }}
                   onClick={() => toggleLabel(label.id)}
                   title={label.name || label.color}
                 >
                   {label.name || label.color}
-                </button>
+                </LabelChip>
               ))}
-            </div>
-          </div>
+            </LabelPicker>
+          </FormField>
         )}
 
         {epicCards.length > 0 && (
-          <div className={styles.formField}>
-            <label className={styles.formLabel}>Epic (optional)</label>
+          <FormField>
+            <FormLabel>Epic (optional)</FormLabel>
             <EpicSelect epicCards={epicCards} value={epicCardId} onChange={setEpicCardId} />
-          </div>
+          </FormField>
         )}
 
-        <div className={styles.modalFooter}>
+        <ModalFooter>
           <button className="btn-secondary" onClick={onCancel} disabled={saving}>
             Cancel
           </button>
@@ -145,8 +154,8 @@ export default function TemplateForm(props: Props): JSX.Element {
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
-        </div>
-      </div>
-    </div>
+        </ModalFooter>
+      </ModalContent>
+    </ModalOverlay>
   )
 }

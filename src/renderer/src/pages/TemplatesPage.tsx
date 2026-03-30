@@ -15,7 +15,37 @@ import type {
 } from '@shared/template.types'
 import { api } from '../hooks/useApi'
 import TemplateForm from './templates/TemplateForm'
-import styles from './TemplatesPage.module.css'
+import {
+  Page,
+  Sidebar,
+  SidebarHeader,
+  MainPanel,
+  MainHeader,
+  MainTitle,
+  MainActions,
+  EmptyState,
+  NoSelection,
+  GeneratingSpan
+} from './templates/styled/templates-layout.styled'
+import {
+  GroupList,
+  GroupItem,
+  GroupItemName,
+  GroupActions,
+  IconBtn,
+  EmptyGroups,
+  GroupEditInput
+} from './templates/styled/templates-groups.styled'
+import {
+  TemplateList,
+  TemplateCard,
+  TemplateCardHeader,
+  TemplateName,
+  TemplateCardBody,
+  TemplateTitleCode,
+  TemplateListLabel
+} from './templates/styled/templates-cards.styled'
+import { ResultBanner, ResultErrors } from './templates/styled/templates-form.styled'
 
 interface Props {
   board: BoardConfig
@@ -198,24 +228,19 @@ export default function TemplatesPage(props: Props): JSX.Element {
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null
 
   return (
-    <div className={styles.page}>
+    <Page>
       {/* ── Sidebar ── */}
-      <aside className={styles.sidebar}>
-        <div className={styles.sidebarHeader}>
+      <Sidebar>
+        <SidebarHeader>
           <span>Template Groups</span>
-          <button
-            className={styles.iconBtn}
-            title="New group"
-            onClick={() => setShowNewGroupInput((v) => !v)}
-          >
+          <IconBtn title="New group" onClick={() => setShowNewGroupInput((v) => !v)}>
             +
-          </button>
-        </div>
+          </IconBtn>
+        </SidebarHeader>
 
         {showNewGroupInput && (
           <div style={{ padding: '8px 16px', display: 'flex', gap: 6 }}>
-            <input
-              className={styles.groupEditInput}
+            <GroupEditInput
               placeholder="Group name"
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
@@ -235,21 +260,19 @@ export default function TemplatesPage(props: Props): JSX.Element {
           </div>
         )}
 
-        <div className={styles.groupList}>
-          {groups.length === 0 && (
-            <div className={styles.emptyGroups}>No groups yet. Click + to create one.</div>
-          )}
+        <GroupList>
+          {groups.length === 0 && <EmptyGroups>No groups yet. Click + to create one.</EmptyGroups>}
           {groups.map((g) => (
-            <div
+            <GroupItem
               key={g.id}
-              className={`${styles.groupItem} ${selectedGroupId === g.id ? styles.active : ''}`}
+              $active={selectedGroupId === g.id}
+              data-active={selectedGroupId === g.id}
               onClick={() => {
                 if (editingGroupId !== g.id) setSelectedGroupId(g.id)
               }}
             >
               {editingGroupId === g.id ? (
-                <input
-                  className={styles.groupEditInput}
+                <GroupEditInput
                   value={editingGroupName}
                   onChange={(e) => setEditingGroupName(e.target.value)}
                   onKeyDown={(e) => {
@@ -261,11 +284,10 @@ export default function TemplatesPage(props: Props): JSX.Element {
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
-                <span className={styles.groupItemName}>{g.name}</span>
+                <GroupItemName>{g.name}</GroupItemName>
               )}
-              <div className={styles.groupActions}>
-                <button
-                  className={styles.iconBtn}
+              <GroupActions>
+                <IconBtn
                   title="Rename"
                   onClick={(e) => {
                     e.stopPropagation()
@@ -274,9 +296,9 @@ export default function TemplatesPage(props: Props): JSX.Element {
                   }}
                 >
                   ✎
-                </button>
-                <button
-                  className={`${styles.iconBtn} ${styles.danger}`}
+                </IconBtn>
+                <IconBtn
+                  $danger
                   title="Delete group"
                   onClick={(e) => {
                     e.stopPropagation()
@@ -284,24 +306,22 @@ export default function TemplatesPage(props: Props): JSX.Element {
                   }}
                 >
                   ✕
-                </button>
-              </div>
-            </div>
+                </IconBtn>
+              </GroupActions>
+            </GroupItem>
           ))}
-        </div>
-      </aside>
+        </GroupList>
+      </Sidebar>
 
       {/* ── Main panel ── */}
-      <div className={styles.main}>
+      <MainPanel>
         {selectedGroup === null ? (
-          <div className={styles.noSelection}>
-            Select a template group from the sidebar, or create one.
-          </div>
+          <NoSelection>Select a template group from the sidebar, or create one.</NoSelection>
         ) : (
           <>
-            <div className={styles.mainHeader}>
-              <span className={styles.mainTitle}>{selectedGroup.name}</span>
-              <div className={styles.mainActions}>
+            <MainHeader>
+              <MainTitle>{selectedGroup.name}</MainTitle>
+              <MainActions>
                 <button
                   className="btn-secondary"
                   onClick={() => {
@@ -319,51 +339,46 @@ export default function TemplatesPage(props: Props): JSX.Element {
                   title="Create Trello cards from all templates in this group"
                 >
                   {generating ? (
-                    <span className={styles.generating}>
+                    <GeneratingSpan>
                       <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />
                       Generating…
-                    </span>
+                    </GeneratingSpan>
                   ) : (
                     '▶ Generate cards'
                   )}
                 </button>
-              </div>
-            </div>
+              </MainActions>
+            </MainHeader>
 
             {generateResult && (
-              <div
-                className={`${styles.resultBanner} ${generateResult.failed === 0 ? styles.success : styles.error}`}
-              >
+              <ResultBanner $variant={generateResult.failed === 0 ? 'success' : 'error'}>
                 {generateResult.created} card{generateResult.created !== 1 ? 's' : ''} created
                 {generateResult.failed > 0 && `, ${generateResult.failed} failed`}.
                 {generateResult.errors.length > 0 && (
-                  <ul className={styles.resultErrors}>
+                  <ResultErrors>
                     {generateResult.errors.map((e, i) => (
                       <li key={i}>{e}</li>
                     ))}
-                  </ul>
+                  </ResultErrors>
                 )}
-              </div>
+              </ResultBanner>
             )}
 
-            {generateError && (
-              <div className={`${styles.resultBanner} ${styles.error}`}>{generateError}</div>
-            )}
+            {generateError && <ResultBanner $variant="error">{generateError}</ResultBanner>}
 
-            <div className={styles.templateList}>
+            <TemplateList>
               {templates.length === 0 ? (
-                <div className={styles.emptyState}>
+                <EmptyState>
                   <span>No templates in this group yet.</span>
                   <span>Click &quot;+ Add template&quot; to create the first one.</span>
-                </div>
+                </EmptyState>
               ) : (
                 templates.map((t) => (
-                  <div key={t.id} className={styles.templateCard}>
-                    <div className={styles.templateCardHeader}>
-                      <span className={styles.templateName}>{t.name}</span>
-                      <div className={styles.groupActions} style={{ opacity: 1 }}>
-                        <button
-                          className={styles.iconBtn}
+                  <TemplateCard key={t.id}>
+                    <TemplateCardHeader>
+                      <TemplateName>{t.name}</TemplateName>
+                      <GroupActions $alwaysVisible>
+                        <IconBtn
                           title="Edit"
                           onClick={() => {
                             setEditingTemplate(t)
@@ -372,27 +387,23 @@ export default function TemplatesPage(props: Props): JSX.Element {
                           }}
                         >
                           ✎
-                        </button>
-                        <button
-                          className={`${styles.iconBtn} ${styles.danger}`}
-                          title="Delete"
-                          onClick={() => handleDeleteTemplate(t.id)}
-                        >
+                        </IconBtn>
+                        <IconBtn $danger title="Delete" onClick={() => handleDeleteTemplate(t.id)}>
                           ✕
-                        </button>
-                      </div>
-                    </div>
-                    <div className={styles.templateCardBody}>
-                      <span className={styles.templateTitle}>{t.titleTemplate}</span>
-                      <span className={styles.templateList_}>→ {t.listName}</span>
-                    </div>
-                  </div>
+                        </IconBtn>
+                      </GroupActions>
+                    </TemplateCardHeader>
+                    <TemplateCardBody>
+                      <TemplateTitleCode>{t.titleTemplate}</TemplateTitleCode>
+                      <TemplateListLabel>→ {t.listName}</TemplateListLabel>
+                    </TemplateCardBody>
+                  </TemplateCard>
                 ))
               )}
-            </div>
+            </TemplateList>
           </>
         )}
-      </div>
+      </MainPanel>
 
       {/* ── Template form modal ── */}
       {showTemplateForm && (
@@ -411,6 +422,6 @@ export default function TemplatesPage(props: Props): JSX.Element {
           error={formError}
         />
       )}
-    </div>
+    </Page>
   )
 }
