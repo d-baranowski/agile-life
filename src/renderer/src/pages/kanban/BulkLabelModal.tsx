@@ -2,27 +2,11 @@ import styled from 'styled-components'
 import type { TrelloLabel } from '@shared/trello.types'
 import { labelColor } from '../../lib/label-colors'
 import type { BulkLabelModal as BulkLabelModalState } from './kanban.types'
-import {
-  Overlay,
-  Modal,
-  Header,
-  Title,
-  CloseButton,
-  Body,
-  Textarea,
-  PreviewList,
-  PreviewItem,
-  PreviewName,
-  Footer,
-  CancelButton,
-  StartButton,
-  QueueList,
-  QueueItem,
-  QueueIcon,
-  QueueName,
-  RetryButton,
-  UploadingLabel
-} from './AddCardModal.styled'
+import { Overlay, Modal, Header, Title, CloseButton, Body, Footer } from './styled/modal-layout.styled'
+import { CancelButton, StartButton } from './styled/modal-buttons.styled'
+import { QueueList, QueueItem, QueueIcon, QueueName, RetryButton, UploadingLabel } from './styled/queue.styled'
+import { PreviewList, PreviewItem, PreviewName } from './styled/preview.styled'
+import { Textarea } from './styled/form.styled'
 
 const Section = styled.div`
   display: flex;

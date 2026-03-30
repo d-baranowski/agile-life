@@ -1,27 +1,9 @@
 import type { AddCardModal, QueueItem } from './kanban.types'
-import {
-  Overlay,
-  Modal,
-  Header,
-  Title,
-  CloseButton,
-  Body,
-  Textarea,
-  PreviewList,
-  PreviewItem,
-  PreviewName,
-  PreviewRemove,
-  Footer,
-  CancelButton,
-  StartButton,
-  QueueList,
-  QueueItem as StyledQueueItem,
-  QueueIcon,
-  QueueName,
-  RemoveButton,
-  RetryButton,
-  UploadingLabel
-} from './AddCardModal.styled'
+import { Overlay, Modal, Header, Title, CloseButton, Body, Footer } from './styled/modal-layout.styled'
+import { CancelButton, StartButton } from './styled/modal-buttons.styled'
+import { QueueList, QueueItem as StyledQueueItem, QueueIcon, QueueName, RemoveButton, RetryButton, UploadingLabel } from './styled/queue.styled'
+import { PreviewList, PreviewItem, PreviewName, PreviewRemove } from './styled/preview.styled'
+import { Textarea } from './styled/form.styled'
 
 interface Props {
   modal: AddCardModal
