@@ -619,22 +619,6 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     })
   }, [])
 
-  // Select all visible cards in a given column
-  const handleSelectAllInColumn = useCallback(
-    (columnId: string) => {
-      const col = filteredColumns.find((c) => c.id === columnId)
-      if (!col) return
-      setSelectedCardIds((prev) => {
-        const next = new Set(prev)
-        for (const card of col.cards) {
-          next.add(card.id)
-        }
-        return next
-      })
-    },
-    [filteredColumns]
-  )
-
   // Assign or clear an epic for all currently selected cards
   const handleBulkSetEpic = useCallback(
     async (epicCardId: string | null) => {
@@ -1502,6 +1486,22 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
       filterNoSize,
       sizeLabelsLower
     ]
+  )
+
+  // Select all visible cards in a given column
+  const handleSelectAllInColumn = useCallback(
+    (columnId: string) => {
+      const col = filteredColumns.find((c) => c.id === columnId)
+      if (!col) return
+      setSelectedCardIds((prev) => {
+        const next = new Set(prev)
+        for (const card of col.cards) {
+          next.add(card.id)
+        }
+        return next
+      })
+    },
+    [filteredColumns]
   )
 
   const selectedCardCount = useMemo(() => selectedCardIds.size, [selectedCardIds])
