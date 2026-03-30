@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { EpicCardOption } from '@shared/board.types'
-import { fuzzyMatch } from '../lib/fuzzy-match'
+import { fuzzyMatch } from '../../lib/fuzzy-match'
 import {
   Container,
   Trigger,

@@ -3,7 +3,7 @@ import type { EpicCardOption } from '@shared/board.types'
 import type { KanbanColumn, TrelloLabel } from '@shared/trello.types'
 import type { TicketTemplate, TicketTemplateInput } from '@shared/template.types'
 import { labelColor } from '../../lib/label-colors'
-import { EpicSelect } from '../../components/EpicSelect'
+import { EpicSelect } from './EpicSelect'
 import {
   ModalOverlay,
   ModalContent,

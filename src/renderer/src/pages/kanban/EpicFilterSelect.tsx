@@ -1,21 +1,19 @@
 import { useState, useRef, useEffect } from 'react'
 import type { EpicCardOption } from '@shared/board.types'
-import { fuzzyMatch } from '../lib/fuzzy-match'
+import { fuzzyMatch } from '../../lib/fuzzy-match'
 import {
   Container,
   Trigger,
   TriggerLabel,
   TriggerArrow,
-  Dropdown
-} from './styled/epic-filter-select.styled'
-import {
+  Dropdown,
   SearchWrapper,
   SearchInput,
   Option,
   OptionName,
   OptionList,
   Empty
-} from './styled/epic-select.styled'
+} from './styled/epic-filter-select.styled'
 
 const ALL_VALUE = ''
 const NONE_VALUE = '__none__'
