@@ -3,7 +3,43 @@ import type { BoardConfig } from '@shared/board.types'
 import type { WeeklyUserStats, LabelUserStats, WeeklyHistory } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
 import { labelColor } from '../lib/label-colors'
-import styles from './AnalyticsPage.module.css'
+import {
+  Container,
+  Header,
+  Title,
+  Hint,
+  ErrorBanner,
+  Loading,
+  Empty,
+  SectionTitle
+} from './analytics/analytics-layout.styled'
+import {
+  StatStrip,
+  StatCard,
+  StatValue,
+  StatLabel,
+  UserList,
+  UserRow,
+  UserName,
+  BarWrap,
+  BarFill,
+  UserCount
+} from './analytics/analytics-stats.styled'
+import {
+  LabelList,
+  LabelGroup,
+  LabelHeader,
+  LabelDot,
+  LabelName,
+  LabelTotal
+} from './analytics/analytics-labels.styled'
+import {
+  ChartWrapper,
+  ChartHeader,
+  ChartNav,
+  ChartNavBtn,
+  ChartNavLabel
+} from './analytics/analytics-chart.styled'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -38,7 +74,8 @@ const USER_PALETTE = [
 
 const HISTORY_PAGE_SIZE = 13
 
-export default function AnalyticsPage({ board }: Props): JSX.Element {
+export default function AnalyticsPage(props: Props): JSX.Element {
+  const { board } = props
   const [weeklyStats, setWeeklyStats] = useState<WeeklyUserStats[]>([])
   const [labelStats, setLabelStats] = useState<LabelUserStats[]>([])
   const [historyStats, setHistoryStats] = useState<WeeklyHistory[]>([])
@@ -187,87 +224,85 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
       : ''
 
   return (
-    <div className={styles.container}>
+    <Container>
       {/* ── Header ── */}
-      <div className={styles.header}>
-        <h1>{board.boardName} — Analytics</h1>
-        <span className={styles.hint}>Last 7 days · synced data</span>
-      </div>
+      <Header>
+        <Title>{board.boardName} — Analytics</Title>
+        <Hint>Last 7 days · synced data</Hint>
+      </Header>
 
-      {error && <div className={styles.errorBanner}>{error}</div>}
+      {error && <ErrorBanner>{error}</ErrorBanner>}
 
       {loading ? (
-        <div className={styles.loading}>
+        <Loading>
           <div className="spinner" />
           <span>Loading analytics…</span>
-        </div>
+        </Loading>
       ) : weeklyStats.length === 0 && labelStats.length === 0 ? (
-        <div className={styles.emptyState}>
+        <Empty>
           <p>No completed tickets found in the last 7 days.</p>
           <p className="text-muted mt-2">
             Sync your board first, then make sure your &ldquo;Done&rdquo; list names match the
             settings configured for this board.
           </p>
-        </div>
+        </Empty>
       ) : (
         <>
           {/* ── Summary strip ── */}
-          <div className={styles.statsStrip}>
-            <div className={styles.statCard}>
-              <span className={styles.statValue}>{totalCompleted}</span>
-              <span className={styles.statLabel}>Tickets Completed</span>
-            </div>
-            <div className={styles.statCard}>
-              <span className={styles.statValue}>{sortedUsers.length}</span>
-              <span className={styles.statLabel}>Contributors</span>
-            </div>
-            <div className={styles.statCard}>
-              <span className={styles.statValue}>{Object.keys(labelGroups).length}</span>
-              <span className={styles.statLabel}>Labels</span>
-            </div>
-          </div>
+          <StatStrip>
+            <StatCard>
+              <StatValue>{totalCompleted}</StatValue>
+              <StatLabel>Tickets Completed</StatLabel>
+            </StatCard>
+            <StatCard>
+              <StatValue>{sortedUsers.length}</StatValue>
+              <StatLabel>Contributors</StatLabel>
+            </StatCard>
+            <StatCard>
+              <StatValue>{Object.keys(labelGroups).length}</StatValue>
+              <StatLabel>Labels</StatLabel>
+            </StatCard>
+          </StatStrip>
 
           {/* ── Per-user section ── */}
           <section>
-            <h2 className={styles.sectionTitle}>Tickets Completed per User</h2>
+            <SectionTitle>Tickets Completed per User</SectionTitle>
             {sortedUsers.length === 0 ? (
               <p className="text-muted">No data.</p>
             ) : (
-              <div className={styles.userList}>
+              <UserList>
                 {sortedUsers.map(([userId, { userName, count }]) => {
                   const pct = (count / maxUserCount) * 100
                   return (
-                    <div key={userId} className={styles.userRow}>
-                      <span className={styles.userName}>{userName}</span>
-                      <div className={styles.barWrap}>
-                        <div className={styles.barFill} style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className={styles.userCount}>{count}</span>
-                    </div>
+                    <UserRow key={userId}>
+                      <UserName>{userName}</UserName>
+                      <BarWrap>
+                        <BarFill style={{ width: `${pct}%` }} />
+                      </BarWrap>
+                      <UserCount>{count}</UserCount>
+                    </UserRow>
                   )
                 })}
-              </div>
+              </UserList>
             )}
           </section>
 
           {/* ── Label drill-down ── */}
           <section>
-            <h2 className={styles.sectionTitle}>Tickets by Label</h2>
+            <SectionTitle>Tickets by Label</SectionTitle>
             {Object.keys(labelGroups).length === 0 ? (
               <p className="text-muted">
                 No labelled tickets found. Labels are required for this breakdown.
               </p>
             ) : (
-              <div className={styles.labelList}>
+              <LabelList>
                 {Object.entries(labelGroups).map(([labelName, { color, users }]) => (
-                  <div key={labelName} className={styles.labelGroup}>
-                    <div className={styles.labelHeader}>
-                      <span className={styles.labelDot} style={{ background: labelColor(color) }} />
-                      <span className={styles.labelName}>{labelName || '(no name)'}</span>
-                      <span className={styles.labelTotal}>
-                        {users.reduce((s, u) => s + u.count, 0)} total
-                      </span>
-                    </div>
+                  <LabelGroup key={labelName}>
+                    <LabelHeader>
+                      <LabelDot style={{ background: labelColor(color) }} />
+                      <LabelName>{labelName || '(no name)'}</LabelName>
+                      <LabelTotal>{users.reduce((s, u) => s + u.count, 0)} total</LabelTotal>
+                    </LabelHeader>
                     <table>
                       <thead>
                         <tr>
@@ -284,38 +319,36 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </LabelGroup>
                 ))}
-              </div>
+              </LabelList>
             )}
           </section>
 
           {/* ── Story-point history chart ── */}
           <section>
-            <div className={styles.chartHeader}>
-              <h2 className={styles.sectionTitle}>Story Point Trend — Past 12 Months</h2>
+            <ChartHeader>
+              <SectionTitle>Story Point Trend — Past 12 Months</SectionTitle>
               {allHistoryWeeks.length > 0 && (
-                <div className={styles.chartNav}>
-                  <button
-                    className={styles.chartNavBtn}
+                <ChartNav>
+                  <ChartNavBtn
                     onClick={() => setHistoryOffset((o) => Math.min(o + 1, maxOffset))}
                     disabled={clampedOffset >= maxOffset}
                     title="Older"
                   >
                     ◀
-                  </button>
-                  <span className={styles.chartNavLabel}>{pageRangeLabel}</span>
-                  <button
-                    className={styles.chartNavBtn}
+                  </ChartNavBtn>
+                  <ChartNavLabel>{pageRangeLabel}</ChartNavLabel>
+                  <ChartNavBtn
                     onClick={() => setHistoryOffset((o) => Math.max(o - 1, 0))}
                     disabled={clampedOffset === 0}
                     title="Newer"
                   >
                     ▶
-                  </button>
-                </div>
+                  </ChartNavBtn>
+                </ChartNav>
               )}
-            </div>
+            </ChartHeader>
             {allHistoryWeeks.length === 0 ? (
               <p className="text-muted">
                 No historical data yet. Sync your board to populate this chart — the sync now
@@ -323,13 +356,13 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
                 here.
               </p>
             ) : (
-              <div className={styles.chartWrap}>
+              <ChartWrapper>
                 <Line data={historyChartData} options={historyChartOptions} />
-              </div>
+              </ChartWrapper>
             )}
           </section>
         </>
       )}
-    </div>
+    </Container>
   )
 }
