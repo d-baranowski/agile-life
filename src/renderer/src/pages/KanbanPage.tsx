@@ -64,6 +64,22 @@ interface BulkArchiveModal {
   running: boolean
 }
 
+interface BulkMemberQueueItem {
+  id: string
+  cardId: string
+  cardName: string
+  status: QueueItemStatus
+}
+
+interface BulkMemberModal {
+  memberId: string
+  memberName: string
+  assign: boolean
+  /** null = confirm phase; non-null = progress phase */
+  queue: BulkMemberQueueItem[] | null
+  running: boolean
+}
+
 interface BulkLabelModal {
   /** Labels selected to apply */
   selectedLabelIds: Set<string>
@@ -230,7 +246,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [bulkEpicDropdownOpen, setBulkEpicDropdownOpen] = useState(false)
   const bulkEpicDropdownRef = useRef<HTMLDivElement>(null)
   const [bulkMemberDropdownOpen, setBulkMemberDropdownOpen] = useState(false)
-  const [isBulkAssigning, setIsBulkAssigning] = useState(false)
+  const [bulkMemberModal, setBulkMemberModal] = useState<BulkMemberModal | null>(null)
   const bulkMemberDropdownRef = useRef<HTMLDivElement>(null)
   const [bulkArchiveModal, setBulkArchiveModal] = useState<BulkArchiveModal | null>(null)
 
@@ -480,6 +496,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setShowEmptyMeatball(false)
         setShowMainMeatball(false)
         setBulkArchiveModal((prev) => (prev?.running ? prev : null))
+        setBulkMemberModal((prev) => (prev?.running ? prev : null))
       }
     }
     window.addEventListener('keydown', handleKey)
@@ -788,36 +805,164 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   // ── Bulk member assignment ────────────────────────────────────────────────
 
-  const handleBulkAssignMember = useCallback(
-    async (memberId: string, assign: boolean) => {
+  // ── Bulk member assignment modal handlers ─────────────────────────────────────
+
+  /** Opens the confirm phase for member assignment. */
+  const handleOpenBulkMemberModal = useCallback(
+    (memberId: string, memberName: string, assign: boolean) => {
       if (selectedCardIds.size === 0) return
       setBulkMemberDropdownOpen(false)
-      setIsBulkAssigning(true)
+      setBulkMemberModal({ memberId, memberName, assign, queue: null, running: false })
+    },
+    [selectedCardIds]
+  )
 
-      const cardIds = [...selectedCardIds]
-      const result = await api.trello.bulkAssignMember(board.boardId, cardIds, memberId, assign)
+  /** Builds the progress queue and immediately starts processing, one card at a time. */
+  const handleStartBulkMember = useCallback(async () => {
+    const allCards = columns.flatMap((col) => col.cards)
+    const cardMap = new Map(allCards.map((c) => [c.id, c]))
+    const initialQueue: BulkMemberQueueItem[] = Array.from(selectedCardIds).map((cardId) => ({
+      id: `member-${cardId}`,
+      cardId,
+      cardName: cardMap.get(cardId)?.name ?? cardId,
+      status: 'pending' as QueueItemStatus
+    }))
 
-      setIsBulkAssigning(false)
+    setBulkMemberModal((prev) => (prev ? { ...prev, queue: initialQueue, running: true } : null))
 
-      if (result.success && result.data) {
-        const updatedMap = result.data
+    const memberId = bulkMemberModal?.memberId ?? ''
+    const assign = bulkMemberModal?.assign ?? true
+
+    for (let i = 0; i < initialQueue.length; i++) {
+      const item = initialQueue[i]
+
+      setBulkMemberModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) => (q.id === item.id ? { ...q, status: 'running' } : q))
+        }
+      })
+
+      const result = await api.trello.assignCardMember(board.boardId, item.cardId, memberId, assign)
+      const success = result.success
+
+      if (success && result.data) {
+        const updatedMembers = result.data
         setColumns((prev) =>
           prev.map((col) => ({
             ...col,
             cards: col.cards.map((c) =>
-              updatedMap[c.id] !== undefined ? { ...c, members: updatedMap[c.id] } : c
+              c.id === item.cardId ? { ...c, members: updatedMembers } : c
             )
           }))
         )
-        setToastMessage(
-          `Member ${assign ? 'assigned to' : 'removed from'} ${cardIds.length} card${cardIds.length !== 1 ? 's' : ''}.`
-        )
-      } else {
-        setToastMessage(result.error ?? 'Failed to bulk-assign member. Please try again.')
       }
-    },
-    [board.boardId, selectedCardIds]
-  )
+
+      setBulkMemberModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) =>
+            q.id === item.id ? { ...q, status: success ? 'done' : 'failed' } : q
+          )
+        }
+      })
+
+      // 350 ms delay between requests to avoid Trello 429 rate-limiting
+      if (i < initialQueue.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 350))
+      }
+    }
+
+    setBulkMemberModal((prev) => (prev ? { ...prev, running: false } : null))
+  }, [board.boardId, bulkMemberModal, columns, selectedCardIds])
+
+  /** Retries pending items after failures. */
+  const handleRunBulkMember = useCallback(async () => {
+    setBulkMemberModal((prev) => (prev ? { ...prev, running: true } : null))
+
+    const snapshot = bulkMemberModal
+    if (!snapshot?.queue) return
+
+    const pendingItems = snapshot.queue.filter((q) => q.status === 'pending')
+
+    for (let i = 0; i < pendingItems.length; i++) {
+      const item = pendingItems[i]
+
+      setBulkMemberModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) => (q.id === item.id ? { ...q, status: 'running' } : q))
+        }
+      })
+
+      const result = await api.trello.assignCardMember(
+        board.boardId,
+        item.cardId,
+        snapshot.memberId,
+        snapshot.assign
+      )
+      const success = result.success
+
+      if (success && result.data) {
+        const updatedMembers = result.data
+        setColumns((prev) =>
+          prev.map((col) => ({
+            ...col,
+            cards: col.cards.map((c) =>
+              c.id === item.cardId ? { ...c, members: updatedMembers } : c
+            )
+          }))
+        )
+      }
+
+      setBulkMemberModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) =>
+            q.id === item.id ? { ...q, status: success ? 'done' : 'failed' } : q
+          )
+        }
+      })
+
+      if (i < pendingItems.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 350))
+      }
+    }
+
+    setBulkMemberModal((prev) => (prev ? { ...prev, running: false } : null))
+  }, [board.boardId, bulkMemberModal])
+
+  const handleCloseBulkMember = useCallback(() => {
+    setBulkMemberModal((prev) => (prev?.running ? prev : null))
+  }, [])
+
+  const handleBulkMemberRetryItem = useCallback((itemId: string) => {
+    setBulkMemberModal((prev) => {
+      if (!prev?.queue) return prev
+      return {
+        ...prev,
+        queue: prev.queue.map((q) =>
+          q.id === itemId ? { ...q, status: 'pending' as QueueItemStatus } : q
+        )
+      }
+    })
+  }, [])
+
+  const handleBulkMemberRetryAllFailed = useCallback(() => {
+    setBulkMemberModal((prev) => {
+      if (!prev?.queue) return prev
+      return {
+        ...prev,
+        queue: prev.queue.map((q) =>
+          q.status === 'failed' ? { ...q, status: 'pending' as QueueItemStatus } : q
+        )
+      }
+    })
+  }, [])
 
   // Close bulk member dropdown on outside click
   useEffect(() => {
@@ -1646,9 +1791,8 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 <button
                   className={styles.bulkEpicBtn}
                   onClick={() => setBulkMemberDropdownOpen((prev) => !prev)}
-                  disabled={isBulkAssigning}
                 >
-                  {isBulkAssigning ? '…' : '👤 Set Member'}
+                  👤 Set Member
                 </button>
                 {bulkMemberDropdownOpen && (
                   <div className={styles.bulkMemberDropdown}>
@@ -1657,7 +1801,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                       <button
                         key={member.id}
                         className={styles.bulkMemberDropdownItem}
-                        onClick={() => handleBulkAssignMember(member.id, true)}
+                        onClick={() => handleOpenBulkMemberModal(member.id, member.fullName, true)}
                       >
                         {member.fullName}
                       </button>
@@ -1668,7 +1812,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                       <button
                         key={`remove-${member.id}`}
                         className={styles.bulkMemberDropdownItem}
-                        onClick={() => handleBulkAssignMember(member.id, false)}
+                        onClick={() => handleOpenBulkMemberModal(member.id, member.fullName, false)}
                       >
                         {member.fullName}
                       </button>
@@ -2084,6 +2228,147 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                         disabled={addCardModal.uploading}
                       >
                         {allDone && !addCardModal.uploading ? 'Close' : 'Cancel'}
+                      </button>
+                    </div>
+                  </>
+                )
+              })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk member assignment modal ── */}
+      {bulkMemberModal && (
+        <div className={styles.modalOverlay} onClick={handleCloseBulkMember}>
+          <div className={styles.addCardModal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.addCardModalHeader}>
+              <span className={styles.addCardModalTitle}>
+                <strong>
+                  👤 {bulkMemberModal.assign ? 'Assign' : 'Remove'}: {bulkMemberModal.memberName}
+                </strong>
+              </span>
+              <button
+                className={styles.modalClose}
+                onClick={handleCloseBulkMember}
+                disabled={bulkMemberModal.running}
+                title="Close (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Confirm phase */}
+            {bulkMemberModal.queue === null && (
+              <>
+                <div className={styles.addCardModalBody}>
+                  <p
+                    style={{ margin: '0 0 10px', fontSize: '0.88rem', color: 'var(--color-text)' }}
+                  >
+                    {bulkMemberModal.assign ? 'Assign' : 'Remove'}{' '}
+                    <strong>{bulkMemberModal.memberName}</strong>{' '}
+                    {bulkMemberModal.assign ? 'to' : 'from'} {selectedCardIds.size} card
+                    {selectedCardIds.size !== 1 ? 's' : ''}:
+                  </p>
+                  <div className={styles.addCardPreviewList}>
+                    {(() => {
+                      const allCards = columns.flatMap((col) => col.cards)
+                      const cardMap = new Map(allCards.map((c) => [c.id, c]))
+                      return Array.from(selectedCardIds).map((cardId) => (
+                        <div key={cardId} className={styles.addCardPreviewItem}>
+                          <span className={styles.addCardPreviewName}>
+                            {cardMap.get(cardId)?.name ?? cardId}
+                          </span>
+                        </div>
+                      ))
+                    })()}
+                  </div>
+                </div>
+                <div className={styles.addCardModalFooter}>
+                  <button className={styles.addCardCancelBtn} onClick={handleCloseBulkMember}>
+                    Cancel
+                  </button>
+                  <button className={styles.addCardStartBtn} onClick={handleStartBulkMember}>
+                    {bulkMemberModal.assign ? 'Assign' : 'Remove'} for {selectedCardIds.size} card
+                    {selectedCardIds.size !== 1 ? 's' : ''}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Progress phase */}
+            {bulkMemberModal.queue !== null &&
+              (() => {
+                const hasAnyFailed = bulkMemberModal.queue.some((q) => q.status === 'failed')
+                const allDone = bulkMemberModal.queue.every(
+                  (q) => q.status === 'done' || q.status === 'failed'
+                )
+                const pendingCount = bulkMemberModal.queue.filter(
+                  (q) => q.status === 'pending'
+                ).length
+                return (
+                  <>
+                    <div className={styles.addCardQueueList}>
+                      {bulkMemberModal.queue.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`${styles.addCardQueueItem} ${
+                            item.status === 'done'
+                              ? styles.queueItemDone
+                              : item.status === 'failed'
+                                ? styles.queueItemFailed
+                                : item.status === 'running'
+                                  ? styles.queueItemRunning
+                                  : ''
+                          }`}
+                        >
+                          <span className={styles.queueItemIcon}>
+                            {item.status === 'pending' && '⏳'}
+                            {item.status === 'running' && (
+                              <span
+                                className="spinner"
+                                style={{ width: 14, height: 14, borderWidth: 2 }}
+                              />
+                            )}
+                            {item.status === 'done' && '✓'}
+                            {item.status === 'failed' && '✕'}
+                          </span>
+                          <span className={styles.queueItemName}>{item.cardName}</span>
+                          {!bulkMemberModal.running && item.status === 'failed' && (
+                            <button
+                              className={styles.queueRetryBtn}
+                              onClick={() => handleBulkMemberRetryItem(item.id)}
+                            >
+                              ↺ Retry
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className={styles.addCardModalFooter}>
+                      {bulkMemberModal.running && (
+                        <span className={styles.uploadingLabel}>
+                          {bulkMemberModal.assign ? 'Assigning' : 'Removing'} member…
+                        </span>
+                      )}
+                      {!bulkMemberModal.running && allDone && hasAnyFailed && (
+                        <button
+                          className={styles.addCardStartBtn}
+                          onClick={handleBulkMemberRetryAllFailed}
+                        >
+                          ↺ Retry all failed
+                        </button>
+                      )}
+                      {!bulkMemberModal.running && !allDone && pendingCount > 0 && (
+                        <button className={styles.addCardStartBtn} onClick={handleRunBulkMember}>
+                          {bulkMemberModal.assign ? 'Assign' : 'Remove'} remaining ({pendingCount})
+                        </button>
+                      )}
+                      <button
+                        className={styles.addCardCancelBtn}
+                        onClick={handleCloseBulkMember}
+                        disabled={bulkMemberModal.running}
+                      >
+                        {allDone && !bulkMemberModal.running ? 'Close' : 'Cancel'}
                       </button>
                     </div>
                   </>
