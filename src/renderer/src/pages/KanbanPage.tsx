@@ -155,6 +155,9 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
   const [showDuplicates, setShowDuplicates] = useState(false)
+  const [filterUnassigned, setFilterUnassigned] = useState(false)
+  const [filterNoEpic, setFilterNoEpic] = useState(false)
+  const [filterNoSize, setFilterNoSize] = useState(false)
   const [showEmptyMeatball, setShowEmptyMeatball] = useState(false)
   const [showMainMeatball, setShowMainMeatball] = useState(false)
   const emptyMeatballRef = useRef<HTMLDivElement>(null)
@@ -253,9 +256,21 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     [epicMgmt.epicCardOptions, epicColumnFilter]
   )
 
+  const sizeLabelsLower = useMemo(
+    () => new Set(board.storyPointsConfig.map((r) => r.labelName.trim().toLowerCase())),
+    [board.storyPointsConfig]
+  )
+
+  const hasActiveMenuFilter = showDuplicates || filterUnassigned || filterNoEpic || filterNoSize
+
+  const hasAnyFilter = useMemo(
+    () => !!searchQuery.trim() || !!epicFilter || !!epicColumnFilter || hasActiveMenuFilter,
+    [searchQuery, epicFilter, epicColumnFilter, hasActiveMenuFilter]
+  )
+
   const filteredColumns = useMemo(
     () =>
-      searchQuery.trim() || epicFilter || epicColumnFilter || showDuplicates
+      hasAnyFilter
         ? columns.map((col) => ({
             ...col,
             cards: col.cards.filter((card) => {
@@ -268,24 +283,51 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 return card.epicCardId !== null && epicCardIdsInColumn.has(card.epicCardId)
               if (showDuplicates && !duplicateNames.has(card.name.trim().toLowerCase()))
                 return false
+              if (filterUnassigned && card.members.length > 0) return false
+              if (filterNoEpic && card.epicCardId) return false
+              if (filterNoSize) {
+                const hasSize = card.labels.some((l) =>
+                  sizeLabelsLower.has((l.name || '').trim().toLowerCase())
+                )
+                if (hasSize) return false
+              }
               return true
             })
           }))
         : columns,
     [
       columns,
+      hasAnyFilter,
       searchQuery,
       epicFilter,
       epicColumnFilter,
       epicCardIdsInColumn,
       showDuplicates,
-      duplicateNames
+      duplicateNames,
+      filterUnassigned,
+      filterNoEpic,
+      filterNoSize,
+      sizeLabelsLower
     ]
   )
 
-  const selectedCardCount = bulk.selectedCardIds.size
+  // Select all visible cards in a given column
+  const handleSelectAllInColumn = useCallback(
+    (columnId: string) => {
+      const col = filteredColumns.find((c) => c.id === columnId)
+      if (!col) return
+      bulk.setSelectedCardIds((prev) => {
+        const next = new Set(prev)
+        for (const card of col.cards) {
+          next.add(card.id)
+        }
+        return next
+      })
+    },
+    [filteredColumns, bulk]
+  )
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const selectedCardCount = bulk.selectedCardIds.size
 
   if (loading) {
     return (
@@ -409,7 +451,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         )}
         <div ref={mainMeatballRef} className={styles.meatballWrapper}>
           <button
-            className={`${styles.meatballBtn} ${showDuplicates ? styles.meatballBtnActive : ''}`}
+            className={`${styles.meatballBtn} ${hasActiveMenuFilter ? styles.meatballBtnActive : ''}`}
             onClick={() => setShowMainMeatball((v) => !v)}
             title="More options"
             aria-label="More options"
@@ -427,6 +469,37 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
               >
                 ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
               </button>
+              <button
+                className={`${styles.meatballItem} ${filterUnassigned ? styles.meatballItemActive : ''}`}
+                onClick={() => {
+                  setFilterUnassigned((v) => !v)
+                  setShowMainMeatball(false)
+                }}
+              >
+                👤 Unassigned only
+              </button>
+              {isStoryBoard && (
+                <button
+                  className={`${styles.meatballItem} ${filterNoEpic ? styles.meatballItemActive : ''}`}
+                  onClick={() => {
+                    setFilterNoEpic((v) => !v)
+                    setShowMainMeatball(false)
+                  }}
+                >
+                  ⚡ No epic only
+                </button>
+              )}
+              {board.storyPointsConfig.length > 0 && (
+                <button
+                  className={`${styles.meatballItem} ${filterNoSize ? styles.meatballItemActive : ''}`}
+                  onClick={() => {
+                    setFilterNoSize((v) => !v)
+                    setShowMainMeatball(false)
+                  }}
+                >
+                  📏 No size only
+                </button>
+              )}
               <button
                 className={styles.meatballItem}
                 onClick={() => {
@@ -448,6 +521,15 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             </div>
           )}
         </div>
+        {selectedCardCount > 0 && (
+          <button
+            className={styles.clearSelectionBtn}
+            onClick={() => setSelectedCardIds(new Set())}
+            title="Clear selection (Esc)"
+          >
+            ✕ Clear {selectedCardCount} selected
+          </button>
+        )}
       </div>
 
       {gamificationStats && <GamificationBar stats={gamificationStats} />}
@@ -458,7 +540,19 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             <div key={column.id} className={styles.column}>
               <div className={styles.columnHeader}>
                 <span className={styles.columnName}>{column.name}</span>
-                <span className={styles.columnCount}>{column.cards.length}</span>
+                <div className={styles.columnHeaderActions}>
+                  {column.cards.length > 0 && (
+                    <button
+                      className={styles.columnSelectAllBtn}
+                      onClick={() => handleSelectAllInColumn(column.id)}
+                      title={`Select all ${column.cards.length} cards in ${column.name}`}
+                      aria-label={`Select all cards in ${column.name}`}
+                    >
+                      ☑
+                    </button>
+                  )}
+                  <span className={styles.columnCount}>{column.cards.length}</span>
+                </div>
               </div>
 
               <StrictModeDroppable droppableId={column.id}>

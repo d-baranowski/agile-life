@@ -113,6 +113,26 @@
   color: var(--color-text-muted);
 }
 
+.clearSelectionBtn {
+  padding: 5px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(147, 112, 219, 0.5);
+  background: rgba(147, 112, 219, 0.15);
+  color: #9370db;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+}
+
+.clearSelectionBtn:hover {
+  background: rgba(147, 112, 219, 0.28);
+  border-color: rgba(147, 112, 219, 0.8);
+}
+
 /* ── Board layout ─────────────────────────────────────────────────────────── */
 
 .board {
@@ -178,6 +198,40 @@
   padding: 1px 7px;
   flex-shrink: 0;
   margin-left: 8px;
+}
+
+.columnHeaderActions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.columnSelectAllBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition:
+    opacity var(--transition),
+    background var(--transition),
+    color var(--transition);
+}
+
+.columnHeader:hover .columnSelectAllBtn {
+  opacity: 1;
+}
+
+.columnSelectAllBtn:hover {
+  background: rgba(147, 112, 219, 0.15);
+  color: var(--color-accent);
 }
 
 /* ── Card list (droppable area) ───────────────────────────────────────────── */
