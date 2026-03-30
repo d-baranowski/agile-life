@@ -4,7 +4,31 @@ import type { KanbanCard, EpicCardOption } from '@shared/trello.types'
 import { fuzzyMatch } from '../../lib/fuzzy-match'
 import { labelColor, labelTextColor } from '../../lib/label-colors'
 import { formatAge } from '../../lib/format-age'
-import styles from '../KanbanPage.module.css'
+import {
+  CardWrapper,
+  Checkbox,
+  CardHeader,
+  CardName,
+  Labels,
+  Label,
+  CardMeta,
+  EpicRow,
+  EpicChip,
+  EpicDropdown,
+  EpicDropdownItem,
+  EpicDropdownName,
+  EpicDropdownListName,
+  EpicDropdownSearch,
+  EpicDropdownSearchInput,
+  EpicBoardHint,
+  CardFooter,
+  Members,
+  MemberAvatar,
+  CardActions,
+  ColumnAge,
+  TrelloLink,
+  DuplicateBadge
+} from './DraggableCard.styled'
 
 interface CardProps {
   card: KanbanCard
@@ -65,26 +89,24 @@ export default function DraggableCard({
   return (
     <Draggable draggableId={card.id} index={index}>
       {(provided, snapshot) => (
-        <div
+        <CardWrapper
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`${styles.card} ${snapshot.isDragging ? styles.cardDragging : ''} ${isDuplicate ? styles.cardDuplicate : ''} ${isSelected ? styles.cardSelected : ''}`}
+          $dragging={snapshot.isDragging}
+          $duplicate={isDuplicate}
+          $selected={isSelected}
           onClick={handleClick}
           onContextMenu={onContextMenu}
           title={isEpicBoard ? 'Double-click to see stories in this epic' : undefined}
         >
-          <div className={styles.cardHeader}>
-            <span className={styles.cardName}>
-              {isDuplicate && (
-                <span className={styles.duplicateBadge} title="Duplicate title">
-                  ⊖
-                </span>
-              )}
+          <CardHeader>
+            <CardName>
+              {isDuplicate && <DuplicateBadge title="Duplicate title">⊖</DuplicateBadge>}
               {card.name}
-            </span>
-            <button
-              className={`${styles.cardCheckbox} ${isSelected ? styles.cardCheckboxChecked : ''}`}
+            </CardName>
+            <Checkbox
+              $checked={isSelected}
               onClick={(e) => {
                 e.stopPropagation()
                 onToggleSelect(card.id)
@@ -94,14 +116,14 @@ export default function DraggableCard({
               aria-pressed={isSelected}
             >
               {isSelected ? '✓' : ''}
-            </button>
-          </div>
+            </Checkbox>
+          </CardHeader>
 
           {/* Epic label (story board only) */}
           {isStoryBoard && (
-            <div className={styles.epicRow}>
-              <button
-                className={card.epicCardName ? styles.epicChip : styles.epicChipEmpty}
+            <EpicRow>
+              <EpicChip
+                $empty={!card.epicCardName}
                 onClick={(e) => {
                   e.stopPropagation()
                   onToggleEpicDropdown(card.id)
@@ -109,26 +131,22 @@ export default function DraggableCard({
                 title="Assign epic"
               >
                 {card.epicCardName ? `⚡ ${card.epicCardName}` : '+ Epic'}
-              </button>
+              </EpicChip>
 
               {isDropdownOpen && (
-                <div className={styles.epicDropdown} onClick={(e) => e.stopPropagation()}>
-                  <div className={styles.epicDropdownSearch}>
-                    <input
+                <EpicDropdown onClick={(e) => e.stopPropagation()}>
+                  <EpicDropdownSearch>
+                    <EpicDropdownSearchInput
                       ref={epicSearchRef}
                       type="text"
-                      className={styles.epicDropdownSearchInput}
                       placeholder="Search epics…"
                       value={epicSearchQuery}
                       onChange={(e) => setEpicSearchQuery(e.target.value)}
                     />
-                  </div>
-                  <button
-                    className={styles.epicDropdownItem}
-                    onClick={() => onSetCardEpic(card.id, null)}
-                  >
+                  </EpicDropdownSearch>
+                  <EpicDropdownItem onClick={() => onSetCardEpic(card.id, null)}>
                     — None
-                  </button>
+                  </EpicDropdownItem>
                   {epicCardOptions
                     .filter(
                       (opt) =>
@@ -136,81 +154,76 @@ export default function DraggableCard({
                         fuzzyMatch(epicSearchQuery, `${opt.name} ${opt.listName}`)
                     )
                     .map((opt) => (
-                      <button
+                      <EpicDropdownItem
                         key={opt.id}
-                        className={`${styles.epicDropdownItem} ${card.epicCardId === opt.id ? styles.epicDropdownItemActive : ''}`}
+                        $active={card.epicCardId === opt.id}
                         onClick={() => onSetCardEpic(card.id, opt.id)}
                       >
-                        <span className={styles.epicDropdownName}>{opt.name}</span>
-                        <span className={styles.epicDropdownList}>{opt.listName}</span>
-                      </button>
+                        <EpicDropdownName>{opt.name}</EpicDropdownName>
+                        <EpicDropdownListName>{opt.listName}</EpicDropdownListName>
+                      </EpicDropdownItem>
                     ))}
-                </div>
+                </EpicDropdown>
               )}
-            </div>
+            </EpicRow>
           )}
 
           {/* Epic board hint */}
-          {isEpicBoard && (
-            <span className={styles.epicBoardHint}>⚡ Epic — double-click for stories</span>
-          )}
+          {isEpicBoard && <EpicBoardHint>⚡ Epic — double-click for stories</EpicBoardHint>}
 
-          <div className={styles.cardFooter}>
+          <CardFooter>
             {card.labels.length > 0 && (
-              <div className={styles.labels}>
+              <Labels>
                 {card.labels.map((label) => {
                   const bg = labelColor(label.color)
                   return (
-                    <span
+                    <Label
                       key={label.id}
-                      className={styles.label}
                       style={{ background: bg, color: labelTextColor(bg) }}
                       title={label.name || label.color}
                     >
                       {label.name || label.color}
-                    </span>
+                    </Label>
                   )
                 })}
-              </div>
+              </Labels>
             )}
 
-            <div className={styles.cardActions}>
+            <CardActions>
               {card.members.length > 0 && (
-                <div className={styles.members}>
+                <Members>
                   {card.members.map((member) => (
-                    <span key={member.id} className={styles.memberAvatar} title={member.fullName}>
+                    <MemberAvatar key={member.id} title={member.fullName}>
                       {member.fullName.charAt(0).toUpperCase()}
-                    </span>
+                    </MemberAvatar>
                   ))}
-                </div>
+                </Members>
               )}
 
-              <div className={styles.cardMeta}>
+              <CardMeta>
                 {card.enteredAt && (
-                  <span
-                    className={styles.columnAge}
+                  <ColumnAge
                     title={`In this column since ${new Date(card.enteredAt).toLocaleString()}`}
                   >
                     {formatAge(card.enteredAt)}
-                  </span>
+                  </ColumnAge>
                 )}
 
                 {card.shortUrl && (
-                  <a
+                  <TrelloLink
                     href={card.shortUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={styles.trelloLink}
                     title="Open in Trello"
                     onClick={(e) => e.stopPropagation()}
                   >
                     ↗
-                  </a>
+                  </TrelloLink>
                 )}
-              </div>
-            </div>
-          </div>
-        </div>
+              </CardMeta>
+            </CardActions>
+          </CardFooter>
+        </CardWrapper>
       )}
     </Draggable>
   )
