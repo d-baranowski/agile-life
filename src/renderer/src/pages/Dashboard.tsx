@@ -10,7 +10,58 @@ import type {
 } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
 import { labelColor } from '../lib/label-colors'
-import styles from './Dashboard.module.css'
+import {
+  Container,
+  Header,
+  Title,
+  LastSync,
+  ErrorBanner,
+  Loading,
+  Empty,
+  SectionTitle,
+  AnalyticsHint
+} from './dashboard/dashboard-layout.styled'
+import {
+  StatStrip,
+  StatCard,
+  StatValue,
+  StatLabel,
+  UserList,
+  UserRow,
+  UserName,
+  BarWrap,
+  BarFill,
+  UserCount
+} from './dashboard/dashboard-stats.styled'
+import {
+  ColumnGrid,
+  ColumnCard,
+  ColumnHeader,
+  ColumnName,
+  ColumnCount as ColumnCountDisplay,
+  ColumnBar,
+  ColumnBarFill,
+  ColumnPercent
+} from './dashboard/dashboard-columns.styled'
+import {
+  LabelList,
+  LabelGroup,
+  LabelHeader,
+  LabelDot,
+  LabelName,
+  LabelTotal,
+  LabelUserList,
+  LabelUserRow,
+  LabelUserName,
+  LabelUserCount
+} from './dashboard/dashboard-labels.styled'
+import {
+  ChartWrapper,
+  ChartHeader,
+  ChartNav,
+  ChartNavBtn,
+  ChartNavLabel
+} from './dashboard/dashboard-chart.styled'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -56,7 +107,8 @@ const USER_PALETTE = [
   '#f2d600'
 ]
 
-export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
+export default function Dashboard(props: Props): JSX.Element {
+  const { board, syncVersion } = props
   const [columns, setColumns] = useState<ColumnCount[]>([])
   const [weeklyStats, setWeeklyStats] = useState<WeeklyUserStats[]>([])
   const [labelStats, setLabelStats] = useState<LabelUserStats[]>([])
@@ -259,161 +311,155 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
       : ''
 
   return (
-    <div className={styles.container}>
+    <Container>
       {/* ── Header ── */}
-      <div className={styles.header}>
+      <Header>
         <div>
-          <h1 className={styles.title}>{board.boardName}</h1>
+          <Title>{board.boardName}</Title>
           {board.lastSyncedAt && (
-            <span className={styles.lastSync}>
-              Last synced {new Date(board.lastSyncedAt).toLocaleString()}
-            </span>
+            <LastSync>Last synced {new Date(board.lastSyncedAt).toLocaleString()}</LastSync>
           )}
         </div>
-      </div>
+      </Header>
 
-      {error && <div className={styles.errorBanner}>{error}</div>}
+      {error && <ErrorBanner>{error}</ErrorBanner>}
 
       {loading ? (
-        <div className={styles.centred}>
+        <Loading>
           <div className="spinner" />
           <span>Loading…</span>
-        </div>
+        </Loading>
       ) : (
         <>
           {/* ── Combined summary strip ── */}
           {(columns.length > 0 || sortedUsers.length > 0) && (
-            <div className={styles.statsStrip}>
-              <div className={styles.statCard}>
-                <span className={styles.statValue}>{totalCards}</span>
-                <span className={styles.statLabel}>Total Active Cards</span>
-              </div>
-              <div className={styles.statCard}>
-                <span className={styles.statValue}>{columns.length}</span>
-                <span className={styles.statLabel}>Columns</span>
-              </div>
-              <div className={styles.statCard}>
-                <span className={styles.statValue}>{totalCompleted}</span>
-                <span className={styles.statLabel}>Completed (7 days)</span>
-              </div>
-              <div className={styles.statCard}>
-                <span className={styles.statValue}>{sortedUsers.length}</span>
-                <span className={styles.statLabel}>Contributors</span>
-              </div>
-            </div>
+            <StatStrip>
+              <StatCard>
+                <StatValue>{totalCards}</StatValue>
+                <StatLabel>Total Active Cards</StatLabel>
+              </StatCard>
+              <StatCard>
+                <StatValue>{columns.length}</StatValue>
+                <StatLabel>Columns</StatLabel>
+              </StatCard>
+              <StatCard>
+                <StatValue>{totalCompleted}</StatValue>
+                <StatLabel>Completed (7 days)</StatLabel>
+              </StatCard>
+              <StatCard>
+                <StatValue>{sortedUsers.length}</StatValue>
+                <StatLabel>Contributors</StatLabel>
+              </StatCard>
+            </StatStrip>
           )}
 
           {/* ── Cards per Column ── */}
           {columns.length === 0 ? (
-            <div className={styles.emptyState}>
+            <Empty>
               <p>No data yet.</p>
               <p className="text-muted">
                 Click <strong>↻ Fetch from Trello</strong> in the top bar to import this
                 board&apos;s data.
               </p>
-            </div>
+            </Empty>
           ) : (
             <section>
-              <h2 className={styles.sectionTitle}>Cards per Column</h2>
-              <div className={styles.columnsGrid}>
+              <SectionTitle>Cards per Column</SectionTitle>
+              <ColumnGrid>
                 {columns.map((col) => {
                   const pct = totalCards > 0 ? (col.cardCount / totalCards) * 100 : 0
                   return (
-                    <div key={col.listId} className={styles.columnCard}>
-                      <div className={styles.columnHeader}>
-                        <span className={styles.columnName}>{col.listName}</span>
-                        <span className={styles.columnCount}>{col.cardCount}</span>
-                      </div>
-                      <div className={styles.progressBar}>
-                        <div className={styles.progressFill} style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className={styles.columnPct}>{pct.toFixed(0)}% of total</span>
-                    </div>
+                    <ColumnCard key={col.listId}>
+                      <ColumnHeader>
+                        <ColumnName>{col.listName}</ColumnName>
+                        <ColumnCountDisplay>{col.cardCount}</ColumnCountDisplay>
+                      </ColumnHeader>
+                      <ColumnBar>
+                        <ColumnBarFill style={{ width: `${pct}%` }} />
+                      </ColumnBar>
+                      <ColumnPercent>{pct.toFixed(0)}% of total</ColumnPercent>
+                    </ColumnCard>
                   )
                 })}
-              </div>
+              </ColumnGrid>
             </section>
           )}
 
           {/* ── Tickets Completed per User ── */}
           {sortedUsers.length === 0 && columns.length > 0 && (
-            <p className={`text-muted ${styles.analyticsHint}`}>
+            <AnalyticsHint className="text-muted">
               No completions recorded in the last 7 days. Done list names configured as:{' '}
               <strong>{board.doneListNames.map((n) => `"${n}"`).join(', ')}</strong>. Update{' '}
               <strong>Done List Names</strong> in ⚙️&nbsp;Settings if this doesn&apos;t match your
               board.
-            </p>
+            </AnalyticsHint>
           )}
           {sortedUsers.length > 0 && (
             <section>
-              <h2 className={styles.sectionTitle}>Tickets Completed per User (last 7 days)</h2>
-              <div className={styles.userList}>
+              <SectionTitle>Tickets Completed per User (last 7 days)</SectionTitle>
+              <UserList>
                 {sortedUsers.map(([userId, { userName, count }]) => {
                   const pct = (count / maxUserCount) * 100
                   return (
-                    <div key={userId} className={styles.userRow}>
-                      <span className={styles.userName}>{userName}</span>
-                      <div className={styles.barWrap}>
-                        <div className={styles.barFill} style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className={styles.userCount}>{count}</span>
-                    </div>
+                    <UserRow key={userId}>
+                      <UserName>{userName}</UserName>
+                      <BarWrap>
+                        <BarFill style={{ width: `${pct}%` }} />
+                      </BarWrap>
+                      <UserCount>{count}</UserCount>
+                    </UserRow>
                   )
                 })}
-              </div>
+              </UserList>
             </section>
           )}
 
           {/* ── Story Points Completed per User (last 7 days) ── */}
           {storyPointStats.length > 0 && (
             <section>
-              <h2 className={styles.sectionTitle}>
-                {'Story Points Completed per User (last 7 days)'}
-              </h2>
-              <div className={styles.userList}>
+              <SectionTitle>{'Story Points Completed per User (last 7 days)'}</SectionTitle>
+              <UserList>
                 {storyPointStats.map((row) => {
                   const maxSp = storyPointStats[0].storyPoints || 1
                   const pct = (row.storyPoints / maxSp) * 100
                   return (
-                    <div key={row.userId ?? 'unassigned'} className={styles.userRow}>
-                      <span className={styles.userName}>{row.userName}</span>
-                      <div className={styles.barWrap}>
-                        <div className={styles.barFill} style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className={styles.userCount}>{row.storyPoints}</span>
-                    </div>
+                    <UserRow key={row.userId ?? 'unassigned'}>
+                      <UserName>{row.userName}</UserName>
+                      <BarWrap>
+                        <BarFill style={{ width: `${pct}%` }} />
+                      </BarWrap>
+                      <UserCount>{row.storyPoints}</UserCount>
+                    </UserRow>
                   )
                 })}
-              </div>
+              </UserList>
             </section>
           )}
 
           {/* ── Story Point Trend ── */}
           <section>
-            <div className={styles.chartHeader}>
-              <h2 className={styles.sectionTitle}>Story Point Trend — Past 12 Months</h2>
+            <ChartHeader>
+              <SectionTitle>Story Point Trend — Past 12 Months</SectionTitle>
               {allHistoryWeeks.length > 0 && (
-                <div className={styles.chartNav}>
-                  <button
-                    className={styles.chartNavBtn}
+                <ChartNav>
+                  <ChartNavBtn
                     onClick={() => setHistoryOffset((o) => Math.min(o + 1, maxOffset))}
                     disabled={clampedOffset >= maxOffset}
                     title="View older weeks"
                   >
                     ◀
-                  </button>
-                  <span className={styles.chartNavLabel}>{pageRangeLabel}</span>
-                  <button
-                    className={styles.chartNavBtn}
+                  </ChartNavBtn>
+                  <ChartNavLabel>{pageRangeLabel}</ChartNavLabel>
+                  <ChartNavBtn
                     onClick={() => setHistoryOffset((o) => Math.max(o - 1, 0))}
                     disabled={clampedOffset === 0}
                     title="View newer weeks"
                   >
                     ▶
-                  </button>
-                </div>
+                  </ChartNavBtn>
+                </ChartNav>
               )}
-            </div>
+            </ChartHeader>
             {allHistoryWeeks.length === 0 ? (
               <p className="text-muted">
                 {columns.length > 0 ? (
@@ -429,47 +475,45 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
                 )}
               </p>
             ) : (
-              <div className={styles.chartWrap}>
+              <ChartWrapper>
                 <Line data={historyChartData} options={historyChartOptions} />
-              </div>
+              </ChartWrapper>
             )}
           </section>
 
           {/* ── Story Points by Epic per Week ── */}
           {board.epicBoardId && (
             <section>
-              <div className={styles.chartHeader}>
-                <h2 className={styles.sectionTitle}>Story Points by Epic — Past 12 Months</h2>
+              <ChartHeader>
+                <SectionTitle>Story Points by Epic — Past 12 Months</SectionTitle>
                 {allEpicWeeks.length > 0 && (
-                  <div className={styles.chartNav}>
-                    <button
-                      className={styles.chartNavBtn}
+                  <ChartNav>
+                    <ChartNavBtn
                       onClick={() => setEpicHistoryOffset((o) => Math.min(o + 1, maxEpicOffset))}
                       disabled={clampedEpicOffset >= maxEpicOffset}
                       title="View older weeks"
                     >
                       ◀
-                    </button>
-                    <span className={styles.chartNavLabel}>{epicPageRangeLabel}</span>
-                    <button
-                      className={styles.chartNavBtn}
+                    </ChartNavBtn>
+                    <ChartNavLabel>{epicPageRangeLabel}</ChartNavLabel>
+                    <ChartNavBtn
                       onClick={() => setEpicHistoryOffset((o) => Math.max(o - 1, 0))}
                       disabled={clampedEpicOffset === 0}
                       title="View newer weeks"
                     >
                       ▶
-                    </button>
-                  </div>
+                    </ChartNavBtn>
+                  </ChartNav>
                 )}
-              </div>
+              </ChartHeader>
               {allEpicWeeks.length === 0 ? (
                 <p className="text-muted">
                   No epic data yet. Click ↻ Fetch from Trello to import your board data.
                 </p>
               ) : (
-                <div className={styles.chartWrap}>
+                <ChartWrapper>
                   <Bar data={epicChartData} options={epicChartOptions} />
-                </div>
+                </ChartWrapper>
               )}
             </section>
           )}
@@ -477,18 +521,16 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
           {/* ── Tickets by Label ── */}
           {Object.keys(labelGroups).length > 0 && (
             <section>
-              <h2 className={styles.sectionTitle}>Tickets by Label</h2>
-              <div className={styles.labelList}>
+              <SectionTitle>Tickets by Label</SectionTitle>
+              <LabelList>
                 {Object.entries(labelGroups).map(([labelName, { color, users }]) => (
-                  <div key={labelName} className={styles.labelGroup}>
-                    <div className={styles.labelHeader}>
-                      <span className={styles.labelDot} style={{ background: labelColor(color) }} />
-                      <span className={styles.labelName}>{labelName || '(no name)'}</span>
-                      <span className={styles.labelTotal}>
-                        {users.reduce((s, u) => s + u.count, 0)} total
-                      </span>
-                    </div>
-                    <table>
+                  <LabelGroup key={labelName}>
+                    <LabelHeader>
+                      <LabelDot style={{ background: labelColor(color) }} />
+                      <LabelName>{labelName || '(no name)'}</LabelName>
+                      <LabelTotal>{users.reduce((s, u) => s + u.count, 0)} total</LabelTotal>
+                    </LabelHeader>
+                    <LabelUserList>
                       <thead>
                         <tr>
                           <th>User</th>
@@ -497,20 +539,20 @@ export default function Dashboard({ board, syncVersion }: Props): JSX.Element {
                       </thead>
                       <tbody>
                         {users.map((u) => (
-                          <tr key={u.userId ?? 'unassigned'}>
-                            <td>{u.userName}</td>
-                            <td style={{ textAlign: 'right' }}>{u.count}</td>
-                          </tr>
+                          <LabelUserRow key={u.userId ?? 'unassigned'}>
+                            <LabelUserName>{u.userName}</LabelUserName>
+                            <LabelUserCount>{u.count}</LabelUserCount>
+                          </LabelUserRow>
                         ))}
                       </tbody>
-                    </table>
-                  </div>
+                    </LabelUserList>
+                  </LabelGroup>
                 ))}
-              </div>
+              </LabelList>
             </section>
           )}
         </>
       )}
-    </div>
+    </Container>
   )
 }
