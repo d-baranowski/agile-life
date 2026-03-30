@@ -7,7 +7,7 @@ import { registerAnalyticsHandlers } from '../features/analytics/analytics.ipc'
 import { registerTicketHandlers } from '../features/tickets/tickets'
 import { registerSettingsHandlers } from '../features/settings/settings'
 import { registerTemplateHandlers } from '../features/templates/templates'
-import { registerLogHandlers } from '../lib/logs/logs'
+import { registerLogHandlers } from '../features/logs/logs.ipc'
 import icon from '../../resources/icon.png?asset'
 
 // Ensure the Dock / taskbar always shows "Agile Life", not the Electron binary name

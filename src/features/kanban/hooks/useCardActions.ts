@@ -1,113 +1,115 @@
-import { useState, useCallback } from 'react'
-import type { KanbanColumn, TrelloLabel, TrelloMember } from '../../../trello/trello.types'
+import { useCallback } from 'react'
+import type { TrelloLabel } from '../../../trello/trello.types'
 import { api } from '../../api/useApi'
+import { useAppDispatch, useAppSelector } from '../../../store/hooks'
+import {
+  contextMenuOpened,
+  contextMenuClosed,
+  columnsUpdated,
+  cardRemovedFromColumn,
+  cardMembersUpdated,
+  cardLabelsUpdated,
+  kanbanToastShown
+} from '../kanbanSlice'
 import type { ContextMenuState } from '../kanban.types'
 
-export function useCardActions(
-  boardId: string,
-  columns: KanbanColumn[],
-  boardMembers: TrelloMember[],
-  setColumns: React.Dispatch<React.SetStateAction<KanbanColumn[]>>,
-  setToastMessage: (msg: string | null) => void
-) {
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+export function useCardActions(boardId: string) {
+  const dispatch = useAppDispatch()
+  const columns = useAppSelector((s) => s.kanban.columns)
+  const boardMembers = useAppSelector((s) => s.kanban.boardMembers)
+  const contextMenu = useAppSelector((s) => s.kanban.contextMenu)
+
+  const handleOpenContextMenu = useCallback(
+    (menu: ContextMenuState) => {
+      dispatch(contextMenuOpened(menu))
+    },
+    [dispatch]
+  )
+
+  const handleCloseContextMenu = useCallback(() => {
+    dispatch(contextMenuClosed())
+  }, [dispatch])
 
   const handleArchiveCard = useCallback(
     async (cardId: string) => {
-      setContextMenu(null)
-      // Optimistically remove the card from the UI
+      dispatch(contextMenuClosed())
+      // Save a snapshot for rollback
       const prevColumns = columns
-      setColumns((prev) =>
-        prev.map((col) => ({ ...col, cards: col.cards.filter((c) => c.id !== cardId) }))
-      )
+      // Optimistically remove the card from the UI
+      dispatch(cardRemovedFromColumn(cardId))
       const result = await api.trello.archiveCard(boardId, cardId)
       if (!result.success) {
-        setColumns(prevColumns)
-        setToastMessage(result.error ?? 'Failed to archive card. Please try again.')
+        dispatch(columnsUpdated(prevColumns))
+        dispatch(kanbanToastShown(result.error ?? 'Failed to archive card. Please try again.'))
       }
     },
-    [boardId, columns, setColumns, setToastMessage]
+    [boardId, columns, dispatch]
   )
 
   const handleToggleMember = useCallback(
     async (cardId: string, memberId: string, assign: boolean) => {
-      setContextMenu(null)
+      dispatch(contextMenuClosed())
 
       // Optimistically update the member list in the UI
       const prevColumns = columns
-      setColumns((prev) =>
-        prev.map((col) => ({
-          ...col,
-          cards: col.cards.map((c) => {
-            if (c.id !== cardId) return c
-            const updatedMembers = assign
-              ? c.members.some((m) => m.id === memberId)
-                ? c.members
-                : [...c.members, ...boardMembers.filter((m) => m.id === memberId)]
-              : c.members.filter((m) => m.id !== memberId)
-            return { ...c, members: updatedMembers }
-          })
-        }))
-      )
+      const card = columns.flatMap((c) => c.cards).find((c) => c.id === cardId)
+      if (card) {
+        const updatedMembers = assign
+          ? card.members.some((m) => m.id === memberId)
+            ? card.members
+            : [...card.members, ...boardMembers.filter((m) => m.id === memberId)]
+          : card.members.filter((m) => m.id !== memberId)
+        dispatch(cardMembersUpdated({ cardId, members: updatedMembers }))
+      }
 
       const result = await api.trello.assignCardMember(boardId, cardId, memberId, assign)
       if (result.success && result.data) {
         // Reconcile with the authoritative response from the server
-        setColumns((prev) =>
-          prev.map((col) => ({
-            ...col,
-            cards: col.cards.map((c) => (c.id === cardId ? { ...c, members: result.data! } : c))
-          }))
-        )
+        dispatch(cardMembersUpdated({ cardId, members: result.data }))
       } else {
         // Revert optimistic update on failure
-        setColumns(prevColumns)
-        setToastMessage(result.error ?? 'Failed to update member assignment. Please try again.')
+        dispatch(columnsUpdated(prevColumns))
+        dispatch(
+          kanbanToastShown(result.error ?? 'Failed to update member assignment. Please try again.')
+        )
       }
     },
-    [boardId, boardMembers, columns, setColumns, setToastMessage]
+    [boardId, boardMembers, columns, dispatch]
   )
 
   const handleToggleLabel = useCallback(
     async (cardId: string, label: TrelloLabel, assign: boolean) => {
-      setContextMenu(null)
+      dispatch(contextMenuClosed())
 
       // Optimistically update the label list in the UI
       const prevColumns = columns
-      setColumns((prev) =>
-        prev.map((col) => ({
-          ...col,
-          cards: col.cards.map((c) => {
-            if (c.id !== cardId) return c
-            const updatedLabels = assign
-              ? c.labels.some((l) => l.id === label.id)
-                ? c.labels
-                : [...c.labels, label]
-              : c.labels.filter((l) => l.id !== label.id)
-            return { ...c, labels: updatedLabels }
-          })
-        }))
-      )
+      const card = columns.flatMap((c) => c.cards).find((c) => c.id === cardId)
+      if (card) {
+        const updatedLabels = assign
+          ? card.labels.some((l) => l.id === label.id)
+            ? card.labels
+            : [...card.labels, label]
+          : card.labels.filter((l) => l.id !== label.id)
+        dispatch(cardLabelsUpdated({ cardId, labels: updatedLabels }))
+      }
 
       const result = await api.trello.assignCardLabel(boardId, cardId, label, assign)
       if (result.success && result.data) {
-        setColumns((prev) =>
-          prev.map((col) => ({
-            ...col,
-            cards: col.cards.map((c) => (c.id === cardId ? { ...c, labels: result.data! } : c))
-          }))
-        )
+        dispatch(cardLabelsUpdated({ cardId, labels: result.data }))
       } else {
-        setColumns(prevColumns)
-        setToastMessage(result.error ?? 'Failed to update label assignment. Please try again.')
+        dispatch(columnsUpdated(prevColumns))
+        dispatch(
+          kanbanToastShown(result.error ?? 'Failed to update label assignment. Please try again.')
+        )
       }
     },
-    [boardId, columns, setColumns, setToastMessage]
+    [boardId, columns, dispatch]
   )
 
   return {
     contextMenu,
-    setContextMenu,
+    handleOpenContextMenu,
+    handleCloseContextMenu,
     handleArchiveCard,
     handleToggleMember,
     handleToggleLabel

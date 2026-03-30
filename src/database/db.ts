@@ -16,7 +16,7 @@ import type {
   TemplateGroupInput,
   TicketTemplateInput
 } from '../features/templates/template.types'
-import { encryptCredential, decryptCredential } from '../lib/crypto'
+import { encryptCredential, decryptCredential } from './crypto'
 
 // ─── SQL imports ───────────────────────────────────────────────────────────────
 import schemaSql from './sql/schema.sql?raw'

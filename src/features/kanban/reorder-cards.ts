@@ -1,4 +1,4 @@
-import type { KanbanCard } from '../trello/trello.types'
+import type { KanbanCard } from '../../trello/trello.types'
 
 /** Reorder cards within the same column by moving a card from one index to another. */
 export function reorderCards(

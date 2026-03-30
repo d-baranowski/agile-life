@@ -1,8 +1,6 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useEffect, useCallback, useRef, useMemo } from 'react'
 import { DragDropContext } from 'react-beautiful-dnd'
 import type { BoardConfig } from '../../lib/board.types'
-import type { KanbanColumn, TrelloMember, TrelloLabel } from '../../trello/trello.types'
-import type { GamificationStats } from '../analytics/analytics.types'
 import { api } from '../api/useApi'
 import { fuzzyMatch } from '../../lib/fuzzy-match'
 import Toast from '../toast/Toast'
@@ -28,6 +26,29 @@ import { useBulkActions } from './hooks/useBulkActions'
 import { useDragDrop } from './hooks/useDragDrop'
 import KanbanMeatballMenu from './components/meatball-menu/KanbanMeatballMenu'
 import KanbanColumnHeader from './components/KanbanColumnHeader'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import {
+  fetchBoardData,
+  fetchGamificationStats,
+  searchQueryChanged,
+  epicFilterChanged,
+  epicColumnFilterChanged,
+  filtersResetForBoard,
+  duplicatesToggled,
+  unassignedToggled,
+  noEpicToggled,
+  noSizeToggled,
+  ticketsModalToggled,
+  emptyMeatballToggled,
+  emptyMeatballClosed,
+  mainMeatballToggled,
+  mainMeatballClosed,
+  allCardsInColumnSelected,
+  selectionCleared,
+  escapePressed,
+  kanbanToastDismissed,
+  contextMenuOpened
+} from './kanbanSlice'
 import {
   Container,
   SearchBar,
@@ -55,93 +76,74 @@ interface Props {
   syncVersion: number
 }
 
-export default function KanbanPage({ board, allBoards, syncVersion }: Props): JSX.Element {
-  const [columns, setColumns] = useState<KanbanColumn[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [epicFilter, setEpicFilter] = useState<string>('')
-  const [epicColumnFilter, setEpicColumnFilter] = useState<string>('')
-  const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
+export default function KanbanPage(props: Props): JSX.Element {
+  const { board, allBoards, syncVersion } = props
+  const dispatch = useAppDispatch()
+
+  // ── Redux state ──────────────────────────────────────────────────────────
+  const columns = useAppSelector((s) => s.kanban.columns)
+  const loading = useAppSelector((s) => s.kanban.loading)
+  const error = useAppSelector((s) => s.kanban.error)
+  const toastMessage = useAppSelector((s) => s.kanban.toastMessage)
+  const searchQuery = useAppSelector((s) => s.kanban.searchQuery)
+  const epicFilter = useAppSelector((s) => s.kanban.epicFilter)
+  const epicColumnFilter = useAppSelector((s) => s.kanban.epicColumnFilter)
+  const boardMembers = useAppSelector((s) => s.kanban.boardMembers)
+  const boardLabels = useAppSelector((s) => s.kanban.boardLabels)
+  const gamificationStats = useAppSelector((s) => s.kanban.gamificationStats)
+  const showTicketsModal = useAppSelector((s) => s.kanban.showTicketsModal)
+  const showDuplicates = useAppSelector((s) => s.kanban.showDuplicates)
+  const filterUnassigned = useAppSelector((s) => s.kanban.filterUnassigned)
+  const filterNoEpic = useAppSelector((s) => s.kanban.filterNoEpic)
+  const filterNoSize = useAppSelector((s) => s.kanban.filterNoSize)
+  const showEmptyMeatball = useAppSelector((s) => s.kanban.showEmptyMeatball)
+  const showMainMeatball = useAppSelector((s) => s.kanban.showMainMeatball)
+  const selectedCardIds = useAppSelector((s) => s.kanban.selectedCardIds)
+
   const contextMenuRef = useRef<HTMLDivElement>(null)
   const lastPointerPos = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 })
+  const emptyMeatballRef = useRef<HTMLDivElement>(null)
+  const mainMeatballRef = useRef<HTMLDivElement>(null)
 
   const isStoryBoard = !!board.epicBoardId
   const isEpicBoard = allBoards.some((b) => b.epicBoardId === board.boardId)
 
-  const [boardLabels, setBoardLabels] = useState<TrelloLabel[]>([])
-  const [gamificationStats, setGamificationStats] = useState<GamificationStats | null>(null)
-
-  // ── Data loading ──────────────────────────────────────────────────────────
-
-  const loadBoardData = useCallback(async () => {
-    const [dataResult, membersResult, labelsResult] = await Promise.all([
-      api.trello.getBoardData(board.boardId),
-      api.trello.getBoardMembers(board.boardId),
-      api.trello.getBoardLabels(board.boardId)
-    ])
-    if (dataResult.success && dataResult.data) {
-      setColumns(dataResult.data)
-      setError(null)
-    } else {
-      setError(dataResult.error ?? 'Failed to load board data.')
-    }
-    if (membersResult.success && membersResult.data) setBoardMembers(membersResult.data)
-    if (labelsResult.success && labelsResult.data) setBoardLabels(labelsResult.data)
-    setLoading(false)
-  }, [board.boardId, syncVersion])
-
   // ── Hooks ─────────────────────────────────────────────────────────────────
 
-  const epicMgmt = useEpicManagement(board.boardId, isStoryBoard, setColumns)
+  const epicMgmt = useEpicManagement(board.boardId, isStoryBoard)
 
-  const { contextMenu, setContextMenu, handleArchiveCard, handleToggleMember, handleToggleLabel } =
-    useCardActions(board.boardId, columns, boardMembers, setColumns, setToastMessage)
+  const {
+    contextMenu,
+    handleCloseContextMenu,
+    handleArchiveCard,
+    handleToggleMember,
+    handleToggleLabel
+  } = useCardActions(board.boardId)
 
   const addCard = useAddCardQueue(board.boardId)
 
-  const bulk = useBulkActions(
-    board.boardId,
-    columns,
-    epicMgmt.epicCardOptions,
-    boardMembers,
-    setColumns,
-    setToastMessage,
-    loadBoardData
-  )
+  const bulk = useBulkActions(board.boardId)
 
-  const bulkLabel = useBulkLabelQueue(
-    board.boardId,
-    boardLabels,
-    columns,
-    bulk.selectedCardIds,
-    setColumns,
-    bulk.setSelectedCardIds
-  )
+  const bulkLabel = useBulkLabelQueue(board.boardId)
 
-  const gen = useGenerateTemplate(board.boardId, loadBoardData)
+  const gen = useGenerateTemplate(board.boardId)
 
   // ── Effects ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!board.myMemberId) {
-      setGamificationStats(null)
-      return
-    }
-    api.analytics
-      .gamificationStats(board.boardId, board.myMemberId, board.storyPointsConfig)
-      .then((result) => {
-        if (result.success && result.data) setGamificationStats(result.data)
-      })
-  }, [board.boardId, board.myMemberId, board.storyPointsConfig, syncVersion])
+    dispatch(fetchBoardData(board.boardId))
+  }, [board.boardId, syncVersion, dispatch])
 
   useEffect(() => {
-    setLoading(true)
-    setError(null)
-    bulk.setSelectedCardIds(new Set())
-    loadBoardData()
-  }, [loadBoardData])
+    if (!board.myMemberId) return
+    dispatch(
+      fetchGamificationStats({
+        boardId: board.boardId,
+        myMemberId: board.myMemberId,
+        storyPointsConfig: board.storyPointsConfig
+      })
+    )
+  }, [board.boardId, board.myMemberId, board.storyPointsConfig, syncVersion, dispatch])
 
   useEffect(() => {
     const onPointerMove = (e: PointerEvent): void => {
@@ -155,33 +157,17 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   }, [])
 
   useEffect(() => {
-    setEpicFilter('')
-    setEpicColumnFilter('')
-  }, [board.boardId])
+    dispatch(filtersResetForBoard())
+  }, [board.boardId, dispatch])
 
   // ── Drag and drop ─────────────────────────────────────────────────────────
 
   const handleDragEnd = useDragDrop(
     board.boardId,
-    columns,
     board.doneListNames,
     board.storyPointsConfig,
-    setColumns,
-    setToastMessage,
     lastPointerPos
   )
-
-  // ── Toolbar state ─────────────────────────────────────────────────────────
-
-  const [showTicketsModal, setShowTicketsModal] = useState(false)
-  const [showDuplicates, setShowDuplicates] = useState(false)
-  const [filterUnassigned, setFilterUnassigned] = useState(false)
-  const [filterNoEpic, setFilterNoEpic] = useState(false)
-  const [filterNoSize, setFilterNoSize] = useState(false)
-  const [showEmptyMeatball, setShowEmptyMeatball] = useState(false)
-  const [showMainMeatball, setShowMainMeatball] = useState(false)
-  const emptyMeatballRef = useRef<HTMLDivElement>(null)
-  const mainMeatballRef = useRef<HTMLDivElement>(null)
 
   const handleOpenLogs = useCallback(() => api.logs.openFolder(), [])
 
@@ -190,34 +176,26 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setShowTicketsModal(false)
-        epicMgmt.handleCloseEpicStories()
-        epicMgmt.setEpicDropdownCardId(null)
+        dispatch(escapePressed())
         addCard.handleCloseAddCard()
-        gen.handleCloseGenModal()
-        bulk.setBulkEpicDropdownOpen(false)
-        bulk.setSelectedCardIds(new Set())
-        bulk.handleCloseBulkArchive()
-        bulk.handleCloseBulkMember()
-        setShowEmptyMeatball(false)
-        setShowMainMeatball(false)
+        bulkLabel.handleCloseBulkLabel()
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [addCard, epicMgmt, gen, bulk])
+  }, [dispatch, addCard, bulkLabel])
 
   useEffect(() => {
     if (!showEmptyMeatball && !showMainMeatball) return
     const handleClick = (e: MouseEvent) => {
       if (emptyMeatballRef.current && !emptyMeatballRef.current.contains(e.target as Node))
-        setShowEmptyMeatball(false)
+        dispatch(emptyMeatballClosed())
       if (mainMeatballRef.current && !mainMeatballRef.current.contains(e.target as Node))
-        setShowMainMeatball(false)
+        dispatch(mainMeatballClosed())
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [showEmptyMeatball, showMainMeatball])
+  }, [showEmptyMeatball, showMainMeatball, dispatch])
 
   // ── Memoised values ───────────────────────────────────────────────────────
 
@@ -313,16 +291,12 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     (columnId: string) => {
       const col = filteredColumns.find((c) => c.id === columnId)
       if (!col) return
-      bulk.setSelectedCardIds((prev) => {
-        const next = new Set(prev)
-        col.cards.forEach((card) => next.add(card.id))
-        return next
-      })
+      dispatch(allCardsInColumnSelected(col.cards.map((card) => card.id)))
     },
-    [filteredColumns, bulk]
+    [filteredColumns, dispatch]
   )
 
-  const selectedCardCount = bulk.selectedCardIds.size
+  const selectedCardCount = selectedCardIds.length
 
   if (loading) {
     return (
@@ -342,9 +316,9 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   }
 
   const ticketsModal = showTicketsModal ? (
-    <ModalOverlay onClick={() => setShowTicketsModal(false)}>
+    <ModalOverlay onClick={() => dispatch(ticketsModalToggled(false))}>
       <ModalContent onClick={(e) => e.stopPropagation()}>
-        <ModalClose onClick={() => setShowTicketsModal(false)} title="Close (Esc)">
+        <ModalClose onClick={() => dispatch(ticketsModalToggled(false))} title="Close (Esc)">
           ✕
         </ModalClose>
         <TicketNumberingPage board={board} />
@@ -367,18 +341,18 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             filterNoSize={false}
             isStoryBoard={false}
             storyPointsConfig={[]}
-            onToggleMeatball={() => setShowEmptyMeatball((v) => !v)}
+            onToggleMeatball={() => dispatch(emptyMeatballToggled())}
             onToggleDuplicates={() => {}}
             onToggleUnassigned={() => {}}
             onToggleNoEpic={() => {}}
             onToggleNoSize={() => {}}
             onOpenTickets={() => {
-              setShowTicketsModal(true)
-              setShowEmptyMeatball(false)
+              dispatch(ticketsModalToggled(true))
+              dispatch(emptyMeatballClosed())
             }}
             onOpenGenerate={() => {
               gen.handleOpenGenModal()
-              setShowEmptyMeatball(false)
+              dispatch(emptyMeatballClosed())
             }}
           />
         </SearchBar>
@@ -401,25 +375,19 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           type="search"
           placeholder="🔍 Fuzzy search cards…"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => dispatch(searchQueryChanged(e.target.value))}
         />
         {isStoryBoard && epicMgmt.epicCardOptions.length > 0 && (
           <EpicFilterSelect
             epicCards={epicMgmt.epicCardOptions}
             value={epicFilter}
-            onChange={(val) => {
-              setEpicFilter(val)
-              setEpicColumnFilter('')
-            }}
+            onChange={(val) => dispatch(epicFilterChanged(val))}
           />
         )}
         {isStoryBoard && epicColumns.length > 0 && (
           <EpicFilterSelectStyled
             value={epicColumnFilter}
-            onChange={(e) => {
-              setEpicColumnFilter(e.target.value)
-              setEpicFilter('')
-            }}
+            onChange={(e) => dispatch(epicColumnFilterChanged(e.target.value))}
             title="Filter by epic column"
             aria-label="Filter cards by epic column"
           >
@@ -442,35 +410,23 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           filterNoSize={filterNoSize}
           isStoryBoard={isStoryBoard}
           storyPointsConfig={board.storyPointsConfig}
-          onToggleMeatball={() => setShowMainMeatball((v) => !v)}
-          onToggleDuplicates={() => {
-            setShowDuplicates((v) => !v)
-            setShowMainMeatball(false)
-          }}
-          onToggleUnassigned={() => {
-            setFilterUnassigned((v) => !v)
-            setShowMainMeatball(false)
-          }}
-          onToggleNoEpic={() => {
-            setFilterNoEpic((v) => !v)
-            setShowMainMeatball(false)
-          }}
-          onToggleNoSize={() => {
-            setFilterNoSize((v) => !v)
-            setShowMainMeatball(false)
-          }}
+          onToggleMeatball={() => dispatch(mainMeatballToggled())}
+          onToggleDuplicates={() => dispatch(duplicatesToggled())}
+          onToggleUnassigned={() => dispatch(unassignedToggled())}
+          onToggleNoEpic={() => dispatch(noEpicToggled())}
+          onToggleNoSize={() => dispatch(noSizeToggled())}
           onOpenTickets={() => {
-            setShowTicketsModal(true)
-            setShowMainMeatball(false)
+            dispatch(ticketsModalToggled(true))
+            dispatch(mainMeatballClosed())
           }}
           onOpenGenerate={() => {
             gen.handleOpenGenModal()
-            setShowMainMeatball(false)
+            dispatch(mainMeatballClosed())
           }}
         />
         {selectedCardCount > 0 && (
           <ClearSelectionBtn
-            onClick={() => bulk.setSelectedCardIds(new Set())}
+            onClick={() => dispatch(selectionCleared())}
             title="Clear selection (Esc)"
           >
             ✕ Clear {selectedCardCount} selected
@@ -515,7 +471,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                         onToggleEpicDropdown={epicMgmt.handleToggleEpicDropdown}
                         onContextMenu={(e) => {
                           e.preventDefault()
-                          setContextMenu({ x: e.clientX, y: e.clientY, card })
+                          dispatch(contextMenuOpened({ x: e.clientX, y: e.clientY, card }))
                         }}
                       />
                     ))}
@@ -544,14 +500,14 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           bulkEpicSearch={bulk.bulkEpicSearch}
           bulkMemberDropdownOpen={bulk.bulkMemberDropdownOpen}
           bulkMemberDropdownRef={bulk.bulkMemberDropdownRef}
-          onToggleBulkEpicDropdown={() => bulk.setBulkEpicDropdownOpen((prev) => !prev)}
+          onToggleBulkEpicDropdown={() => bulk.setBulkEpicDropdownOpen()}
           onBulkEpicSearchChange={bulk.setBulkEpicSearch}
           onBulkSetEpic={bulk.handleBulkSetEpic}
           onOpenBulkLabel={bulkLabel.handleOpenBulkLabelFromBar}
           onBulkArchive={bulk.handleOpenBulkArchive}
-          onToggleBulkMemberDropdown={() => bulk.setBulkMemberDropdownOpen((prev) => !prev)}
+          onToggleBulkMemberDropdown={() => bulk.setBulkMemberDropdownOpen()}
           onOpenBulkMemberModal={bulk.handleOpenBulkMemberModal}
-          onClearSelection={() => bulk.setSelectedCardIds(new Set())}
+          onClearSelection={() => dispatch(selectionCleared())}
         />
       )}
 
@@ -564,13 +520,13 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           onArchive={handleArchiveCard}
           onToggleMember={handleToggleMember}
           onToggleLabel={handleToggleLabel}
-          onClose={() => setContextMenu(null)}
+          onClose={handleCloseContextMenu}
         />
       )}
 
       <Toast
         message={toastMessage}
-        onDismiss={() => setToastMessage(null)}
+        onDismiss={() => dispatch(kanbanToastDismissed())}
         onOpenLogs={handleOpenLogs}
       />
 

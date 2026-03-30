@@ -1,5 +1,8 @@
 #!/usr/bin/env sh
 pnpm run lint:fix || exit 1
 pnpm run format || exit 1
+pnpm run knip || exit 1
+pnpm run depcruise || exit 1
+pnpm run lib-gravity || exit 1
 pnpm run test || exit 1
 pnpm run audit:ci || exit 1

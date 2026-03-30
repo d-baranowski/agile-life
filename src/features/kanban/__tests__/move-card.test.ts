@@ -2,7 +2,7 @@
  * Tests for moveCard — moves a card between columns.
  */
 import { moveCard } from '../move-card'
-import type { KanbanColumn, KanbanCard } from '../../trello/trello.types'
+import type { KanbanColumn, KanbanCard } from '../../../trello/trello.types'
 
 function makeCard(id: string, listId: string): KanbanCard {
   return {

@@ -1,15 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect } from 'react'
 import type { BoardConfig } from '../../lib/board.types'
-import type {
-  ColumnCount,
-  WeeklyUserStats,
-  LabelUserStats,
-  WeeklyHistory,
-  StoryPointsUserStats,
-  EpicWeeklyHistory
-} from '../analytics/analytics.types'
-import { api } from '../api/useApi'
 import { labelColor } from '../../lib/label-colors'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import {
+  fetchDashboardData,
+  historyOffsetChanged,
+  epicHistoryOffsetChanged
+} from './dashboardSlice'
 import {
   Container,
   Header,
@@ -109,57 +106,28 @@ const USER_PALETTE = [
 
 export default function Dashboard(props: Props): JSX.Element {
   const { board, syncVersion } = props
-  const [columns, setColumns] = useState<ColumnCount[]>([])
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyUserStats[]>([])
-  const [labelStats, setLabelStats] = useState<LabelUserStats[]>([])
-  const [historyStats, setHistoryStats] = useState<WeeklyHistory[]>([])
-  const [storyPointStats, setStoryPointStats] = useState<StoryPointsUserStats[]>([])
-  const [epicHistoryStats, setEpicHistoryStats] = useState<EpicWeeklyHistory[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [historyOffset, setHistoryOffset] = useState(0)
-  const [epicHistoryOffset, setEpicHistoryOffset] = useState(0)
+  const dispatch = useAppDispatch()
 
-  const loadAll = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-
-    const [colResult, weeklyResult, labelResult, historyResult, spResult, epicResult] =
-      await Promise.all([
-        api.analytics.columnCounts(board.boardId),
-        api.analytics.weeklyUserStats(board.boardId),
-        api.analytics.labelUserStats(board.boardId),
-        api.analytics.weeklyHistory(board.boardId, board.storyPointsConfig),
-        api.analytics.storyPoints7d(board.boardId, board.storyPointsConfig),
-        api.analytics.epicWeeklyHistory(board.boardId, board.storyPointsConfig)
-      ])
-
-    if (colResult.success && colResult.data) setColumns(colResult.data)
-    else if (!colResult.success) setError(colResult.error ?? 'Failed to load column counts.')
-    if (weeklyResult.success) setWeeklyStats(weeklyResult.data ?? [])
-    else setError((prev) => prev ?? weeklyResult.error ?? 'Failed to load weekly stats.')
-    if (labelResult.success) setLabelStats(labelResult.data ?? [])
-    else setError((prev) => prev ?? labelResult.error ?? 'Failed to load label stats.')
-    if (historyResult.success) setHistoryStats(historyResult.data ?? [])
-    if (spResult.success) setStoryPointStats(spResult.data ?? [])
-    if (epicResult.success) setEpicHistoryStats(epicResult.data ?? [])
-
-    setLoading(false)
-  }, [board.boardId, board.storyPointsConfig])
+  // ── Redux state ──────────────────────────────────────────────────────────
+  const columns = useAppSelector((s) => s.dashboard.columns)
+  const weeklyStats = useAppSelector((s) => s.dashboard.weeklyStats)
+  const labelStats = useAppSelector((s) => s.dashboard.labelStats)
+  const historyStats = useAppSelector((s) => s.dashboard.historyStats)
+  const storyPointStats = useAppSelector((s) => s.dashboard.storyPointStats)
+  const epicHistoryStats = useAppSelector((s) => s.dashboard.epicHistoryStats)
+  const loading = useAppSelector((s) => s.dashboard.loading)
+  const error = useAppSelector((s) => s.dashboard.error)
+  const historyOffset = useAppSelector((s) => s.dashboard.historyOffset)
+  const epicHistoryOffset = useAppSelector((s) => s.dashboard.epicHistoryOffset)
 
   useEffect(() => {
-    loadAll()
-  }, [loadAll, syncVersion])
-
-  // Reset page when history data changes
-  useEffect(() => {
-    setHistoryOffset(0)
-  }, [historyStats])
-
-  // Reset page when epic history data changes
-  useEffect(() => {
-    setEpicHistoryOffset(0)
-  }, [epicHistoryStats])
+    dispatch(
+      fetchDashboardData({
+        boardId: board.boardId,
+        storyPointsConfig: board.storyPointsConfig
+      })
+    )
+  }, [dispatch, board.boardId, board.storyPointsConfig, syncVersion])
 
   // ── Derived data ─────────────────────────────────────────────────────────────
 
@@ -443,7 +411,9 @@ export default function Dashboard(props: Props): JSX.Element {
               {allHistoryWeeks.length > 0 && (
                 <ChartNav>
                   <ChartNavBtn
-                    onClick={() => setHistoryOffset((o) => Math.min(o + 1, maxOffset))}
+                    onClick={() =>
+                      dispatch(historyOffsetChanged(Math.min(historyOffset + 1, maxOffset)))
+                    }
                     disabled={clampedOffset >= maxOffset}
                     title="View older weeks"
                   >
@@ -451,7 +421,7 @@ export default function Dashboard(props: Props): JSX.Element {
                   </ChartNavBtn>
                   <ChartNavLabel>{pageRangeLabel}</ChartNavLabel>
                   <ChartNavBtn
-                    onClick={() => setHistoryOffset((o) => Math.max(o - 1, 0))}
+                    onClick={() => dispatch(historyOffsetChanged(Math.max(historyOffset - 1, 0)))}
                     disabled={clampedOffset === 0}
                     title="View newer weeks"
                   >
@@ -489,7 +459,11 @@ export default function Dashboard(props: Props): JSX.Element {
                 {allEpicWeeks.length > 0 && (
                   <ChartNav>
                     <ChartNavBtn
-                      onClick={() => setEpicHistoryOffset((o) => Math.min(o + 1, maxEpicOffset))}
+                      onClick={() =>
+                        dispatch(
+                          epicHistoryOffsetChanged(Math.min(epicHistoryOffset + 1, maxEpicOffset))
+                        )
+                      }
                       disabled={clampedEpicOffset >= maxEpicOffset}
                       title="View older weeks"
                     >
@@ -497,7 +471,9 @@ export default function Dashboard(props: Props): JSX.Element {
                     </ChartNavBtn>
                     <ChartNavLabel>{epicPageRangeLabel}</ChartNavLabel>
                     <ChartNavBtn
-                      onClick={() => setEpicHistoryOffset((o) => Math.max(o - 1, 0))}
+                      onClick={() =>
+                        dispatch(epicHistoryOffsetChanged(Math.max(epicHistoryOffset - 1, 0)))
+                      }
                       disabled={clampedEpicOffset === 0}
                       title="View newer weeks"
                     >

@@ -1,24 +1,25 @@
-import type { BoardConfig } from '../../lib/board.types'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import { boardSelected, selectBoards, selectSelectedBoardId } from './boardsSlice'
+import { registrationOpened } from '../../store/uiSlice'
 import { AddButton, Container, Select } from './board-switcher.styled'
 
-interface Props {
-  boards: BoardConfig[]
-  selectedBoardId: string | null
-  onSelect: (boardId: string) => void
-  onAddNew: () => void
-}
-
-export default function BoardSwitcher(props: Props): JSX.Element {
-  const { boards, selectedBoardId, onSelect, onAddNew } = props
+export default function BoardSwitcher(): JSX.Element {
+  const dispatch = useAppDispatch()
+  const boards = useAppSelector(selectBoards)
+  const selectedBoardId = useAppSelector(selectSelectedBoardId)
 
   return (
     <Container>
-      <AddButton className="btn-secondary" onClick={onAddNew} title="Add board">
+      <AddButton
+        className="btn-secondary"
+        onClick={() => dispatch(registrationOpened())}
+        title="Add board"
+      >
         +
       </AddButton>
       <Select
         value={selectedBoardId ?? ''}
-        onChange={(e) => e.target.value && onSelect(e.target.value)}
+        onChange={(e) => e.target.value && dispatch(boardSelected(e.target.value))}
         disabled={boards.length === 0}
         aria-label="Select board"
       >

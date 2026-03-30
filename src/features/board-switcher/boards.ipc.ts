@@ -12,7 +12,12 @@ import type {
   EpicStory,
   SavedCredentials
 } from '../../lib/board.types'
-import type { TrelloBoard, KanbanColumn, TrelloMember, TrelloLabel } from '../../trello/trello.types'
+import type {
+  TrelloBoard,
+  KanbanColumn,
+  TrelloMember,
+  TrelloLabel
+} from '../../trello/trello.types'
 import type { ColumnCount } from '../analytics/analytics.types'
 import {
   getAllBoards,

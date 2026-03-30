@@ -1,7 +1,3 @@
-import { useState } from 'react'
-import type { EpicCardOption } from '../../lib/board.types'
-import type { KanbanColumn, TrelloLabel } from '../../trello/trello.types'
-import type { TicketTemplate, TicketTemplateInput } from './template.types'
 import { labelColor } from '../../lib/label-colors'
 import { EpicSelect } from './EpicSelect'
 import {
@@ -21,57 +17,70 @@ import {
   LabelChip,
   ResultBanner
 } from './styled/templates-form.styled'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import {
+  templateFormClosed,
+  saveTemplate,
+  formNameChanged,
+  formTitleTemplateChanged,
+  formDescTemplateChanged,
+  formListIdChanged,
+  formLabelToggled,
+  formEpicCardIdChanged
+} from './templatesSlice'
 
 const PLACEHOLDER_HINT =
   'Supported placeholders: {{year}}, {{month}}, {{month_name}}, {{week}}, {{date}}'
 
 interface Props {
-  initial?: TicketTemplate
-  groupId: number
-  lists: KanbanColumn[]
-  boardLabels: TrelloLabel[]
-  epicCards: EpicCardOption[]
-  onSave: (input: TicketTemplateInput) => void
-  onCancel: () => void
-  saving: boolean
-  error: string | null
+  boardId: string
 }
 
 export default function TemplateForm(props: Props): JSX.Element {
-  const { initial, groupId, lists, boardLabels, epicCards, onSave, onCancel, saving, error } = props
-  const [name, setName] = useState(initial?.name ?? '')
-  const [titleTemplate, setTitleTemplate] = useState(initial?.titleTemplate ?? '')
-  const [descTemplate, setDescTemplate] = useState(initial?.descTemplate ?? '')
-  const [listId, setListId] = useState(initial?.listId ?? lists[0]?.id ?? '')
-  const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>(initial?.labelIds ?? [])
-  // Empty string maps to the "— None —" select option; converted to null on save.
-  const [epicCardId, setEpicCardId] = useState<string>(initial?.epicCardId ?? '')
+  const { boardId } = props
+  const dispatch = useAppDispatch()
 
-  const toggleLabel = (id: string) => {
-    setSelectedLabelIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    )
-  }
+  const editingTemplate = useAppSelector((s) => s.templates.editingTemplate)
+  const selectedGroupId = useAppSelector((s) => s.templates.selectedGroupId)
+  const lists = useAppSelector((s) => s.templates.lists)
+  const boardLabels = useAppSelector((s) => s.templates.boardLabels)
+  const epicCards = useAppSelector((s) => s.templates.epicCards)
+  const saving = useAppSelector((s) => s.templates.formSaving)
+  const error = useAppSelector((s) => s.templates.formError)
+
+  const name = useAppSelector((s) => s.templates.formName)
+  const titleTemplate = useAppSelector((s) => s.templates.formTitleTemplate)
+  const descTemplate = useAppSelector((s) => s.templates.formDescTemplate)
+  const listId = useAppSelector((s) => s.templates.formListId)
+  const selectedLabelIds = useAppSelector((s) => s.templates.formSelectedLabelIds)
+  const epicCardId = useAppSelector((s) => s.templates.formEpicCardId)
 
   const handleSubmit = () => {
     const selectedList = lists.find((l) => l.id === listId)
-    onSave({
-      groupId,
-      name: name.trim(),
-      titleTemplate: titleTemplate.trim(),
-      descTemplate: descTemplate.trim(),
-      listId,
-      listName: selectedList?.name ?? '',
-      labelIds: selectedLabelIds,
-      epicCardId: epicCardId !== '' ? epicCardId : null,
-      position: initial?.position ?? 0
-    })
+    dispatch(
+      saveTemplate({
+        boardId,
+        existingId: editingTemplate?.id ?? null,
+        groupId: selectedGroupId!,
+        input: {
+          groupId: selectedGroupId!,
+          name: name.trim(),
+          titleTemplate: titleTemplate.trim(),
+          descTemplate: descTemplate.trim(),
+          listId,
+          listName: selectedList?.name ?? '',
+          labelIds: selectedLabelIds,
+          epicCardId: epicCardId !== '' ? epicCardId : null,
+          position: editingTemplate?.position ?? 0
+        }
+      })
+    )
   }
 
   return (
     <ModalOverlay>
       <ModalContent>
-        <ModalTitle>{initial ? 'Edit Template' : 'New Template'}</ModalTitle>
+        <ModalTitle>{editingTemplate ? 'Edit Template' : 'New Template'}</ModalTitle>
 
         {error && <ResultBanner $variant="error">{error}</ResultBanner>}
 
@@ -79,7 +88,7 @@ export default function TemplateForm(props: Props): JSX.Element {
           <FormLabel>Template name</FormLabel>
           <FormInput
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => dispatch(formNameChanged(e.target.value))}
             placeholder="e.g. Weekly retrospective"
             autoFocus
           />
@@ -89,7 +98,7 @@ export default function TemplateForm(props: Props): JSX.Element {
           <FormLabel>Card title</FormLabel>
           <FormInput
             value={titleTemplate}
-            onChange={(e) => setTitleTemplate(e.target.value)}
+            onChange={(e) => dispatch(formTitleTemplateChanged(e.target.value))}
             placeholder="e.g. Retro {{year}}-W{{week}}"
           />
           <FormHint>{PLACEHOLDER_HINT}</FormHint>
@@ -99,7 +108,7 @@ export default function TemplateForm(props: Props): JSX.Element {
           <FormLabel>Description (optional)</FormLabel>
           <FormTextarea
             value={descTemplate}
-            onChange={(e) => setDescTemplate(e.target.value)}
+            onChange={(e) => dispatch(formDescTemplateChanged(e.target.value))}
             placeholder="e.g. Sprint {{week}} retrospective for {{year}}"
           />
           <FormHint>{PLACEHOLDER_HINT}</FormHint>
@@ -107,7 +116,7 @@ export default function TemplateForm(props: Props): JSX.Element {
 
         <FormField>
           <FormLabel>Target list</FormLabel>
-          <FormSelect value={listId} onChange={(e) => setListId(e.target.value)}>
+          <FormSelect value={listId} onChange={(e) => dispatch(formListIdChanged(e.target.value))}>
             {lists.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}
@@ -126,7 +135,7 @@ export default function TemplateForm(props: Props): JSX.Element {
                   type="button"
                   $selected={selectedLabelIds.includes(label.id)}
                   style={{ backgroundColor: labelColor(label.color) }}
-                  onClick={() => toggleLabel(label.id)}
+                  onClick={() => dispatch(formLabelToggled(label.id))}
                   title={label.name || label.color}
                 >
                   {label.name || label.color}
@@ -139,12 +148,20 @@ export default function TemplateForm(props: Props): JSX.Element {
         {epicCards.length > 0 && (
           <FormField>
             <FormLabel>Epic (optional)</FormLabel>
-            <EpicSelect epicCards={epicCards} value={epicCardId} onChange={setEpicCardId} />
+            <EpicSelect
+              epicCards={epicCards}
+              value={epicCardId}
+              onChange={(v) => dispatch(formEpicCardIdChanged(v))}
+            />
           </FormField>
         )}
 
         <ModalFooter>
-          <button className="btn-secondary" onClick={onCancel} disabled={saving}>
+          <button
+            className="btn-secondary"
+            onClick={() => dispatch(templateFormClosed())}
+            disabled={saving}
+          >
             Cancel
           </button>
           <button

@@ -1,22 +1,23 @@
 import { useCallback } from 'react'
 import type { DropResult } from 'react-beautiful-dnd'
-import type { KanbanColumn } from '../../../trello/trello.types'
 import type { StoryPointRule } from '../../../lib/board.types'
 import { api } from '../../api/useApi'
-import { cardStoryPoints } from '../../../lib/card-story-points'
-import { reorderCards } from '../../../lib/reorder-cards'
-import { moveCard } from '../../../lib/move-card'
+import { cardStoryPoints } from '../card-story-points'
+import { reorderCards } from '../reorder-cards'
+import { moveCard } from '../move-card'
 import { triggerDoneEffect } from '../confetti/confetti'
+import { useAppDispatch, useAppSelector } from '../../../store/hooks'
+import { columnsUpdated, kanbanToastShown } from '../kanbanSlice'
 
 export function useDragDrop(
   boardId: string,
-  columns: KanbanColumn[],
   doneListNames: string[],
   storyPointsConfig: StoryPointRule[],
-  setColumns: React.Dispatch<React.SetStateAction<KanbanColumn[]>>,
-  setToastMessage: (msg: string | null) => void,
   lastPointerPos: React.RefObject<{ x: number; y: number }>
 ) {
+  const dispatch = useAppDispatch()
+  const columns = useAppSelector((s) => s.kanban.columns)
+
   return useCallback(
     async (result: DropResult) => {
       const { destination, source, draggableId } = result
@@ -42,16 +43,18 @@ export function useDragDrop(
               : next
                 ? next.pos / 2
                 : 65536
-        setColumns((prev) =>
-          prev.map((c) =>
-            c.id === fromColId
-              ? {
-                  ...c,
-                  cards: newCards.map((card, i) =>
-                    i === destination.index ? { ...card, pos: newPos } : card
-                  )
-                }
-              : c
+        dispatch(
+          columnsUpdated(
+            columns.map((c) =>
+              c.id === fromColId
+                ? {
+                    ...c,
+                    cards: newCards.map((card, i) =>
+                      i === destination.index ? { ...card, pos: newPos } : card
+                    )
+                  }
+                : c
+            )
           )
         )
         api.trello.updateCardPos(boardId, draggableId, newPos)
@@ -83,34 +86,28 @@ export function useDragDrop(
         triggerDoneEffect(points, lastPointerPos.current ?? undefined)
       }
 
-      setColumns((prev) => {
-        const cols = moveCard(prev, fromColId, toColId, source.index, destination.index)
-        return cols.map((c) =>
-          c.id === toColId
-            ? {
-                ...c,
-                cards: c.cards.map((card, i) =>
-                  i === destination.index ? { ...card, pos: newPos } : card
-                )
-              }
-            : c
+      const movedColumns = moveCard(columns, fromColId, toColId, source.index, destination.index)
+      dispatch(
+        columnsUpdated(
+          movedColumns.map((c) =>
+            c.id === toColId
+              ? {
+                  ...c,
+                  cards: c.cards.map((card, i) =>
+                    i === destination.index ? { ...card, pos: newPos } : card
+                  )
+                }
+              : c
+          )
         )
-      })
+      )
 
       const syncResult = await api.trello.moveCard(boardId, draggableId, toColId, newPos)
       if (!syncResult.success) {
-        setColumns(prevColumns)
-        setToastMessage(syncResult.error ?? 'Failed to move card. Please try again.')
+        dispatch(columnsUpdated(prevColumns))
+        dispatch(kanbanToastShown(syncResult.error ?? 'Failed to move card. Please try again.'))
       }
     },
-    [
-      boardId,
-      doneListNames,
-      storyPointsConfig,
-      columns,
-      setColumns,
-      setToastMessage,
-      lastPointerPos
-    ]
+    [boardId, doneListNames, storyPointsConfig, columns, dispatch, lastPointerPos]
   )
 }

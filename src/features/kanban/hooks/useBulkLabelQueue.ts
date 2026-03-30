@@ -1,110 +1,118 @@
-import { useState, useCallback, useRef } from 'react'
-import type { KanbanColumn, TrelloLabel } from '../../../trello/trello.types'
+import { useCallback, useRef } from 'react'
+import type { TrelloLabel } from '../../../trello/trello.types'
 import { api } from '../../api/useApi'
-import type { BulkLabelModal, BulkLabelQueueItem, QueueItemStatus } from '../kanban.types'
+import type { BulkLabelQueueItem, QueueItemStatus } from '../kanban.types'
+import { useAppDispatch, useAppSelector } from '../../../store/hooks'
+import {
+  bulkLabelModalOpened,
+  bulkLabelModalClosed,
+  bulkLabelModalUpdated,
+  cardLabelsUpdated,
+  selectionCleared
+} from '../kanbanSlice'
 
-export function useBulkLabelQueue(
-  boardId: string,
-  boardLabels: TrelloLabel[],
-  columns: KanbanColumn[],
-  selectedCardIds: Set<string>,
-  setColumns: React.Dispatch<React.SetStateAction<KanbanColumn[]>>,
-  setSelectedCardIds: React.Dispatch<React.SetStateAction<Set<string>>>
-) {
-  const [bulkLabelModal, setBulkLabelModal] = useState<BulkLabelModal | null>(null)
+export function useBulkLabelQueue(boardId: string) {
+  const dispatch = useAppDispatch()
+  const bulkLabelModal = useAppSelector((s) => s.kanban.bulkLabelModal)
+  const boardLabels = useAppSelector((s) => s.kanban.boardLabels)
+  const columns = useAppSelector((s) => s.kanban.columns)
+  const selectedCardIds = useAppSelector((s) => s.kanban.selectedCardIds)
   const bulkLabelTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const handleOpenBulkLabelFromBar = useCallback(() => {
-    setBulkLabelModal({
-      selectedLabelIds: new Set(),
-      text: '',
-      queue: null,
-      uploading: false,
-      fromSelection: true
-    })
-  }, [])
+    dispatch(
+      bulkLabelModalOpened({
+        selectedLabelIds: [],
+        text: '',
+        queue: null,
+        uploading: false,
+        fromSelection: true
+      })
+    )
+  }, [dispatch])
 
   const handleCloseBulkLabel = useCallback(() => {
-    setBulkLabelModal((prev) => (prev?.uploading ? prev : null))
-  }, [])
+    dispatch(bulkLabelModalClosed())
+  }, [dispatch])
 
-  const handleTextChange = useCallback((text: string) => {
-    setBulkLabelModal((prev) => (prev ? { ...prev, text } : null))
-  }, [])
+  const handleTextChange = useCallback(
+    (text: string) => {
+      if (!bulkLabelModal) return
+      dispatch(bulkLabelModalUpdated({ ...bulkLabelModal, text }))
+    },
+    [bulkLabelModal, dispatch]
+  )
 
-  const handleToggleBulkLabelSelection = useCallback((labelId: string) => {
-    setBulkLabelModal((prev) => {
-      if (!prev) return null
-      const next = new Set(prev.selectedLabelIds)
-      if (next.has(labelId)) {
-        next.delete(labelId)
-      } else {
-        next.add(labelId)
-      }
-      return { ...prev, selectedLabelIds: next }
-    })
-  }, [])
+  const handleToggleBulkLabelSelection = useCallback(
+    (labelId: string) => {
+      if (!bulkLabelModal) return
+      const current = bulkLabelModal.selectedLabelIds
+      const next = current.includes(labelId)
+        ? current.filter((id) => id !== labelId)
+        : [...current, labelId]
+      dispatch(bulkLabelModalUpdated({ ...bulkLabelModal, selectedLabelIds: next }))
+    },
+    [bulkLabelModal, dispatch]
+  )
 
   const handleStartBulkLabel = useCallback(() => {
-    setBulkLabelModal((prev) => {
-      if (!prev) return null
-      const allCards = columns.flatMap((col) => col.cards)
+    if (!bulkLabelModal) return
+    const allCards = columns.flatMap((col) => col.cards)
 
-      let queue: BulkLabelQueueItem[]
+    let queue: BulkLabelQueueItem[]
 
-      if (prev.fromSelection) {
-        const cardMap = new Map(allCards.map((c) => [c.id, c]))
-        queue = Array.from(selectedCardIds).map((cardId) => {
-          const card = cardMap.get(cardId)
-          return {
-            id: `${Date.now()}-${Math.random()}`,
-            cardId,
-            cardName: card?.name ?? cardId,
-            status: 'pending' as QueueItemStatus,
-            notFound: false
-          }
-        })
-      } else {
-        const cardsByName = new Map(allCards.map((c) => [c.name.toLowerCase(), c]))
-        const names = prev.text
-          .split('\n')
-          .map((s) => s.trim())
-          .filter(Boolean)
-        queue = names.map((name) => {
-          const card = cardsByName.get(name.toLowerCase())
-          return {
-            id: `${Date.now()}-${Math.random()}`,
-            cardId: card?.id ?? '',
-            cardName: name,
-            status: card ? 'pending' : ('failed' as QueueItemStatus),
-            notFound: !card
-          }
-        })
-      }
-
-      return { ...prev, queue }
-    })
-  }, [columns, selectedCardIds])
-
-  const handleRunBulkLabel = useCallback(async () => {
-    setBulkLabelModal((prev) => (prev ? { ...prev, uploading: true } : null))
-
-    const snapshot = bulkLabelModal
-    if (!snapshot?.queue) return
-
-    const selectedLabels = boardLabels.filter((l) => snapshot.selectedLabelIds.has(l.id))
-
-    for (let i = 0; i < snapshot.queue.length; i++) {
-      const item = snapshot.queue[i]
-      if (item.notFound || item.status === 'failed') continue
-
-      setBulkLabelModal((prev) => {
-        if (!prev?.queue) return prev
+    if (bulkLabelModal.fromSelection) {
+      const cardMap = new Map(allCards.map((c) => [c.id, c]))
+      queue = selectedCardIds.map((cardId) => {
+        const card = cardMap.get(cardId)
         return {
-          ...prev,
-          queue: prev.queue.map((q) => (q.id === item.id ? { ...q, status: 'running' } : q))
+          id: `${Date.now()}-${Math.random()}`,
+          cardId,
+          cardName: card?.name ?? cardId,
+          status: 'pending' as QueueItemStatus,
+          notFound: false
         }
       })
+    } else {
+      const cardsByName = new Map(allCards.map((c) => [c.name.toLowerCase(), c]))
+      const names = bulkLabelModal.text
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      queue = names.map((name) => {
+        const card = cardsByName.get(name.toLowerCase())
+        return {
+          id: `${Date.now()}-${Math.random()}`,
+          cardId: card?.id ?? '',
+          cardName: name,
+          status: card ? 'pending' : ('failed' as QueueItemStatus),
+          notFound: !card
+        }
+      })
+    }
+
+    dispatch(bulkLabelModalUpdated({ ...bulkLabelModal, queue }))
+  }, [bulkLabelModal, columns, selectedCardIds, dispatch])
+
+  const handleRunBulkLabel = useCallback(async () => {
+    if (!bulkLabelModal?.queue) return
+
+    const snapshot = { ...bulkLabelModal }
+    let currentQueue = [...snapshot.queue!]
+    dispatch(bulkLabelModalUpdated({ ...snapshot, queue: currentQueue, uploading: true }))
+
+    const selectedLabelIdSet = new Set(snapshot.selectedLabelIds)
+    const selectedLabels = boardLabels.filter((l) => selectedLabelIdSet.has(l.id))
+
+    for (let i = 0; i < currentQueue.length; i++) {
+      const item = currentQueue[i]
+      if (item.notFound || item.status === 'failed') continue
+
+      // Mark running
+      currentQueue = currentQueue.map((q) =>
+        q.id === item.id ? { ...q, status: 'running' as QueueItemStatus } : q
+      )
+      dispatch(bulkLabelModalUpdated({ ...snapshot, queue: currentQueue, uploading: true }))
 
       let success = true
       let finalLabels: TrelloLabel[] | null = null
@@ -118,60 +126,57 @@ export function useBulkLabelQueue(
       }
 
       if (finalLabels) {
-        const labelsSnapshot = finalLabels
-        setColumns((prev) =>
-          prev.map((col) => ({
-            ...col,
-            cards: col.cards.map((c) =>
-              c.id === item.cardId ? { ...c, labels: labelsSnapshot } : c
-            )
-          }))
-        )
+        dispatch(cardLabelsUpdated({ cardId: item.cardId, labels: finalLabels }))
       }
 
-      setBulkLabelModal((prev) => {
-        if (!prev?.queue) return prev
-        return {
-          ...prev,
-          queue: prev.queue.map((q) =>
-            q.id === item.id ? { ...q, status: success ? 'done' : 'failed' } : q
-          )
-        }
-      })
+      // Mark done or failed
+      currentQueue = currentQueue.map((q) =>
+        q.id === item.id
+          ? { ...q, status: success ? ('done' as QueueItemStatus) : ('failed' as QueueItemStatus) }
+          : q
+      )
+      dispatch(bulkLabelModalUpdated({ ...snapshot, queue: currentQueue, uploading: true }))
 
-      if (i < snapshot.queue.length - 1) {
+      if (i < currentQueue.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, 300))
       }
     }
 
-    setBulkLabelModal((prev) => (prev ? { ...prev, uploading: false } : null))
+    dispatch(bulkLabelModalUpdated({ ...snapshot, queue: currentQueue, uploading: false }))
     if (snapshot.fromSelection) {
-      setSelectedCardIds(new Set())
+      dispatch(selectionCleared())
     }
-  }, [boardId, boardLabels, bulkLabelModal, setColumns, setSelectedCardIds])
+  }, [boardId, boardLabels, bulkLabelModal, dispatch])
 
-  const handleBulkLabelRetryItem = useCallback((itemId: string) => {
-    setBulkLabelModal((prev) => {
-      if (!prev?.queue) return prev
-      const updated = prev.queue.map((q) =>
+  const handleBulkLabelRetryItem = useCallback(
+    (itemId: string) => {
+      if (!bulkLabelModal?.queue) return
+      const updated = bulkLabelModal.queue.map((q) =>
         q.id === itemId && !q.notFound ? { ...q, status: 'pending' as QueueItemStatus } : q
       )
-      return { ...prev, queue: updated }
-    })
-  }, [])
+      dispatch(bulkLabelModalUpdated({ ...bulkLabelModal, queue: updated }))
+    },
+    [bulkLabelModal, dispatch]
+  )
 
   const handleBulkLabelRetryAllFailed = useCallback(() => {
-    setBulkLabelModal((prev) => {
-      if (!prev?.queue) return prev
-      const updated = prev.queue.map((q) =>
-        q.status === 'failed' && !q.notFound ? { ...q, status: 'pending' as QueueItemStatus } : q
-      )
-      return { ...prev, queue: updated }
-    })
-  }, [])
+    if (!bulkLabelModal?.queue) return
+    const updated = bulkLabelModal.queue.map((q) =>
+      q.status === 'failed' && !q.notFound ? { ...q, status: 'pending' as QueueItemStatus } : q
+    )
+    dispatch(bulkLabelModalUpdated({ ...bulkLabelModal, queue: updated }))
+  }, [bulkLabelModal, dispatch])
+
+  // Convert store array to Set for components that expect Set<string>
+  const bulkLabelModalForComponent = bulkLabelModal
+    ? {
+        ...bulkLabelModal,
+        selectedLabelIds: new Set(bulkLabelModal.selectedLabelIds)
+      }
+    : null
 
   return {
-    bulkLabelModal,
+    bulkLabelModal: bulkLabelModalForComponent,
     bulkLabelTextareaRef,
     handleOpenBulkLabelFromBar,
     handleCloseBulkLabel,
