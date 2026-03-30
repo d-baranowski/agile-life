@@ -307,3 +307,27 @@ export const UploadingLabel = styled.span`
   color: var(--color-text-muted);
   font-style: italic;
 `
+
+export const BulkArchiveButton = styled.button`
+  padding: 5px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(220, 80, 80, 0.5);
+  background: rgba(220, 80, 80, 0.12);
+  color: #e05555;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+
+  &:hover:not(:disabled) {
+    background: rgba(220, 80, 80, 0.25);
+    border-color: rgba(220, 80, 80, 0.8);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`
