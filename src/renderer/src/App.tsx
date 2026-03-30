@@ -8,7 +8,16 @@ import Dashboard from './pages/Dashboard'
 import SettingsPage from './pages/SettingsPage'
 import KanbanPage from './pages/KanbanPage'
 import TemplatesPage from './pages/TemplatesPage'
-import styles from './App.module.css'
+import { AppContainer, LoadingScreen, Main, EmptyState } from './styled/app-layout.styled'
+import {
+  Header,
+  HeaderLeft,
+  Logo,
+  SyncBtn,
+  SyncingLabel,
+  Nav,
+  NavBtn
+} from './styled/app-header.styled'
 
 type Tab = 'kanban' | 'dashboard' | 'templates' | 'settings'
 
@@ -87,73 +96,69 @@ export default function App(): JSX.Element {
 
   if (loading) {
     return (
-      <div className={styles.loadingScreen}>
+      <LoadingScreen>
         <div className="spinner" />
         <p>Loading Agile Life…</p>
-      </div>
+      </LoadingScreen>
     )
   }
 
   return (
-    <div className={styles.app}>
+    <AppContainer>
       {/* ── Top Bar ── */}
-      <header className={styles.header}>
-        <div className={styles.headerLeft}>
-          <span className={styles.logo}>🚀 Agile Life</span>
+      <Header>
+        <HeaderLeft>
+          <Logo>🚀 Agile Life</Logo>
           <BoardSwitcher
             boards={boards}
             selectedBoardId={selectedBoardId}
             onSelect={handleSelectBoard}
             onAddNew={() => setShowRegistration(true)}
           />
-          <button
-            className={`btn-primary ${styles.syncBtn}`}
+          <SyncBtn
+            className="btn-primary"
             onClick={handleSync}
             disabled={!selectedBoard || syncing}
             title="Fetch latest data from Trello"
           >
             {syncing ? (
-              <span className={styles.syncingLabel}>
+              <SyncingLabel>
                 <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />
                 Syncing…
-              </span>
+              </SyncingLabel>
             ) : (
               '↻ Fetch from Trello'
             )}
-          </button>
-        </div>
-        <nav className={styles.nav}>
+          </SyncBtn>
+        </HeaderLeft>
+        <Nav>
           {(['kanban', 'dashboard', 'templates', 'settings'] as Tab[]).map((tab) => (
-            <button
-              key={tab}
-              className={`${styles.navBtn} ${activeTab === tab ? styles.navBtnActive : ''}`}
-              onClick={() => setActiveTab(tab)}
-            >
+            <NavBtn key={tab} $active={activeTab === tab} onClick={() => setActiveTab(tab)}>
               {tab === 'kanban' && '📋 '}
               {tab === 'dashboard' && '📊 '}
               {tab === 'templates' && '🗂️ '}
               {tab === 'settings' && '⚙️ '}
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
+            </NavBtn>
           ))}
-        </nav>
-      </header>
+        </Nav>
+      </Header>
 
       {/* ── Main Content ── */}
-      <main className={`${styles.main}${activeTab === 'kanban' ? ` ${styles.mainKanban}` : ''}`}>
+      <Main $kanban={activeTab === 'kanban'}>
         {showRegistration ? (
           <BoardRegistration
             onBoardAdded={handleBoardAdded}
             onCancel={boards.length > 0 ? () => setShowRegistration(false) : undefined}
           />
         ) : !selectedBoard ? (
-          <div className={styles.emptyState}>
+          <EmptyState>
             <h2>No boards registered</h2>
             <p className="text-muted">Get started by registering a Trello board.</p>
             <button className="btn-primary" onClick={() => setShowRegistration(true)}>
               + Register a Board
             </button>
-          </div>
+          </EmptyState>
         ) : (
           <>
             {activeTab === 'kanban' && (
@@ -177,9 +182,9 @@ export default function App(): JSX.Element {
             )}
           </>
         )}
-      </main>
+      </Main>
 
       <Toast message={syncError} onDismiss={() => setSyncError(null)} onOpenLogs={handleOpenLogs} />
-    </div>
+    </AppContainer>
   )
 }
