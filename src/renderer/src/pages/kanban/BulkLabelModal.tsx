@@ -1,76 +1,35 @@
-import styled from 'styled-components'
 import type { TrelloLabel } from '@shared/trello.types'
 import { labelColor } from '../../lib/label-colors'
 import type { BulkLabelModal as BulkLabelModalState } from './kanban.types'
-import { Overlay, Modal, Header, Title, CloseButton, Body, Footer } from './styled/modal-layout.styled'
+import {
+  Overlay,
+  Modal,
+  Header,
+  Title,
+  CloseButton,
+  Body,
+  Footer
+} from './styled/modal-layout.styled'
 import { CancelButton, StartButton } from './styled/modal-buttons.styled'
-import { QueueList, QueueItem, QueueIcon, QueueName, RetryButton, UploadingLabel } from './styled/queue.styled'
+import {
+  QueueList,
+  QueueItem,
+  QueueIcon,
+  QueueName,
+  RetryButton,
+  UploadingLabel
+} from './styled/queue.styled'
 import { PreviewList, PreviewItem, PreviewName } from './styled/preview.styled'
 import { Textarea } from './styled/form.styled'
-
-const Section = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-const SectionLabel = styled.div`
-  padding: 0 0 6px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-`
-
-const PickerGrid = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-`
-
-const LabelChip = styled.button<{ $selected: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid
-    ${(p) => (p.$selected ? 'var(--chip-color, var(--color-accent))' : 'var(--color-border)')};
-  background: ${(p) =>
-    p.$selected
-      ? 'color-mix(in srgb, var(--chip-color, var(--color-accent)) 15%, transparent)'
-      : 'var(--color-surface)'};
-  color: var(--color-text);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition:
-    border-color var(--transition),
-    background var(--transition);
-
-  &:hover {
-    border-color: var(--chip-color, var(--color-accent));
-  }
-`
-
-const ChipDot = styled.span`
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-`
-
-const ChipCheck = styled.span`
-  margin-left: 2px;
-  color: var(--chip-color, var(--color-accent));
-  font-weight: 700;
-  font-size: 0.75rem;
-`
-
-const NotFound = styled.span`
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  font-style: italic;
-`
+import {
+  Section,
+  SectionLabel,
+  PickerGrid,
+  LabelChip,
+  ChipDot,
+  ChipCheck,
+  NotFound
+} from './styled/label-picker.styled'
 
 interface Props {
   modal: BulkLabelModalState
@@ -139,16 +98,7 @@ export default function BulkLabelModal(props: Props): JSX.Element {
   )
 }
 
-function EditPhase({
-  modal,
-  boardLabels,
-  selectedCardCount,
-  textareaRef,
-  onTextChange,
-  onToggleLabelSelection,
-  onStart,
-  onClose
-}: {
+interface EditPhaseProps {
   modal: BulkLabelModalState
   boardLabels: TrelloLabel[]
   selectedCardCount: number
@@ -157,7 +107,19 @@ function EditPhase({
   onToggleLabelSelection: (labelId: string) => void
   onStart: () => void
   onClose: () => void
-}): JSX.Element {
+}
+
+function EditPhase(props: EditPhaseProps): JSX.Element {
+  const {
+    modal,
+    boardLabels,
+    selectedCardCount,
+    textareaRef,
+    onTextChange,
+    onToggleLabelSelection,
+    onStart,
+    onClose
+  } = props
   return (
     <>
       <Body>
@@ -242,19 +204,16 @@ function EditPhase({
   )
 }
 
-function QueuePhase({
-  modal,
-  onRunBulkLabel,
-  onRetryItem,
-  onRetryAllFailed,
-  onClose
-}: {
+interface QueuePhaseProps {
   modal: BulkLabelModalState
   onRunBulkLabel: () => void
   onRetryItem: (itemId: string) => void
   onRetryAllFailed: () => void
   onClose: () => void
-}): JSX.Element {
+}
+
+function QueuePhase(props: QueuePhaseProps): JSX.Element {
+  const { modal, onRunBulkLabel, onRetryItem, onRetryAllFailed, onClose } = props
   const queue = modal.queue!
   const hasAnyFailed = queue.some((q) => q.status === 'failed' && !q.notFound)
   const allDone = queue.every((q) => q.status === 'done' || q.status === 'failed')

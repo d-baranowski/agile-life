@@ -1,7 +1,23 @@
 import type { AddCardModal, QueueItem } from './kanban.types'
-import { Overlay, Modal, Header, Title, CloseButton, Body, Footer } from './styled/modal-layout.styled'
+import {
+  Overlay,
+  Modal,
+  Header,
+  Title,
+  CloseButton,
+  Body,
+  Footer
+} from './styled/modal-layout.styled'
 import { CancelButton, StartButton } from './styled/modal-buttons.styled'
-import { QueueList, QueueItem as StyledQueueItem, QueueIcon, QueueName, RemoveButton, RetryButton, UploadingLabel } from './styled/queue.styled'
+import {
+  QueueList,
+  QueueItem as StyledQueueItem,
+  QueueIcon,
+  QueueName,
+  RemoveButton,
+  RetryButton,
+  UploadingLabel
+} from './styled/queue.styled'
 import { PreviewList, PreviewItem, PreviewName, PreviewRemove } from './styled/preview.styled'
 import { Textarea } from './styled/form.styled'
 
@@ -66,21 +82,17 @@ export default function AddCardModalComponent(props: Props): JSX.Element {
   )
 }
 
-function EditPhase({
-  modal,
-  textareaRef,
-  onTextChange,
-  onRemovePreviewLine,
-  onStartUpload,
-  onClose
-}: {
+interface EditPhaseProps {
   modal: AddCardModal
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   onTextChange: (text: string) => void
   onRemovePreviewLine: (lineIdx: number) => void
   onStartUpload: () => void
   onClose: () => void
-}): JSX.Element {
+}
+
+function EditPhase(props: EditPhaseProps): JSX.Element {
+  const { modal, textareaRef, onTextChange, onRemovePreviewLine, onStartUpload, onClose } = props
   const previewLines = modal.text
     .split('\n')
     .map((line, idx) => ({ line: line.trim(), idx }))
@@ -120,21 +132,17 @@ function EditPhase({
   )
 }
 
-function QueuePhase({
-  queue,
-  uploading,
-  onRemoveQueueItem,
-  onRetryItem,
-  onRetryAllFailed,
-  onClose
-}: {
+interface QueuePhaseProps {
   queue: QueueItem[]
   uploading: boolean
   onRemoveQueueItem: (itemId: string) => void
   onRetryItem: (itemId: string) => void
   onRetryAllFailed: () => void
   onClose: () => void
-}): JSX.Element {
+}
+
+function QueuePhase(props: QueuePhaseProps): JSX.Element {
+  const { queue, uploading, onRemoveQueueItem, onRetryItem, onRetryAllFailed, onClose } = props
   const hasAnyFailed = queue.some((q) => q.status === 'failed')
   const allDone = queue.every((q) => q.status === 'done' || q.status === 'failed')
 
