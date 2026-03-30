@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { IPC_CHANNELS } from '@shared/ipc.types'
+import type { IPC_CHANNELS } from '../ipc/ipc.types'
 
 type Channel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]
 

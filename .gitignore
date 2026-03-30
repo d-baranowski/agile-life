@@ -20,3 +20,4 @@ package-lock.json
 src/**/*.js
 src/**/*.jsx
 electron.vite.config.js
+.idea

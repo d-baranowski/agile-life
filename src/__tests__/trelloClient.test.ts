@@ -3,7 +3,7 @@
  * All network calls are intercepted via a mocked axios instance.
  */
 import axios from 'axios'
-import { TrelloClient } from '../main/trello/client'
+import { TrelloClient } from '../trello/client'
 
 jest.mock('axios')
 const mockedAxios = axios as jest.Mocked<typeof axios>

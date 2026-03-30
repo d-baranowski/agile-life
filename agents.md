@@ -11,6 +11,118 @@ Rules that all agents must follow when contributing to this repository.
 - Keep functions small and single-purpose; extract helpers rather than growing complex bodies
 - Avoid deeply nested conditionals; use early returns to keep the happy path at the top level
 - Prefer explicit types over `any`; only use `any` when interoperating with untyped third-party code
+- **One React component per `.tsx` file.** This is enforced by the ESLint `react/no-multi-comp` rule. Extract sub-components into their own files (e.g. `AddCardEditPhase.tsx`, `AddCardQueuePhase.tsx`).
+
+## Component Props Pattern
+
+React component functions must accept a single `props` parameter and destructure inside the body — **never** destructure in the function signature.
+
+```tsx
+// ✅ Correct
+function MyComponent(props: Props): JSX.Element {
+  const { title, onClick } = props
+  return <button onClick={onClick}>{title}</button>
+}
+
+// ❌ Wrong — do NOT destructure in the parameter list
+function MyComponent({ title, onClick }: Props): JSX.Element {
+  return <button onClick={onClick}>{title}</button>
+}
+```
+
+## Styling — styled-components
+
+Use **[styled-components](https://styled-components.com/docs/basics#styling-any-component)** for all component-specific styling. Keep styles co-located with the component so you can identify the styles of each component at a glance.
+
+- **Component-specific styles**: Define styled components in the same `.tsx` file, above the component function. For larger style sets, create a sibling `ComponentName.styled.ts` file.
+- **Global / app-wide styles**: Keep only truly global styles (CSS resets, CSS custom properties, body/html rules) in plain `.css` files.
+- **No new `.module.css` files.** When touching an existing component that uses CSS modules, migrate its styles to styled-components.
+- Prefer semantic styled component names (e.g. `CardWrapper`, `ColumnHeader`) over generic ones.
+
+```tsx
+// ✅ Correct — styles live next to the component
+import styled from 'styled-components'
+
+const Wrapper = styled.div`
+  display: flex;
+  gap: 8px;
+`
+
+const Title = styled.h2`
+  font-size: 1rem;
+  color: var(--color-text);
+`
+
+function MyComponent(props: Props): JSX.Element {
+  const { title } = props
+  return (
+    <Wrapper>
+      <Title>{title}</Title>
+    </Wrapper>
+  )
+}
+```
+
+## File Size Limits
+
+- **No `.tsx` file may exceed 600 lines** (blank lines and comments excluded). This is enforced by the ESLint `max-lines` rule.
+- When a component grows beyond this limit, refactor by:
+  1. Extracting reusable **utility functions** into `src/renderer/src/lib/`
+  2. Extracting **custom hooks** into a `hooks/` directory next to the page
+  3. Extracting **sub-components** into a feature directory next to the page (e.g. `pages/kanban/DraggableCard.tsx`)
+
+## File Structure
+
+Organise files by the feature they support. Keep code close to where it is used.
+
+```
+src/renderer/src/
+├── lib/                  # Shared utilities used across many features
+│   ├── label-colors.ts   # Trello label colour mapping
+│   ├── fuzzy-match.ts    # Fuzzy string matching
+│   ├── format-age.ts     # Compact human-readable age string
+│   ├── weeks-ago.ts      # Relative age label
+│   ├── fmt-date.ts       # Localised short date formatting
+│   ├── card-story-points.ts # Story-point value for a card
+│   ├── parse-card-names.ts  # Multiline textarea → card name list
+│   ├── reorder-cards.ts  # Reorder cards within a column
+│   ├── move-card.ts      # Move a card between columns
+│   ├── month-names.ts    # Calendar month name constants
+│   ├── placeholders.ts   # Template placeholder expansion
+│   └── __tests__/        # Co-located tests for lib utilities
+│       ├── card-story-points.test.ts
+│       ├── format-age.test.ts
+│       └── ...
+├── components/           # Shared UI components (Toast, StrictModeDroppable, …)
+├── hooks/                # Shared hooks (useApi, …)
+├── pages/
+│   ├── KanbanPage.tsx    # Page-level orchestrator (≤ 600 lines)
+│   ├── kanban/           # Feature directory — components & hooks for KanbanPage
+│   │   ├── DraggableCard.tsx
+│   │   ├── CardContextMenu.tsx
+│   │   ├── BulkActionBar.tsx
+│   │   ├── GamificationBar.tsx
+│   │   ├── gamification.ts  # gamification helper (single-feature, not reusable)
+│   │   ├── confetti.ts      # done-card celebration effect (single-feature)
+│   │   ├── hooks/
+│   │   │   ├── useAddCardQueue.ts
+│   │   │   ├── useBulkActions.ts
+│   │   │   └── useDragDrop.ts
+│   │   └── kanban.types.ts
+│   ├── SettingsPage.tsx
+│   ├── settings/         # Feature directory — extracted SettingsPage sections
+│   │   ├── ArchiveDoneCards.tsx
+│   │   └── StoryPointsEditor.tsx
+│   ├── Dashboard.tsx
+│   └── AnalyticsPage.tsx
+```
+
+**Rules:**
+- If a function, hook, or component is used by **one page only**, keep it in that page's feature directory (e.g. `pages/kanban/hooks/useDragDrop.ts`).
+- If it is used by **two or more pages**, move it to `src/renderer/src/lib/` (for utilities) or `src/renderer/src/components/` (for UI components).
+- Never duplicate utilities across files — import from the shared `lib/` directory instead.
+- **No catch-all `*-utils.ts` files.** Every exported function must live in its own single-purpose module (e.g. `format-age.ts`, not `format-utils.ts`). Each module must have a corresponding unit test file.
+- Only **truly reusable** code belongs in `lib/`. If a helper is only used by one component or feature, keep it next to that component in its feature directory.
 
 ## Formatting Conventions
 
@@ -26,10 +138,11 @@ Always run `pnpm format` after editing files to stay consistent with these setti
 
 ## Testing and Coverage
 
-- Unit tests live in `src/**/__tests__/**/*.test.ts` and run with `pnpm test`
+- Unit tests live in co-located `__tests__/` folders **next to the code they test** — not in a single global `__tests__/` directory. For example, tests for `src/renderer/src/lib/format-age.ts` go in `src/renderer/src/lib/__tests__/format-age.test.ts`.
+- The Jest `testMatch` pattern `**/__tests__/**/*.test.ts` picks up all co-located test folders automatically.
 - Coverage is measured with `pnpm test:coverage`; renderer code is excluded from coverage collection
 - **Target: 50 % statement coverage** across `src/main` and `src/shared`
-- Every new module or utility must have a corresponding `__tests__/*.test.ts` file
+- Every new module or utility must have a corresponding `__tests__/*.test.ts` file in the same directory
 - Write tests that cover both the happy path and meaningful error/edge cases
 - Do not delete or weaken existing tests to make coverage numbers look better
 
