@@ -11,6 +11,7 @@ import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
 import TicketNumberingPage from './TicketNumberingPage'
 import { playCoinSound } from '../utils/sound'
+import { EpicFilterSelect } from '../components/EpicFilterSelect'
 import styles from './KanbanPage.module.css'
 
 interface Props {
@@ -215,6 +216,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   // Multi-select state
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
   const [bulkEpicDropdownOpen, setBulkEpicDropdownOpen] = useState(false)
+  const [bulkEpicSearch, setBulkEpicSearch] = useState('')
   const bulkEpicDropdownRef = useRef<HTMLDivElement>(null)
   const [isBulkArchiving, setIsBulkArchiving] = useState(false)
 
@@ -631,7 +633,10 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   // Close bulk epic dropdown on outside click
   useEffect(() => {
-    if (!bulkEpicDropdownOpen) return
+    if (!bulkEpicDropdownOpen) {
+      setBulkEpicSearch('')
+      return
+    }
     const handleClick = (e: MouseEvent) => {
       if (bulkEpicDropdownRef.current && !bulkEpicDropdownRef.current.contains(e.target as Node)) {
         setBulkEpicDropdownOpen(false)
@@ -1211,24 +1216,14 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           onChange={(e) => setSearchQuery(e.target.value)}
         />
         {isStoryBoard && epicCardOptions.length > 0 && (
-          <select
-            className={styles.epicFilterSelect}
+          <EpicFilterSelect
+            epicCards={epicCardOptions}
             value={epicFilter}
-            onChange={(e) => {
-              setEpicFilter(e.target.value)
+            onChange={(val) => {
+              setEpicFilter(val)
               setEpicColumnFilter('')
             }}
-            title="Filter by epic"
-            aria-label="Filter cards by epic"
-          >
-            <option value="">⚡ All epics</option>
-            <option value="__none__">— No epic</option>
-            {epicCardOptions.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name}
-              </option>
-            ))}
-          </select>
+          />
         )}
         {isStoryBoard && epicColumns.length > 0 && (
           <select
@@ -1423,22 +1418,38 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 </button>
                 {bulkEpicDropdownOpen && (
                   <div className={styles.bulkEpicDropdown}>
+                    <div className={styles.bulkEpicSearchWrapper}>
+                      <input
+                        type="text"
+                        className={styles.bulkEpicSearchInput}
+                        placeholder="Search epics…"
+                        value={bulkEpicSearch}
+                        onChange={(e) => setBulkEpicSearch(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
                     <button
                       className={styles.bulkEpicDropdownItem}
                       onClick={() => handleBulkSetEpic(null)}
                     >
                       — None
                     </button>
-                    {epicCardOptions.map((opt) => (
-                      <button
-                        key={opt.id}
-                        className={styles.bulkEpicDropdownItem}
-                        onClick={() => handleBulkSetEpic(opt.id)}
-                      >
-                        <span className={styles.epicDropdownName}>{opt.name}</span>
-                        <span className={styles.epicDropdownList}>{opt.listName}</span>
-                      </button>
-                    ))}
+                    {epicCardOptions
+                      .filter(
+                        (opt) =>
+                          !bulkEpicSearch.trim() ||
+                          fuzzyMatch(bulkEpicSearch, `${opt.name} ${opt.listName}`)
+                      )
+                      .map((opt) => (
+                        <button
+                          key={opt.id}
+                          className={styles.bulkEpicDropdownItem}
+                          onClick={() => handleBulkSetEpic(opt.id)}
+                        >
+                          <span className={styles.epicDropdownName}>{opt.name}</span>
+                          <span className={styles.epicDropdownList}>{opt.listName}</span>
+                        </button>
+                      ))}
                   </div>
                 )}
               </div>

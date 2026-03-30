@@ -1408,6 +1408,33 @@
   flex-direction: column;
 }
 
+.bulkEpicSearchWrapper {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.bulkEpicSearchInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  outline: none;
+  font-family: inherit;
+}
+
+.bulkEpicSearchInput:focus {
+  border-color: var(--color-accent, #9370db);
+}
+
 .bulkEpicDropdownItem {
   display: flex;
   flex-direction: column;
