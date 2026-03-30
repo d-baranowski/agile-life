@@ -1,4 +1,10 @@
-import styles from '../KanbanPage.module.css'
+import {
+  ColumnHeaderWrap,
+  ColumnNameText,
+  ColumnHeaderActions,
+  ColumnSelectAllBtn,
+  ColumnCountBadge
+} from './styled/column-header.styled'
 
 interface Props {
   columnId: string
@@ -11,21 +17,20 @@ export default function KanbanColumnHeader(props: Props): JSX.Element {
   const { columnId, columnName, cardCount, onSelectAll } = props
 
   return (
-    <div className={styles.columnHeader}>
-      <span className={styles.columnName}>{columnName}</span>
-      <div className={styles.columnHeaderActions}>
+    <ColumnHeaderWrap>
+      <ColumnNameText>{columnName}</ColumnNameText>
+      <ColumnHeaderActions>
         {cardCount > 0 && (
-          <button
-            className={styles.columnSelectAllBtn}
+          <ColumnSelectAllBtn
             onClick={() => onSelectAll(columnId)}
             title={`Select all ${cardCount} cards in ${columnName}`}
             aria-label={`Select all cards in ${columnName}`}
           >
             ☑
-          </button>
+          </ColumnSelectAllBtn>
         )}
-        <span className={styles.columnCount}>{cardCount}</span>
-      </div>
-    </div>
+        <ColumnCountBadge>{cardCount}</ColumnCountBadge>
+      </ColumnHeaderActions>
+    </ColumnHeaderWrap>
   )
 }

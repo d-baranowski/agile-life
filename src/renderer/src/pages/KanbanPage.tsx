@@ -28,7 +28,25 @@ import { useBulkActions } from './kanban/hooks/useBulkActions'
 import { useDragDrop } from './kanban/hooks/useDragDrop'
 import KanbanMeatballMenu from './kanban/KanbanMeatballMenu'
 import KanbanColumnHeader from './kanban/KanbanColumnHeader'
-import styles from './KanbanPage.module.css'
+import {
+  Container,
+  SearchBar,
+  SearchInput,
+  EpicFilterSelectStyled,
+  ClearSelectionBtn,
+  Board,
+  Column,
+  CardList,
+  AddCardBtn
+} from './kanban/styled/kanban-board.styled'
+import {
+  Centred,
+  ErrorBanner,
+  EmptyState,
+  ModalOverlay,
+  ModalContent,
+  ModalClose
+} from './kanban/styled/kanban-states.styled'
 
 interface Props {
   board: BoardConfig
@@ -308,40 +326,36 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
   if (loading) {
     return (
-      <div className={styles.centred}>
+      <Centred>
         <div className="spinner" />
         <span>Loading board…</span>
-      </div>
+      </Centred>
     )
   }
 
   if (error) {
     return (
-      <div className={styles.centred}>
-        <div className={styles.errorBanner}>{error}</div>
-      </div>
+      <Centred>
+        <ErrorBanner>{error}</ErrorBanner>
+      </Centred>
     )
   }
 
   const ticketsModal = showTicketsModal ? (
-    <div className={styles.modalOverlay} onClick={() => setShowTicketsModal(false)}>
-      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-        <button
-          className={styles.modalClose}
-          onClick={() => setShowTicketsModal(false)}
-          title="Close (Esc)"
-        >
+    <ModalOverlay onClick={() => setShowTicketsModal(false)}>
+      <ModalContent onClick={(e) => e.stopPropagation()}>
+        <ModalClose onClick={() => setShowTicketsModal(false)} title="Close (Esc)">
           ✕
-        </button>
+        </ModalClose>
         <TicketNumberingPage board={board} />
-      </div>
-    </div>
+      </ModalContent>
+    </ModalOverlay>
   ) : null
 
   if (columns.length === 0) {
     return (
-      <div className={styles.container}>
-        <div className={styles.searchBar}>
+      <Container>
+        <SearchBar>
           <KanbanMeatballMenu
             meatballRef={emptyMeatballRef}
             showMeatball={showEmptyMeatball}
@@ -367,25 +381,24 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
               setShowEmptyMeatball(false)
             }}
           />
-        </div>
-        <div className={styles.emptyState}>
+        </SearchBar>
+        <EmptyState>
           <p>No data yet.</p>
           <p className="text-muted">
             Click <strong>↻ Fetch from Trello</strong> in the top bar to import this board&apos;s
             data.
           </p>
-        </div>
+        </EmptyState>
         {ticketsModal}
-      </div>
+      </Container>
     )
   }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.searchBar}>
-        <input
+    <Container>
+      <SearchBar>
+        <SearchInput
           type="search"
-          className={styles.searchInput}
           placeholder="🔍 Fuzzy search cards…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -401,8 +414,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           />
         )}
         {isStoryBoard && epicColumns.length > 0 && (
-          <select
-            className={styles.epicFilterSelect}
+          <EpicFilterSelectStyled
             value={epicColumnFilter}
             onChange={(e) => {
               setEpicColumnFilter(e.target.value)
@@ -417,7 +429,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 {col.listName}
               </option>
             ))}
-          </select>
+          </EpicFilterSelectStyled>
         )}
         <KanbanMeatballMenu
           meatballRef={mainMeatballRef}
@@ -457,22 +469,21 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           }}
         />
         {selectedCardCount > 0 && (
-          <button
-            className={styles.clearSelectionBtn}
+          <ClearSelectionBtn
             onClick={() => bulk.setSelectedCardIds(new Set())}
             title="Clear selection (Esc)"
           >
             ✕ Clear {selectedCardCount} selected
-          </button>
+          </ClearSelectionBtn>
         )}
-      </div>
+      </SearchBar>
 
       {gamificationStats && <GamificationBar stats={gamificationStats} />}
 
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className={styles.board}>
+        <Board>
           {filteredColumns.map((column) => (
-            <div key={column.id} className={styles.column}>
+            <Column key={column.id}>
               <KanbanColumnHeader
                 columnId={column.id}
                 columnName={column.name}
@@ -482,10 +493,10 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
 
               <StrictModeDroppable droppableId={column.id}>
                 {(provided, snapshot) => (
-                  <div
+                  <CardList
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`${styles.cardList} ${snapshot.isDraggingOver ? styles.cardListOver : ''}`}
+                    $isDragOver={snapshot.isDraggingOver}
                   >
                     {column.cards.map((card, index) => (
                       <DraggableCard
@@ -509,19 +520,16 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                       />
                     ))}
                     {provided.placeholder}
-                  </div>
+                  </CardList>
                 )}
               </StrictModeDroppable>
 
-              <button
-                className={styles.addCardBtn}
-                onClick={() => addCard.handleOpenAddCard(column.id, column.name)}
-              >
+              <AddCardBtn onClick={() => addCard.handleOpenAddCard(column.id, column.name)}>
                 + Add a card
-              </button>
-            </div>
+              </AddCardBtn>
+            </Column>
           ))}
-        </div>
+        </Board>
       </DragDropContext>
 
       {selectedCardCount > 0 && (
@@ -647,6 +655,6 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           onClose={bulk.handleCloseBulkMember}
         />
       )}
-    </div>
+    </Container>
   )
 }

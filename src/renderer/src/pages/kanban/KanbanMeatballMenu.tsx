@@ -1,5 +1,10 @@
 import type { StoryPointsRow } from '@shared/board.types'
-import styles from '../KanbanPage.module.css'
+import {
+  MeatballWrapper,
+  MeatballBtn,
+  MeatballMenu,
+  MeatballItem
+} from './styled/meatball-menu.styled'
 
 interface Props {
   meatballRef: React.RefObject<HTMLDivElement | null>
@@ -43,53 +48,37 @@ export default function KanbanMeatballMenu(props: Props): JSX.Element {
   } = props
 
   return (
-    <div ref={meatballRef} className={styles.meatballWrapper}>
-      <button
-        className={`${styles.meatballBtn} ${hasActiveMenuFilter ? styles.meatballBtnActive : ''}`}
+    <MeatballWrapper ref={meatballRef}>
+      <MeatballBtn
+        $active={hasActiveMenuFilter}
         onClick={onToggleMeatball}
         title="More options"
         aria-label="More options"
       >
         •••
-      </button>
+      </MeatballBtn>
       {showMeatball && (
-        <div className={styles.meatballMenu}>
-          <button
-            className={`${styles.meatballItem} ${showDuplicates ? styles.meatballItemActive : ''}`}
-            onClick={onToggleDuplicates}
-          >
+        <MeatballMenu>
+          <MeatballItem $active={showDuplicates} onClick={onToggleDuplicates}>
             ⊖ Duplicates{duplicateCount > 0 && ` (${duplicateCount})`}
-          </button>
-          <button
-            className={`${styles.meatballItem} ${filterUnassigned ? styles.meatballItemActive : ''}`}
-            onClick={onToggleUnassigned}
-          >
+          </MeatballItem>
+          <MeatballItem $active={filterUnassigned} onClick={onToggleUnassigned}>
             👤 Unassigned only
-          </button>
+          </MeatballItem>
           {isStoryBoard && (
-            <button
-              className={`${styles.meatballItem} ${filterNoEpic ? styles.meatballItemActive : ''}`}
-              onClick={onToggleNoEpic}
-            >
+            <MeatballItem $active={filterNoEpic} onClick={onToggleNoEpic}>
               ⚡ No epic only
-            </button>
+            </MeatballItem>
           )}
           {storyPointsConfig.length > 0 && (
-            <button
-              className={`${styles.meatballItem} ${filterNoSize ? styles.meatballItemActive : ''}`}
-              onClick={onToggleNoSize}
-            >
+            <MeatballItem $active={filterNoSize} onClick={onToggleNoSize}>
               📏 No size only
-            </button>
+            </MeatballItem>
           )}
-          <button className={styles.meatballItem} onClick={onOpenTickets}>
-            🎫 Number Tickets
-          </button>
-          <button className={styles.meatballItem} onClick={onOpenGenerate}>
-            📋 Generate from Template
-          </button>
-        </div>
+          <MeatballItem onClick={onOpenTickets}>🎫 Number Tickets</MeatballItem>
+          <MeatballItem onClick={onOpenGenerate}>📋 Generate from Template</MeatballItem>
+        </MeatballMenu>
       )}
-    </div>
+    </MeatballWrapper>
   )
 }
