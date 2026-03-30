@@ -8,6 +8,8 @@
 }
 
 .trigger {
+  appearance: none;
+  -webkit-appearance: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -19,7 +21,6 @@
   background: var(--color-surface);
   color: var(--color-text);
   font-size: 0.82rem;
-  line-height: 1;
   font-family: inherit;
   cursor: pointer;
   text-align: left;
