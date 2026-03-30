@@ -3,7 +3,9 @@ import type { DropResult } from 'react-beautiful-dnd'
 import type { KanbanColumn } from '@shared/trello.types'
 import type { StoryPointRule } from '@shared/board.types'
 import { api } from '../../../hooks/useApi'
-import { cardStoryPoints, reorderCards, moveCard } from '../../../lib/card-utils'
+import { cardStoryPoints } from '../../../lib/card-story-points'
+import { reorderCards } from '../../../lib/reorder-cards'
+import { moveCard } from '../../../lib/move-card'
 import { triggerDoneEffect } from '../../../lib/confetti'
 
 export function useDragDrop(

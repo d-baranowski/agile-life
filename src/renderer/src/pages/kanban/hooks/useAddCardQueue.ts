@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { KanbanCard } from '@shared/trello.types'
-import { parseCardNames } from '../../../lib/card-utils'
+import { parseCardNames } from '../../../lib/parse-card-names'
 import { api } from '../../../hooks/useApi'
 import type { AddCardModal, QueueItem } from '../kanban.types'
 
