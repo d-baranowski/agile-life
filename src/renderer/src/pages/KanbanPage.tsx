@@ -212,10 +212,11 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   // without waiting for React to re-render or querying the DOM after an async API call.
   const lastPointerPos = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 })
 
-  // Multi-select state (story boards only)
+  // Multi-select state
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
   const [bulkEpicDropdownOpen, setBulkEpicDropdownOpen] = useState(false)
   const bulkEpicDropdownRef = useRef<HTMLDivElement>(null)
+  const [isBulkArchiving, setIsBulkArchiving] = useState(false)
 
   // Is this board a story board (has a linked epic board)?
   const isStoryBoard = !!board.epicBoardId
@@ -605,6 +606,28 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     },
     [board.boardId, selectedCardIds, epicCardOptions, loadBoardData]
   )
+
+  const handleBulkArchive = useCallback(async () => {
+    if (selectedCardIds.size === 0) return
+    setIsBulkArchiving(true)
+    const cardIds = [...selectedCardIds]
+    // Optimistically remove selected cards from the UI
+    const prevColumns = columns
+    setColumns((prev) =>
+      prev.map((col) => ({ ...col, cards: col.cards.filter((c) => !selectedCardIds.has(c.id)) }))
+    )
+    setSelectedCardIds(new Set())
+    const result = await api.trello.archiveCards(board.boardId, cardIds)
+    setIsBulkArchiving(false)
+    if (!result.success) {
+      setColumns(prevColumns)
+      setToastMessage(result.error ?? 'Failed to archive cards. Please try again.')
+    } else if (result.data && result.data.skippedCount > 0) {
+      setToastMessage(
+        `Archived ${result.data.archivedCount} card(s). ${result.data.skippedCount} could not be archived.`
+      )
+    }
+  }, [board.boardId, columns, selectedCardIds])
 
   // Close bulk epic dropdown on outside click
   useEffect(() => {
@@ -1383,46 +1406,55 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         </div>
       </DragDropContext>
 
-      {/* ── Bulk action bar (shown when ≥1 card is selected on a story board) ── */}
-      {isStoryBoard && selectedCardCount > 0 && (
+      {/* ── Bulk action bar (shown when ≥1 card is selected) ── */}
+      {selectedCardCount > 0 && (
         <div className={styles.bulkActionBar}>
           <span className={styles.bulkActionCount}>
             {selectedCardCount} card{selectedCardCount !== 1 ? 's' : ''} selected
           </span>
           <div className={styles.bulkActionControls}>
-            <div ref={bulkEpicDropdownRef} className={styles.bulkEpicWrapper}>
-              <button
-                className={styles.bulkEpicBtn}
-                onClick={() => setBulkEpicDropdownOpen((prev) => !prev)}
-              >
-                ⚡ Set Epic
-              </button>
-              {bulkEpicDropdownOpen && (
-                <div className={styles.bulkEpicDropdown}>
-                  <button
-                    className={styles.bulkEpicDropdownItem}
-                    onClick={() => handleBulkSetEpic(null)}
-                  >
-                    — None
-                  </button>
-                  {epicCardOptions.map((opt) => (
+            {isStoryBoard && (
+              <div ref={bulkEpicDropdownRef} className={styles.bulkEpicWrapper}>
+                <button
+                  className={styles.bulkEpicBtn}
+                  onClick={() => setBulkEpicDropdownOpen((prev) => !prev)}
+                >
+                  ⚡ Set Epic
+                </button>
+                {bulkEpicDropdownOpen && (
+                  <div className={styles.bulkEpicDropdown}>
                     <button
-                      key={opt.id}
                       className={styles.bulkEpicDropdownItem}
-                      onClick={() => handleBulkSetEpic(opt.id)}
+                      onClick={() => handleBulkSetEpic(null)}
                     >
-                      <span className={styles.epicDropdownName}>{opt.name}</span>
-                      <span className={styles.epicDropdownList}>{opt.listName}</span>
+                      — None
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {boardLabels.length > 0 && (
+                    {epicCardOptions.map((opt) => (
+                      <button
+                        key={opt.id}
+                        className={styles.bulkEpicDropdownItem}
+                        onClick={() => handleBulkSetEpic(opt.id)}
+                      >
+                        <span className={styles.epicDropdownName}>{opt.name}</span>
+                        <span className={styles.epicDropdownList}>{opt.listName}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {isStoryBoard && boardLabels.length > 0 && (
               <button className={styles.bulkEpicBtn} onClick={() => handleOpenBulkLabelFromBar()}>
                 🏷️ Set Label
               </button>
             )}
+            <button
+              className={styles.bulkArchiveBtn}
+              onClick={handleBulkArchive}
+              disabled={isBulkArchiving}
+            >
+              {isBulkArchiving ? 'Archiving…' : `🗄️ Archive ${selectedCardCount}`}
+            </button>
             <button
               className={styles.bulkClearBtn}
               onClick={() => setSelectedCardIds(new Set())}
@@ -2140,20 +2172,18 @@ function DraggableCard({
               )}
               {card.name}
             </span>
-            {isStoryBoard && (
-              <button
-                className={`${styles.cardCheckbox} ${isSelected ? styles.cardCheckboxChecked : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleSelect(card.id)
-                }}
-                title={isSelected ? 'Deselect card' : 'Select card'}
-                aria-label={isSelected ? 'Deselect card' : 'Select card'}
-                aria-pressed={isSelected}
-              >
-                {isSelected ? '✓' : ''}
-              </button>
-            )}
+            <button
+              className={`${styles.cardCheckbox} ${isSelected ? styles.cardCheckboxChecked : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleSelect(card.id)
+              }}
+              title={isSelected ? 'Deselect card' : 'Select card'}
+              aria-label={isSelected ? 'Deselect card' : 'Select card'}
+              aria-pressed={isSelected}
+            >
+              {isSelected ? '✓' : ''}
+            </button>
           </div>
 
           {/* Epic label (story board only) */}

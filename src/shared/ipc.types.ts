@@ -59,6 +59,7 @@ export const IPC_CHANNELS = {
   TRELLO_MOVE_CARD: 'trello:moveCard',
   TRELLO_UPDATE_CARD_POS: 'trello:updateCardPos',
   TRELLO_ARCHIVE_CARD: 'trello:archiveCard',
+  TRELLO_ARCHIVE_CARDS: 'trello:archiveCards',
   TRELLO_GET_BOARD_MEMBERS: 'trello:getBoardMembers',
   TRELLO_ASSIGN_CARD_MEMBER: 'trello:assignCardMember',
   TRELLO_CREATE_CARD: 'trello:createCard',
