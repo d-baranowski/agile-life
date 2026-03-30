@@ -39,3 +39,32 @@ export interface BulkLabelModal {
   /** true when triggered from the multi-select bulk action bar (cards come from selectedCardIds) */
   fromSelection?: boolean
 }
+
+export interface BulkArchiveQueueItem {
+  id: string
+  cardId: string
+  cardName: string
+  status: QueueItemStatus
+}
+
+export interface BulkArchiveModal {
+  /** null = confirm phase; non-null = progress phase */
+  queue: BulkArchiveQueueItem[] | null
+  running: boolean
+}
+
+export interface BulkMemberQueueItem {
+  id: string
+  cardId: string
+  cardName: string
+  status: QueueItemStatus
+}
+
+export interface BulkMemberModal {
+  memberId: string
+  memberName: string
+  assign: boolean
+  /** null = confirm phase; non-null = progress phase */
+  queue: BulkMemberQueueItem[] | null
+  running: boolean
+}

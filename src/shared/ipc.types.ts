@@ -62,6 +62,7 @@ export const IPC_CHANNELS = {
   TRELLO_ARCHIVE_CARDS: 'trello:archiveCards',
   TRELLO_GET_BOARD_MEMBERS: 'trello:getBoardMembers',
   TRELLO_ASSIGN_CARD_MEMBER: 'trello:assignCardMember',
+  TRELLO_BULK_ASSIGN_MEMBER: 'trello:bulkAssignMember',
   TRELLO_CREATE_CARD: 'trello:createCard',
   TRELLO_GET_BOARD_LABELS: 'trello:getBoardLabels',
   TRELLO_ASSIGN_CARD_LABEL: 'trello:assignCardLabel',

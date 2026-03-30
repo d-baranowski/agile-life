@@ -15,6 +15,10 @@
   animation: slideIn 200ms ease;
 }
 
+.toastSuccess {
+  background: var(--color-success, #27ae60);
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;

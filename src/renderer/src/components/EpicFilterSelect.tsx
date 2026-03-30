@@ -1,23 +1,31 @@
 import { useState, useRef, useEffect } from 'react'
 import type { EpicCardOption } from '@shared/board.types'
-import { fuzzyMatch } from '../lib/fuzzy-match'
-import styles from './EpicSelect.module.css'
+import { fuzzyMatch } from './EpicSelect'
+import styles from './EpicFilterSelect.module.css'
+import selectStyles from './EpicSelect.module.css'
 
+const ALL_VALUE = ''
+const NONE_VALUE = '__none__'
 
 interface Props {
   epicCards: EpicCardOption[]
   value: string
-  onChange: (id: string) => void
+  onChange: (value: string) => void
 }
 
-export function EpicSelect({ epicCards, value, onChange }: Props): JSX.Element {
+export function EpicFilterSelect({ epicCards, value, onChange }: Props): JSX.Element {
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const selectedEpic = epicCards.find((e) => e.id === value)
-  const triggerLabel = selectedEpic ? selectedEpic.name : '— None —'
+  let triggerLabel = '⚡ All epics'
+  if (value === NONE_VALUE) {
+    triggerLabel = '— No epic'
+  } else if (value !== ALL_VALUE) {
+    const found = epicCards.find((e) => e.id === value)
+    triggerLabel = found ? found.name : '⚡ All epics'
+  }
 
   useEffect(() => {
     if (open) {
@@ -41,8 +49,8 @@ export function EpicSelect({ epicCards, value, onChange }: Props): JSX.Element {
     (opt) => !searchQuery.trim() || fuzzyMatch(searchQuery, `${opt.name} ${opt.listName}`)
   )
 
-  function select(id: string) {
-    onChange(id)
+  function select(val: string) {
+    onChange(val)
     setOpen(false)
   }
 
@@ -59,31 +67,44 @@ export function EpicSelect({ epicCards, value, onChange }: Props): JSX.Element {
 
       {open && (
         <div className={styles.dropdown}>
-          <div className={styles.searchWrapper}>
+          <div className={selectStyles.searchWrapper}>
             <input
               ref={searchRef}
               type="text"
-              className={styles.searchInput}
+              className={selectStyles.searchInput}
               placeholder="Search epics…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button type="button" className={styles.option} onClick={() => select('')}>
-            — None —
+          <button
+            type="button"
+            className={`${selectStyles.option} ${value === ALL_VALUE ? selectStyles.optionActive : ''}`}
+            onClick={() => select(ALL_VALUE)}
+          >
+            ⚡ All epics
+          </button>
+          <button
+            type="button"
+            className={`${selectStyles.option} ${value === NONE_VALUE ? selectStyles.optionActive : ''}`}
+            onClick={() => select(NONE_VALUE)}
+          >
+            — No epic
           </button>
           {filtered.map((opt) => (
             <button
               key={opt.id}
               type="button"
-              className={`${styles.option} ${value === opt.id ? styles.optionActive : ''}`}
+              className={`${selectStyles.option} ${value === opt.id ? selectStyles.optionActive : ''}`}
               onClick={() => select(opt.id)}
             >
-              <span className={styles.optionName}>{opt.name}</span>
-              <span className={styles.optionList}>{opt.listName}</span>
+              <span className={selectStyles.optionName}>{opt.name}</span>
+              <span className={selectStyles.optionList}>{opt.listName}</span>
             </button>
           ))}
-          {filtered.length === 0 && <span className={styles.empty}>No epics found</span>}
+          {filtered.length === 0 && searchQuery.trim() && (
+            <span className={selectStyles.empty}>No epics found</span>
+          )}
         </div>
       )}
     </div>

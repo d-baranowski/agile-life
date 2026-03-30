@@ -1,4 +1,6 @@
 import type { EpicCardOption } from '@shared/board.types'
+import type { TrelloMember } from '@shared/trello.types'
+import { fuzzyMatch } from '../../lib/fuzzy-match'
 import styles from '../KanbanPage.module.css'
 
 interface Props {
@@ -6,13 +8,19 @@ interface Props {
   isStoryBoard: boolean
   epicCardOptions: EpicCardOption[]
   boardLabelsExist: boolean
+  boardMembers: TrelloMember[]
   bulkEpicDropdownOpen: boolean
   bulkEpicDropdownRef: React.RefObject<HTMLDivElement | null>
-  isBulkArchiving: boolean
+  bulkEpicSearch: string
+  bulkMemberDropdownOpen: boolean
+  bulkMemberDropdownRef: React.RefObject<HTMLDivElement | null>
   onToggleBulkEpicDropdown: () => void
+  onBulkEpicSearchChange: (value: string) => void
   onBulkSetEpic: (epicCardId: string | null) => void
   onOpenBulkLabel: () => void
   onBulkArchive: () => void
+  onToggleBulkMemberDropdown: () => void
+  onOpenBulkMemberModal: (memberId: string, memberName: string, assign: boolean) => void
   onClearSelection: () => void
 }
 
@@ -21,13 +29,19 @@ export default function BulkActionBar({
   isStoryBoard,
   epicCardOptions,
   boardLabelsExist,
+  boardMembers,
   bulkEpicDropdownOpen,
   bulkEpicDropdownRef,
-  isBulkArchiving,
+  bulkEpicSearch,
+  bulkMemberDropdownOpen,
+  bulkMemberDropdownRef,
   onToggleBulkEpicDropdown,
+  onBulkEpicSearchChange,
   onBulkSetEpic,
   onOpenBulkLabel,
   onBulkArchive,
+  onToggleBulkMemberDropdown,
+  onOpenBulkMemberModal,
   onClearSelection
 }: Props): JSX.Element {
   return (
@@ -43,19 +57,35 @@ export default function BulkActionBar({
             </button>
             {bulkEpicDropdownOpen && (
               <div className={styles.bulkEpicDropdown}>
+                <div className={styles.bulkEpicSearchWrapper}>
+                  <input
+                    type="text"
+                    className={styles.bulkEpicSearchInput}
+                    placeholder="Search epics…"
+                    value={bulkEpicSearch}
+                    onChange={(e) => onBulkEpicSearchChange(e.target.value)}
+                    autoFocus
+                  />
+                </div>
                 <button className={styles.bulkEpicDropdownItem} onClick={() => onBulkSetEpic(null)}>
                   — None
                 </button>
-                {epicCardOptions.map((opt) => (
-                  <button
-                    key={opt.id}
-                    className={styles.bulkEpicDropdownItem}
-                    onClick={() => onBulkSetEpic(opt.id)}
-                  >
-                    <span className={styles.epicDropdownName}>{opt.name}</span>
-                    <span className={styles.epicDropdownList}>{opt.listName}</span>
-                  </button>
-                ))}
+                {epicCardOptions
+                  .filter(
+                    (opt) =>
+                      !bulkEpicSearch.trim() ||
+                      fuzzyMatch(bulkEpicSearch, `${opt.name} ${opt.listName}`)
+                  )
+                  .map((opt) => (
+                    <button
+                      key={opt.id}
+                      className={styles.bulkEpicDropdownItem}
+                      onClick={() => onBulkSetEpic(opt.id)}
+                    >
+                      <span className={styles.epicDropdownName}>{opt.name}</span>
+                      <span className={styles.epicDropdownList}>{opt.listName}</span>
+                    </button>
+                  ))}
               </div>
             )}
           </div>
@@ -65,12 +95,40 @@ export default function BulkActionBar({
             🏷️ Set Label
           </button>
         )}
-        <button
-          className={styles.bulkArchiveBtn}
-          onClick={onBulkArchive}
-          disabled={isBulkArchiving}
-        >
-          {isBulkArchiving ? 'Archiving…' : `🗄️ Archive ${selectedCardCount}`}
+        {boardMembers.length > 0 && (
+          <div ref={bulkMemberDropdownRef} className={styles.bulkEpicWrapper}>
+            <button className={styles.bulkEpicBtn} onClick={onToggleBulkMemberDropdown}>
+              👤 Set Member
+            </button>
+            {bulkMemberDropdownOpen && (
+              <div className={styles.bulkMemberDropdown}>
+                <div className={styles.bulkMemberDropdownLabel}>Assign to:</div>
+                {boardMembers.map((member) => (
+                  <button
+                    key={member.id}
+                    className={styles.bulkMemberDropdownItem}
+                    onClick={() => onOpenBulkMemberModal(member.id, member.fullName, true)}
+                  >
+                    {member.fullName}
+                  </button>
+                ))}
+                <div className={styles.bulkMemberDropdownDivider} />
+                <div className={styles.bulkMemberDropdownLabel}>Remove from:</div>
+                {boardMembers.map((member) => (
+                  <button
+                    key={`remove-${member.id}`}
+                    className={styles.bulkMemberDropdownItem}
+                    onClick={() => onOpenBulkMemberModal(member.id, member.fullName, false)}
+                  >
+                    {member.fullName}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <button className={styles.bulkArchiveBtn} onClick={onBulkArchive}>
+          {`🗄️ Archive ${selectedCardCount}`}
         </button>
         <button
           className={styles.bulkClearBtn}

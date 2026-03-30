@@ -5,9 +5,15 @@ interface Props {
   message: string | null
   onDismiss: () => void
   onOpenLogs?: () => void
+  variant?: 'error' | 'success'
 }
 
-export default function Toast({ message, onDismiss, onOpenLogs }: Props): JSX.Element | null {
+export default function Toast({
+  message,
+  onDismiss,
+  onOpenLogs,
+  variant = 'error'
+}: Props): JSX.Element | null {
   useEffect(() => {
     if (!message) return
     const timer = setTimeout(onDismiss, 5000)
@@ -17,7 +23,10 @@ export default function Toast({ message, onDismiss, onOpenLogs }: Props): JSX.El
   if (!message) return null
 
   return (
-    <div className={styles.toast} role="alert">
+    <div
+      className={`${styles.toast} ${variant === 'success' ? styles.toastSuccess : ''}`}
+      role="alert"
+    >
       <span className={styles.toastMessage}>{message}</span>
       {onOpenLogs && (
         <button className={styles.toastLogsBtn} onClick={onOpenLogs} aria-label="Open log folder">

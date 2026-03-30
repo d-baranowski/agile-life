@@ -16,6 +16,9 @@ import EpicStoriesModal from './kanban/EpicStoriesModal'
 import GenerateTemplateModal from './kanban/GenerateTemplateModal'
 import AddCardModalComponent from './kanban/AddCardModal'
 import BulkLabelModalComponent from './kanban/BulkLabelModal'
+import BulkArchiveModalComponent from './kanban/BulkArchiveModal'
+import BulkMemberModalComponent from './kanban/BulkMemberModal'
+import { EpicFilterSelect } from '../components/EpicFilterSelect'
 import { useAddCardQueue } from './kanban/hooks/useAddCardQueue'
 import { useBulkLabelQueue } from './kanban/hooks/useBulkLabelQueue'
 import { useCardActions } from './kanban/hooks/useCardActions'
@@ -82,6 +85,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     board.boardId,
     columns,
     epicMgmt.epicCardOptions,
+    boardMembers,
     setColumns,
     setToastMessage,
     loadBoardData
@@ -170,6 +174,8 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         gen.handleCloseGenModal()
         bulk.setBulkEpicDropdownOpen(false)
         bulk.setSelectedCardIds(new Set())
+        bulk.handleCloseBulkArchive()
+        bulk.handleCloseBulkMember()
         setShowEmptyMeatball(false)
         setShowMainMeatball(false)
       }
@@ -190,6 +196,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showEmptyMeatball, showMainMeatball])
 
+  // Close context menu on Escape or click outside
   useEffect(() => {
     if (!contextMenu) return
     const handleKey = (e: KeyboardEvent) => {
@@ -372,24 +379,14 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           onChange={(e) => setSearchQuery(e.target.value)}
         />
         {isStoryBoard && epicMgmt.epicCardOptions.length > 0 && (
-          <select
-            className={styles.epicFilterSelect}
+          <EpicFilterSelect
+            epicCards={epicMgmt.epicCardOptions}
             value={epicFilter}
-            onChange={(e) => {
-              setEpicFilter(e.target.value)
+            onChange={(val) => {
+              setEpicFilter(val)
               setEpicColumnFilter('')
             }}
-            title="Filter by epic"
-            aria-label="Filter cards by epic"
-          >
-            <option value="">⚡ All epics</option>
-            <option value="__none__">— No epic</option>
-            {epicMgmt.epicCardOptions.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name}
-              </option>
-            ))}
-          </select>
+          />
         )}
         {isStoryBoard && epicColumns.length > 0 && (
           <select
@@ -514,13 +511,19 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           isStoryBoard={isStoryBoard}
           epicCardOptions={epicMgmt.epicCardOptions}
           boardLabelsExist={boardLabels.length > 0}
+          boardMembers={boardMembers}
           bulkEpicDropdownOpen={bulk.bulkEpicDropdownOpen}
           bulkEpicDropdownRef={bulk.bulkEpicDropdownRef}
-          isBulkArchiving={bulk.isBulkArchiving}
+          bulkEpicSearch={bulk.bulkEpicSearch}
+          bulkMemberDropdownOpen={bulk.bulkMemberDropdownOpen}
+          bulkMemberDropdownRef={bulk.bulkMemberDropdownRef}
           onToggleBulkEpicDropdown={() => bulk.setBulkEpicDropdownOpen((prev) => !prev)}
+          onBulkEpicSearchChange={bulk.setBulkEpicSearch}
           onBulkSetEpic={bulk.handleBulkSetEpic}
           onOpenBulkLabel={bulkLabel.handleOpenBulkLabelFromBar}
-          onBulkArchive={bulk.handleBulkArchive}
+          onBulkArchive={bulk.handleOpenBulkArchive}
+          onToggleBulkMemberDropdown={() => bulk.setBulkMemberDropdownOpen((prev) => !prev)}
+          onOpenBulkMemberModal={bulk.handleOpenBulkMemberModal}
           onClearSelection={() => bulk.setSelectedCardIds(new Set())}
         />
       )}
@@ -596,6 +599,32 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           onRetryItem={bulkLabel.handleBulkLabelRetryItem}
           onRetryAllFailed={bulkLabel.handleBulkLabelRetryAllFailed}
           onClose={bulkLabel.handleCloseBulkLabel}
+        />
+      )}
+
+      {bulk.bulkArchiveModal && (
+        <BulkArchiveModalComponent
+          modal={bulk.bulkArchiveModal}
+          columns={columns}
+          selectedCardIds={bulk.selectedCardIds}
+          onStart={bulk.handleStartBulkArchive}
+          onRun={bulk.handleRunBulkArchive}
+          onRetryItem={bulk.handleBulkArchiveRetryItem}
+          onRetryAllFailed={bulk.handleBulkArchiveRetryAllFailed}
+          onClose={bulk.handleCloseBulkArchive}
+        />
+      )}
+
+      {bulk.bulkMemberModal && (
+        <BulkMemberModalComponent
+          modal={bulk.bulkMemberModal}
+          columns={columns}
+          selectedCardIds={bulk.selectedCardIds}
+          onStart={bulk.handleStartBulkMember}
+          onRun={bulk.handleRunBulkMember}
+          onRetryItem={bulk.handleBulkMemberRetryItem}
+          onRetryAllFailed={bulk.handleBulkMemberRetryAllFailed}
+          onClose={bulk.handleCloseBulkMember}
         />
       )}
     </div>
