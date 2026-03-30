@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     branches:
-      - main
+      - '**'
 
 # Cancel in-progress release runs on the same branch when a newer commit is pushed
 concurrency:
