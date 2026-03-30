@@ -1,10 +1,10 @@
 import { ipcMain, dialog } from 'electron'
 import fs from 'fs'
-import { IPC_CHANNELS } from './ipc.types'
-import type { IpcResult } from './ipc.types'
-import type { DbPathInfo } from '../features/settings/settings.types'
-import { getDbPath, getDefaultDbPath, setDbPath } from '../settings/appSettings'
-import log from '../lib/logger'
+import { IPC_CHANNELS } from '../ipc/ipc.types'
+import type { IpcResult } from '../ipc/ipc.types'
+import type { DbPathInfo } from './settings.types'
+import { getDbPath, getDefaultDbPath, setDbPath } from '../../settings/appSettings'
+import log from '../../lib/logs/logger'
 
 export function registerSettingsHandlers(): void {
   // ── Get DB path info ────────────────────────────────────────────────────────

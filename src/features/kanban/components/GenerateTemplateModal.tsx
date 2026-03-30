@@ -2,9 +2,9 @@ import type {
   TemplateGroup,
   TicketTemplate,
   GenerateCardsResult
-} from '../templates/template.types'
+} from '../../templates/template.types'
 import styled from 'styled-components'
-import { resolvePlaceholders } from '../../lib/placeholders'
+import { resolvePlaceholders } from '../../../lib/placeholders'
 
 const Overlay = styled.div`
   position: fixed;

@@ -1,6 +1,6 @@
-import type { TrelloLabel } from '../../trello/trello.types'
-import type { BulkLabelModal as BulkLabelModalState } from './kanban.types'
-import { Overlay, Modal, Header, Title, CloseButton } from './styled/modal-layout.styled'
+import type { TrelloLabel } from '../../../../trello/trello.types'
+import type { BulkLabelModal as BulkLabelModalState } from '../../kanban.types'
+import { Overlay, Modal, Header, Title, CloseButton } from '../../styled/modal-layout.styled'
 import BulkLabelEditPhase from './BulkLabelEditPhase'
 import BulkLabelQueuePhase from './BulkLabelQueuePhase'
 

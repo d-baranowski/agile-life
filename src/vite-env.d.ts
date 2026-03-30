@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { IPC_CHANNELS } from './ipc/ipc.types'
+import type { IPC_CHANNELS } from './features/ipc/ipc.types'
 
 type Channel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]
 

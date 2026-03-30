@@ -1,10 +1,10 @@
-import type { StoryPointRule } from '../../lib/board.types'
+import type { StoryPointRule } from '../../../../lib/board.types'
 import {
   MeatballWrapper,
   MeatballBtn,
   MeatballMenu,
   MeatballItem
-} from './styled/meatball-menu.styled'
+} from './meatball-menu.styled'
 
 interface Props {
   meatballRef: React.RefObject<HTMLDivElement | null>

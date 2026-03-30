@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import styled from 'styled-components'
-import type { KanbanCard, TrelloMember, TrelloLabel } from '../../trello/trello.types'
-import { labelColor } from '../../lib/label-colors'
-import type { ContextMenuState } from './kanban.types'
+import type { KanbanCard, TrelloMember, TrelloLabel } from '../../../trello/trello.types'
+import { labelColor } from '../../../lib/label-colors'
+import type { ContextMenuState } from '../kanban.types'
 
 const Menu = styled.div`
   position: fixed;

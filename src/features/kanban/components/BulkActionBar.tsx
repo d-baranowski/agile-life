@@ -1,13 +1,13 @@
-import type { EpicCardOption } from '../../lib/board.types'
-import type { TrelloMember } from '../../trello/trello.types'
-import { fuzzyMatch } from '../../lib/fuzzy-match'
+import type { EpicCardOption } from '../../../lib/board.types'
+import type { TrelloMember } from '../../../trello/trello.types'
+import { fuzzyMatch } from '../../../lib/fuzzy-match'
 import {
   ActionBar,
   CardCount,
   Controls,
   ClearButton,
   ArchiveButton
-} from './styled/action-bar.styled'
+} from '../styled/action-bar.styled'
 import {
   EpicWrapper,
   EpicButton,
@@ -17,13 +17,13 @@ import {
   EpicDropdownItem,
   EpicName,
   EpicListLabel
-} from './styled/epic-dropdown.styled'
+} from '../styled/epic-dropdown.styled'
 import {
   MemberDropdown,
   MemberDropdownLabel,
   MemberDropdownDivider,
   MemberDropdownItem
-} from './styled/member-dropdown.styled'
+} from '../styled/member-dropdown.styled'
 
 interface Props {
   selectedCardCount: number

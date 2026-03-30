@@ -1,5 +1,5 @@
 import log from 'electron-log/main'
-import { getLogPath } from '../settings/appSettings'
+import { getLogPath } from '../../settings/appSettings'
 
 // Write logs to the default electron-log file location:
 //   macOS:   ~/Library/Logs/<app name>/main.log

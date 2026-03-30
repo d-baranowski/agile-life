@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
-import { IPC_CHANNELS } from './ipc.types'
-import type { IpcResult } from './ipc.types'
+import { IPC_CHANNELS } from '../ipc/ipc.types'
+import type { IpcResult } from '../ipc/ipc.types'
 import type {
   BoardConfig,
   BoardConfigInput,
@@ -11,9 +11,9 @@ import type {
   EpicCardOption,
   EpicStory,
   SavedCredentials
-} from '../lib/board.types'
-import type { TrelloBoard, KanbanColumn, TrelloMember, TrelloLabel } from '../trello/trello.types'
-import type { ColumnCount } from '../features/analytics/analytics.types'
+} from '../../lib/board.types'
+import type { TrelloBoard, KanbanColumn, TrelloMember, TrelloLabel } from '../../trello/trello.types'
+import type { ColumnCount } from '../analytics/analytics.types'
 import {
   getAllBoards,
   addBoard,
@@ -56,10 +56,10 @@ import {
   getStoriesForEpic,
   getLastSelectedBoardId,
   setLastSelectedBoardId
-} from '../database/db'
-import { TrelloClient } from '../trello/client'
-import sqlColumnCounts from '../database/sql/analytics/column-counts.sql?raw'
-import log from '../lib/logger'
+} from '../../database/db'
+import { TrelloClient } from '../../trello/client'
+import sqlColumnCounts from '../../database/sql/analytics/column-counts.sql?raw'
+import log from '../../lib/logs/logger'
 
 export function registerBoardHandlers(): void {
   // ── Board CRUD ──────────────────────────────────────────────────────────────

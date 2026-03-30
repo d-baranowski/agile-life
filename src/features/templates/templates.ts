@@ -1,14 +1,14 @@
 import { ipcMain } from 'electron'
-import { IPC_CHANNELS } from './ipc.types'
-import type { IpcResult } from './ipc.types'
+import { IPC_CHANNELS } from '../ipc/ipc.types'
+import type { IpcResult } from '../ipc/ipc.types'
 import type {
   TemplateGroup,
   TicketTemplate,
   TemplateGroupInput,
   TicketTemplateInput,
   GenerateCardsResult
-} from '../features/templates/template.types'
-import type { TrelloLabel } from '../trello/trello.types'
+} from './template.types'
+import type { TrelloLabel } from '../../trello/trello.types'
 import {
   getTemplateGroups,
   createTemplateGroup,
@@ -22,8 +22,8 @@ import {
   getBoardLabels,
   setCardEpic,
   upsertCards
-} from '../database/db'
-import { TrelloClient } from '../trello/client'
+} from '../../database/db'
+import { TrelloClient } from '../../trello/client'
 
 /** Supported mustache-style placeholders and their resolved values at call time. */
 function resolvePlaceholders(template: string, now: Date): string {

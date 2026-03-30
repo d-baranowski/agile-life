@@ -1,10 +1,10 @@
-import type { TrelloLabel } from '../../trello/trello.types'
-import { labelColor } from '../../lib/label-colors'
-import type { BulkLabelModal } from './kanban.types'
-import { Body, Footer } from './styled/modal-layout.styled'
-import { CancelButton, StartButton } from './styled/modal-buttons.styled'
-import { PreviewList, PreviewItem, PreviewName } from './styled/preview.styled'
-import { Textarea } from './styled/form.styled'
+import type { TrelloLabel } from '../../../../trello/trello.types'
+import { labelColor } from '../../../../lib/label-colors'
+import type { BulkLabelModal } from '../../kanban.types'
+import { Body, Footer } from '../../styled/modal-layout.styled'
+import { CancelButton, StartButton } from '../../styled/modal-buttons.styled'
+import { PreviewList, PreviewItem, PreviewName } from '../../styled/preview.styled'
+import { Textarea } from '../../styled/form.styled'
 import {
   Section,
   SectionLabel,
@@ -12,7 +12,7 @@ import {
   LabelChip,
   ChipDot,
   ChipCheck
-} from './styled/label-picker.styled'
+} from '../../styled/label-picker.styled'
 
 interface Props {
   modal: BulkLabelModal

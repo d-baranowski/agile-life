@@ -1,4 +1,4 @@
-import type { EpicStory } from '../../lib/board.types'
+import type { EpicStory } from '../../../lib/board.types'
 import styled from 'styled-components'
 
 const Overlay = styled.div`

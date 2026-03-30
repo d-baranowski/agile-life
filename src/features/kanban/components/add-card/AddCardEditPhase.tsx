@@ -1,8 +1,8 @@
-import type { AddCardModal } from './kanban.types'
-import { Body, Footer } from './styled/modal-layout.styled'
-import { CancelButton, StartButton } from './styled/modal-buttons.styled'
-import { PreviewList, PreviewItem, PreviewName, PreviewRemove } from './styled/preview.styled'
-import { Textarea } from './styled/form.styled'
+import type { AddCardModal } from '../../kanban.types'
+import { Body, Footer } from '../../styled/modal-layout.styled'
+import { CancelButton, StartButton } from '../../styled/modal-buttons.styled'
+import { PreviewList, PreviewItem, PreviewName, PreviewRemove } from '../../styled/preview.styled'
+import { Textarea } from '../../styled/form.styled'
 
 interface Props {
   modal: AddCardModal

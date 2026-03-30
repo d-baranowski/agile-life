@@ -1,5 +1,5 @@
-import type { AddCardModal } from './kanban.types'
-import { Overlay, Modal, Header, Title, CloseButton } from './styled/modal-layout.styled'
+import type { AddCardModal } from '../../kanban.types'
+import { Overlay, Modal, Header, Title, CloseButton } from '../../styled/modal-layout.styled'
 import AddCardEditPhase from './AddCardEditPhase'
 import AddCardQueuePhase from './AddCardQueuePhase'
 

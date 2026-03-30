@@ -9,8 +9,8 @@
  */
 
 import { ipcMain } from 'electron'
-import { IPC_CHANNELS } from './ipc.types'
-import type { IpcResult } from './ipc.types'
+import { IPC_CHANNELS } from '../ipc/ipc.types'
+import type { IpcResult } from '../ipc/ipc.types'
 import type {
   WeeklyUserStats,
   LabelUserStats,
@@ -19,17 +19,17 @@ import type {
   StoryPointsUserStats,
   EpicWeeklyHistory,
   GamificationStats
-} from '../features/analytics/analytics.types'
-import type { TrelloMember, TrelloLabel } from '../trello/trello.types'
-import type { StoryPointRule } from '../lib/board.types'
-import { getDb } from '../database/db'
-import sqlWeeklyUserStats from '../database/sql/analytics/weekly-user-stats.sql?raw'
-import sqlLabelUserStats from '../database/sql/analytics/label-user-stats.sql?raw'
-import sqlCardAge from '../database/sql/analytics/card-age.sql?raw'
-import sqlWeeklyHistoryRaw from '../database/sql/analytics/weekly-history-raw.sql?raw'
-import sqlStoryPoints7dRaw from '../database/sql/analytics/story-points-7d-raw.sql?raw'
-import sqlEpicPointsHistoryRaw from '../database/sql/analytics/epic-points-history-raw.sql?raw'
-import log from '../lib/logger'
+} from './analytics.types'
+import type { TrelloMember, TrelloLabel } from '../../trello/trello.types'
+import type { StoryPointRule } from '../../lib/board.types'
+import { getDb } from '../../database/db'
+import sqlWeeklyUserStats from '../../database/sql/analytics/weekly-user-stats.sql?raw'
+import sqlLabelUserStats from '../../database/sql/analytics/label-user-stats.sql?raw'
+import sqlCardAge from '../../database/sql/analytics/card-age.sql?raw'
+import sqlWeeklyHistoryRaw from '../../database/sql/analytics/weekly-history-raw.sql?raw'
+import sqlStoryPoints7dRaw from '../../database/sql/analytics/story-points-7d-raw.sql?raw'
+import sqlEpicPointsHistoryRaw from '../../database/sql/analytics/epic-points-history-raw.sql?raw'
+import log from '../../lib/logs/logger'
 
 type Row = Record<string, unknown>
 

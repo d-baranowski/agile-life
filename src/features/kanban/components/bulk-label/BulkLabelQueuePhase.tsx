@@ -1,6 +1,6 @@
-import type { BulkLabelModal } from './kanban.types'
-import { Footer } from './styled/modal-layout.styled'
-import { CancelButton, StartButton } from './styled/modal-buttons.styled'
+import type { BulkLabelModal } from '../../kanban.types'
+import { Footer } from '../../styled/modal-layout.styled'
+import { CancelButton, StartButton } from '../../styled/modal-buttons.styled'
 import {
   QueueList,
   QueueItem,
@@ -8,8 +8,8 @@ import {
   QueueName,
   RetryButton,
   UploadingLabel
-} from './styled/queue.styled'
-import { NotFound } from './styled/label-picker.styled'
+} from '../../styled/queue.styled'
+import { NotFound } from '../../styled/label-picker.styled'
 
 interface Props {
   modal: BulkLabelModal

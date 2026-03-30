@@ -1,6 +1,6 @@
 import styled from 'styled-components'
-import type { GamificationStats } from '../analytics/analytics.types'
-import { gamificationBarWidth } from './gamification'
+import type { GamificationStats } from '../../../analytics/analytics.types'
+import { gamificationBarWidth } from './gamification-bar-width'
 
 const Bar = styled.div`
   flex-shrink: 0;

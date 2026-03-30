@@ -1,5 +1,5 @@
-import type { KanbanColumn } from '../../trello/trello.types'
-import type { BulkArchiveModal } from './kanban.types'
+import type { KanbanColumn } from '../../../../trello/trello.types'
+import type { BulkArchiveModal } from '../../kanban.types'
 import {
   Overlay,
   Modal,
@@ -8,8 +8,8 @@ import {
   CloseButton,
   Body,
   Footer
-} from './styled/modal-layout.styled'
-import { CancelButton, StartButton, BulkArchiveButton } from './styled/modal-buttons.styled'
+} from '../../styled/modal-layout.styled'
+import { CancelButton, StartButton, BulkArchiveButton } from '../../styled/modal-buttons.styled'
 import {
   QueueList,
   QueueItem,
@@ -17,8 +17,8 @@ import {
   QueueName,
   RetryButton,
   UploadingLabel
-} from './styled/queue.styled'
-import { PreviewList, PreviewItem, PreviewName } from './styled/preview.styled'
+} from '../../styled/queue.styled'
+import { PreviewList, PreviewItem, PreviewName } from '../../styled/preview.styled'
 
 interface Props {
   modal: BulkArchiveModal

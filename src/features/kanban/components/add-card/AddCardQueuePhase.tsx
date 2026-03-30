@@ -1,6 +1,6 @@
-import type { QueueItem } from './kanban.types'
-import { Footer } from './styled/modal-layout.styled'
-import { CancelButton, StartButton } from './styled/modal-buttons.styled'
+import type { QueueItem } from '../../kanban.types'
+import { Footer } from '../../styled/modal-layout.styled'
+import { CancelButton, StartButton } from '../../styled/modal-buttons.styled'
 import {
   QueueList,
   QueueItem as StyledQueueItem,
@@ -9,7 +9,7 @@ import {
   RemoveButton,
   RetryButton,
   UploadingLabel
-} from './styled/queue.styled'
+} from '../../styled/queue.styled'
 
 interface Props {
   queue: QueueItem[]

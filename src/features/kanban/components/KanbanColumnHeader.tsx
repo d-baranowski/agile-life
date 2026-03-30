@@ -4,7 +4,7 @@ import {
   ColumnHeaderActions,
   ColumnSelectAllBtn,
   ColumnCountBadge
-} from './styled/column-header.styled'
+} from '../styled/column-header.styled'
 
 interface Props {
   columnId: string

@@ -2,8 +2,8 @@
  * Typed wrapper around window.api.invoke for the renderer process.
  * Only exposes IPC channels that have a registered handler in the main process.
  */
-import { IPC_CHANNELS } from '../../ipc/ipc.types'
-import type { IpcResult } from '../../ipc/ipc.types'
+import { IPC_CHANNELS } from '../ipc/ipc.types'
+import type { IpcResult } from '../ipc/ipc.types'
 import type {
   BoardConfig,
   BoardConfigInput,

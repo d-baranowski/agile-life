@@ -1,14 +1,14 @@
 import { ipcMain } from 'electron'
-import { IPC_CHANNELS } from './ipc.types'
-import type { IpcResult } from './ipc.types'
+import { IPC_CHANNELS } from '../ipc/ipc.types'
+import type { IpcResult } from '../ipc/ipc.types'
 import type {
   TicketNumberingConfig,
   UnnumberedCard,
   ApplyNumberingResult
-} from '../lib/ticket.types'
-import { getBoardById, updateBoard, getDb } from '../database/db'
-import { TrelloClient } from '../trello/client'
-import log from '../lib/logger'
+} from '../../lib/ticket.types'
+import { getBoardById, updateBoard, getDb } from '../../database/db'
+import { TrelloClient } from '../../trello/client'
+import log from '../../lib/logs/logger'
 
 const TICKET_REGEX = /^[A-Z]{3}-\d{6} /
 
