@@ -1454,14 +1454,12 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     [board.storyPointsConfig]
   )
 
-  const hasAnyFilter =
-    !!searchQuery.trim() ||
-    !!epicFilter ||
-    !!epicColumnFilter ||
-    showDuplicates ||
-    filterUnassigned ||
-    filterNoEpic ||
-    filterNoSize
+  const hasActiveMenuFilter = showDuplicates || filterUnassigned || filterNoEpic || filterNoSize
+
+  const hasAnyFilter = useMemo(
+    () => !!searchQuery.trim() || !!epicFilter || !!epicColumnFilter || hasActiveMenuFilter,
+    [searchQuery, epicFilter, epicColumnFilter, hasActiveMenuFilter]
+  )
 
   const filteredColumns = useMemo(
     () =>
@@ -1630,7 +1628,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         )}
         <div ref={mainMeatballRef} className={styles.meatballWrapper}>
           <button
-            className={`${styles.meatballBtn} ${showDuplicates || filterUnassigned || filterNoEpic || filterNoSize ? styles.meatballBtnActive : ''}`}
+            className={`${styles.meatballBtn} ${hasActiveMenuFilter ? styles.meatballBtnActive : ''}`}
             onClick={() => setShowMainMeatball((v) => !v)}
             title="More options"
             aria-label="More options"
