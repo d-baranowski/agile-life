@@ -92,6 +92,13 @@ export const api = {
     /** Archives a single card on Trello and removes it from the local cache. */
     archiveCard: (boardId: string, cardId: string) =>
       invoke<void>(IPC_CHANNELS.TRELLO_ARCHIVE_CARD, boardId, cardId),
+    /** Archives multiple cards on Trello and removes them from the local cache. */
+    archiveCards: (boardId: string, cardIds: string[]) =>
+      invoke<{ archivedCount: number; skippedCount: number }>(
+        IPC_CHANNELS.TRELLO_ARCHIVE_CARDS,
+        boardId,
+        cardIds
+      ),
     /** Returns the cached list of board members from the last sync. */
     getBoardMembers: (boardId: string) =>
       invoke<TrelloMember[]>(IPC_CHANNELS.TRELLO_GET_BOARD_MEMBERS, boardId),

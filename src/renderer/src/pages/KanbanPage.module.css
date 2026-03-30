@@ -1432,6 +1432,30 @@
   background: var(--color-surface-2);
 }
 
+.bulkArchiveBtn {
+  padding: 5px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(220, 80, 80, 0.5);
+  background: rgba(220, 80, 80, 0.12);
+  color: #e05555;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+}
+
+.bulkArchiveBtn:hover:not(:disabled) {
+  background: rgba(220, 80, 80, 0.25);
+  border-color: rgba(220, 80, 80, 0.8);
+}
+
+.bulkArchiveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .bulkClearBtn {
   padding: 5px 10px;
   border-radius: var(--radius-md);

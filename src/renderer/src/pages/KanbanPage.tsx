@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
+import confetti from 'canvas-confetti'
 import type { BoardConfig } from '@shared/board.types'
-import type { EpicCardOption, EpicStory } from '@shared/board.types'
+import type { EpicCardOption, EpicStory, StoryPointRule } from '@shared/board.types'
 import type { KanbanColumn, KanbanCard, TrelloMember, TrelloLabel } from '@shared/trello.types'
 import type { TemplateGroup, TicketTemplate, GenerateCardsResult } from '@shared/template.types'
 import type { GamificationStats } from '@shared/analytics.types'
@@ -9,6 +10,7 @@ import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
 import TicketNumberingPage from './TicketNumberingPage'
+import { playCoinSound } from '../utils/sound'
 import styles from './KanbanPage.module.css'
 
 interface Props {
@@ -61,6 +63,50 @@ interface BulkLabelModal {
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the story-point value for a card based on its labels.
+ * Mirrors the server-side `cardStoryPoints` function in analytics.ts.
+ * Falls back to 1 when no label matches any configured rule.
+ */
+function cardStoryPoints(card: KanbanCard, config: StoryPointRule[]): number {
+  if (!config || config.length === 0) return 1
+  const rulesMap = new Map(config.map((r) => [r.labelName.trim().toLowerCase(), r.points]))
+  for (const label of card.labels) {
+    const pts = rulesMap.get((label.name || '').trim().toLowerCase())
+    if (pts !== undefined) return pts
+  }
+  return 1
+}
+
+/**
+ * Fires a confetti burst and plays a coin sound to celebrate completing a task.
+ * The number of particles scales with the card's story-point value.
+ * @param points  Story-point value of the completed card.
+ * @param origin  Fractional viewport position {x, y} where the burst starts.
+ *                Defaults to the centre of the screen when omitted.
+ */
+function triggerDoneEffect(points: number, origin?: { x: number; y: number }): void {
+  const particleCount = Math.min(points * 10, 150)
+  const label = `+${points}`
+  const textShape = confetti.shapeFromText({ text: label, scalar: 1, color: '#FFD700' })
+  const textShape2 = confetti.shapeFromText({ text: label, scalar: 1, color: '#d0b209d4' })
+  const textShape3 = confetti.shapeFromText({ text: label, scalar: 1, color: '#e7d10c' })
+
+  confetti({
+    particleCount,
+    spread: 50,
+    origin: origin ?? { x: 0.5, y: 0.55 },
+    shapes: [textShape, textShape2, textShape3],
+    scalar: 1.2,
+    ticks: 70,
+    gravity: 3,
+    startVelocity: 25,
+    drift: 0.5,
+    flat: true
+  })
+  playCoinSound()
+}
 
 /** Parse card names from a multiline textarea value (one per non-blank line). */
 function parseCardNames(text: string): string[] {
@@ -162,14 +208,18 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
   const contextMenuRef = useRef<HTMLDivElement>(null)
+  // Track the most-recent pointer position so we can fire confetti from the drop location
+  // without waiting for React to re-render or querying the DOM after an async API call.
+  const lastPointerPos = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 })
 
-  // Multi-select state (story boards only)
+  // Multi-select state
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
   const [bulkEpicDropdownOpen, setBulkEpicDropdownOpen] = useState(false)
   const bulkEpicDropdownRef = useRef<HTMLDivElement>(null)
   const [bulkMemberDropdownOpen, setBulkMemberDropdownOpen] = useState(false)
   const [isBulkAssigning, setIsBulkAssigning] = useState(false)
   const bulkMemberDropdownRef = useRef<HTMLDivElement>(null)
+  const [isBulkArchiving, setIsBulkArchiving] = useState(false)
 
   // Is this board a story board (has a linked epic board)?
   const isStoryBoard = !!board.epicBoardId
@@ -245,6 +295,19 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     loadBoardData()
   }, [loadBoardData])
 
+  // Keep lastPointerPos in sync with the cursor so handleDragEnd can read the
+  // drop position immediately, without querying the DOM after a re-render.
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent): void => {
+      lastPointerPos.current = {
+        x: e.clientX / window.innerWidth,
+        y: e.clientY / window.innerHeight
+      }
+    }
+    document.addEventListener('pointermove', onPointerMove)
+    return () => document.removeEventListener('pointermove', onPointerMove)
+  }, [])
+
   // Load epic card options when this is a story board
   useEffect(() => {
     setEpicFilter('')
@@ -311,6 +374,13 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
       const toCol = columns.find((c) => c.id === toColId)
       if (!toCol) return
 
+      // Detect whether the destination is a "done" column so we can fire the celebration effect.
+      const fromCol = columns.find((c) => c.id === fromColId)
+      const movedCard = fromCol?.cards[source.index]
+      const isDoneMove = board.doneListNames.some(
+        (name) => name.trim().toLowerCase() === toCol.name.trim().toLowerCase()
+      )
+
       // Compute a stable pos for the new position in the target column so
       // Trello and the local DB stay in sync after cross-column moves.
       const destCards = toCol.cards
@@ -326,6 +396,15 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
               : 65536
 
       const prevColumns = columns
+
+      // ── Celebrate moving a card into a done column ──
+      // Fire immediately (optimistically) using the last known pointer position as the
+      // confetti origin, so there is no perceived delay waiting for the Trello API.
+      if (isDoneMove && movedCard) {
+        const points = cardStoryPoints(movedCard, board.storyPointsConfig)
+        triggerDoneEffect(points, lastPointerPos.current)
+      }
+
       // Optimistically update UI: move card into new column with the computed pos
       setColumns((prev) => {
         const cols = moveCard(prev, fromColId, toColId, source.index, destination.index)
@@ -349,7 +428,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setToastMessage(syncResult.error ?? 'Failed to move card. Please try again.')
       }
     },
-    [board.boardId, columns]
+    [board.boardId, board.doneListNames, board.storyPointsConfig, columns]
   )
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
@@ -530,6 +609,28 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     },
     [board.boardId, selectedCardIds, epicCardOptions, loadBoardData]
   )
+
+  const handleBulkArchive = useCallback(async () => {
+    if (selectedCardIds.size === 0) return
+    setIsBulkArchiving(true)
+    const cardIds = [...selectedCardIds]
+    // Optimistically remove selected cards from the UI
+    const prevColumns = columns
+    setColumns((prev) =>
+      prev.map((col) => ({ ...col, cards: col.cards.filter((c) => !selectedCardIds.has(c.id)) }))
+    )
+    setSelectedCardIds(new Set())
+    const result = await api.trello.archiveCards(board.boardId, cardIds)
+    setIsBulkArchiving(false)
+    if (!result.success) {
+      setColumns(prevColumns)
+      setToastMessage(result.error ?? 'Failed to archive cards. Please try again.')
+    } else if (result.data && result.data.skippedCount > 0) {
+      setToastMessage(
+        `Archived ${result.data.archivedCount} card(s). ${result.data.skippedCount} could not be archived.`
+      )
+    }
+  }, [board.boardId, columns, selectedCardIds])
 
   // Close bulk epic dropdown on outside click
   useEffect(() => {
@@ -1356,42 +1457,44 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         </div>
       </DragDropContext>
 
-      {/* ── Bulk action bar (shown when ≥1 card is selected on a story board) ── */}
-      {isStoryBoard && selectedCardCount > 0 && (
+      {/* ── Bulk action bar (shown when ≥1 card is selected) ── */}
+      {selectedCardCount > 0 && (
         <div className={styles.bulkActionBar}>
           <span className={styles.bulkActionCount}>
             {selectedCardCount} card{selectedCardCount !== 1 ? 's' : ''} selected
           </span>
           <div className={styles.bulkActionControls}>
-            <div ref={bulkEpicDropdownRef} className={styles.bulkEpicWrapper}>
-              <button
-                className={styles.bulkEpicBtn}
-                onClick={() => setBulkEpicDropdownOpen((prev) => !prev)}
-              >
-                ⚡ Set Epic
-              </button>
-              {bulkEpicDropdownOpen && (
-                <div className={styles.bulkEpicDropdown}>
-                  <button
-                    className={styles.bulkEpicDropdownItem}
-                    onClick={() => handleBulkSetEpic(null)}
-                  >
-                    — None
-                  </button>
-                  {epicCardOptions.map((opt) => (
+            {isStoryBoard && (
+              <div ref={bulkEpicDropdownRef} className={styles.bulkEpicWrapper}>
+                <button
+                  className={styles.bulkEpicBtn}
+                  onClick={() => setBulkEpicDropdownOpen((prev) => !prev)}
+                >
+                  ⚡ Set Epic
+                </button>
+                {bulkEpicDropdownOpen && (
+                  <div className={styles.bulkEpicDropdown}>
                     <button
-                      key={opt.id}
                       className={styles.bulkEpicDropdownItem}
-                      onClick={() => handleBulkSetEpic(opt.id)}
+                      onClick={() => handleBulkSetEpic(null)}
                     >
-                      <span className={styles.epicDropdownName}>{opt.name}</span>
-                      <span className={styles.epicDropdownList}>{opt.listName}</span>
+                      — None
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {boardLabels.length > 0 && (
+                    {epicCardOptions.map((opt) => (
+                      <button
+                        key={opt.id}
+                        className={styles.bulkEpicDropdownItem}
+                        onClick={() => handleBulkSetEpic(opt.id)}
+                      >
+                        <span className={styles.epicDropdownName}>{opt.name}</span>
+                        <span className={styles.epicDropdownList}>{opt.listName}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {isStoryBoard && boardLabels.length > 0 && (
               <button className={styles.bulkEpicBtn} onClick={() => handleOpenBulkLabelFromBar()}>
                 🏷️ Set Label
               </button>
@@ -1432,6 +1535,13 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 )}
               </div>
             )}
+            <button
+              className={styles.bulkArchiveBtn}
+              onClick={handleBulkArchive}
+              disabled={isBulkArchiving}
+            >
+              {isBulkArchiving ? 'Archiving…' : `🗄️ Archive ${selectedCardCount}`}
+            </button>
             <button
               className={styles.bulkClearBtn}
               onClick={() => setSelectedCardIds(new Set())}
@@ -2149,20 +2259,18 @@ function DraggableCard({
               )}
               {card.name}
             </span>
-            {isStoryBoard && (
-              <button
-                className={`${styles.cardCheckbox} ${isSelected ? styles.cardCheckboxChecked : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleSelect(card.id)
-                }}
-                title={isSelected ? 'Deselect card' : 'Select card'}
-                aria-label={isSelected ? 'Deselect card' : 'Select card'}
-                aria-pressed={isSelected}
-              >
-                {isSelected ? '✓' : ''}
-              </button>
-            )}
+            <button
+              className={`${styles.cardCheckbox} ${isSelected ? styles.cardCheckboxChecked : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleSelect(card.id)
+              }}
+              title={isSelected ? 'Deselect card' : 'Select card'}
+              aria-label={isSelected ? 'Deselect card' : 'Select card'}
+              aria-pressed={isSelected}
+            >
+              {isSelected ? '✓' : ''}
+            </button>
           </div>
 
           {/* Epic label (story board only) */}
