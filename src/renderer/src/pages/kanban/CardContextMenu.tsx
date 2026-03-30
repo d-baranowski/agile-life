@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import styled from 'styled-components'
 import type { KanbanCard, TrelloMember, TrelloLabel } from '@shared/trello.types'
 import { labelColor } from '../../lib/label-colors'
@@ -72,6 +73,7 @@ interface Props {
   onArchive: (cardId: string) => void
   onToggleMember: (cardId: string, memberId: string, assign: boolean) => void
   onToggleLabel: (cardId: string, label: TrelloLabel, assign: boolean) => void
+  onClose: () => void
 }
 
 export default function CardContextMenu(props: Props): JSX.Element {
@@ -82,8 +84,25 @@ export default function CardContextMenu(props: Props): JSX.Element {
     boardLabels,
     onArchive,
     onToggleMember,
-    onToggleLabel
+    onToggleLabel,
+    onClose
   } = props
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    const handleClick = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) onClose()
+    }
+    window.addEventListener('keydown', handleKey)
+    window.addEventListener('mousedown', handleClick)
+    return () => {
+      window.removeEventListener('keydown', handleKey)
+      window.removeEventListener('mousedown', handleClick)
+    }
+  }, [contextMenuRef, onClose])
+
   const card: KanbanCard = contextMenu.card
   return (
     <Menu ref={contextMenuRef} style={{ left: contextMenu.x, top: contextMenu.y }}>

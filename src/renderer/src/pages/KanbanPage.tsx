@@ -26,6 +26,8 @@ import { useEpicManagement } from './kanban/hooks/useEpicManagement'
 import { useGenerateTemplate } from './kanban/hooks/useGenerateTemplate'
 import { useBulkActions } from './kanban/hooks/useBulkActions'
 import { useDragDrop } from './kanban/hooks/useDragDrop'
+import KanbanMeatballMenu from './kanban/KanbanMeatballMenu'
+import KanbanColumnHeader from './kanban/KanbanColumnHeader'
 import styles from './KanbanPage.module.css'
 
 interface Props {
@@ -199,39 +201,16 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showEmptyMeatball, showMainMeatball])
 
-  // Close context menu on Escape or click outside
-  useEffect(() => {
-    if (!contextMenu) return
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setContextMenu(null)
-    }
-    const handleClick = (e: MouseEvent) => {
-      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node))
-        setContextMenu(null)
-    }
-    window.addEventListener('keydown', handleKey)
-    window.addEventListener('mousedown', handleClick)
-    return () => {
-      window.removeEventListener('keydown', handleKey)
-      window.removeEventListener('mousedown', handleClick)
-    }
-  }, [contextMenu, setContextMenu])
-
   // ── Memoised values ───────────────────────────────────────────────────────
 
   const duplicateNames = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const col of columns) {
+    for (const col of columns)
       for (const card of col.cards) {
         const key = card.name.trim().toLowerCase()
         counts.set(key, (counts.get(key) ?? 0) + 1)
       }
-    }
-    const result = new Set<string>()
-    for (const [name, count] of counts) {
-      if (count > 1) result.add(name)
-    }
-    return result
+    return new Set([...counts.entries()].filter(([, c]) => c > 1).map(([n]) => n))
   }, [columns])
 
   const epicColumns = useMemo(
@@ -318,9 +297,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
       if (!col) return
       bulk.setSelectedCardIds((prev) => {
         const next = new Set(prev)
-        for (const card of col.cards) {
-          next.add(card.id)
-        }
+        col.cards.forEach((card) => next.add(card.id))
         return next
       })
     },
@@ -365,38 +342,31 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     return (
       <div className={styles.container}>
         <div className={styles.searchBar}>
-          <div ref={emptyMeatballRef} className={styles.meatballWrapper}>
-            <button
-              className={styles.meatballBtn}
-              onClick={() => setShowEmptyMeatball((v) => !v)}
-              title="More options"
-              aria-label="More options"
-            >
-              •••
-            </button>
-            {showEmptyMeatball && (
-              <div className={styles.meatballMenu}>
-                <button
-                  className={styles.meatballItem}
-                  onClick={() => {
-                    setShowTicketsModal(true)
-                    setShowEmptyMeatball(false)
-                  }}
-                >
-                  🎫 Number Tickets
-                </button>
-                <button
-                  className={styles.meatballItem}
-                  onClick={() => {
-                    gen.handleOpenGenModal()
-                    setShowEmptyMeatball(false)
-                  }}
-                >
-                  📋 Generate from Template
-                </button>
-              </div>
-            )}
-          </div>
+          <KanbanMeatballMenu
+            meatballRef={emptyMeatballRef}
+            showMeatball={showEmptyMeatball}
+            hasActiveMenuFilter={false}
+            showDuplicates={false}
+            duplicateCount={0}
+            filterUnassigned={false}
+            filterNoEpic={false}
+            filterNoSize={false}
+            isStoryBoard={false}
+            storyPointsConfig={[]}
+            onToggleMeatball={() => setShowEmptyMeatball((v) => !v)}
+            onToggleDuplicates={() => {}}
+            onToggleUnassigned={() => {}}
+            onToggleNoEpic={() => {}}
+            onToggleNoSize={() => {}}
+            onOpenTickets={() => {
+              setShowTicketsModal(true)
+              setShowEmptyMeatball(false)
+            }}
+            onOpenGenerate={() => {
+              gen.handleOpenGenModal()
+              setShowEmptyMeatball(false)
+            }}
+          />
         </div>
         <div className={styles.emptyState}>
           <p>No data yet.</p>
@@ -449,82 +419,47 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             ))}
           </select>
         )}
-        <div ref={mainMeatballRef} className={styles.meatballWrapper}>
-          <button
-            className={`${styles.meatballBtn} ${hasActiveMenuFilter ? styles.meatballBtnActive : ''}`}
-            onClick={() => setShowMainMeatball((v) => !v)}
-            title="More options"
-            aria-label="More options"
-          >
-            •••
-          </button>
-          {showMainMeatball && (
-            <div className={styles.meatballMenu}>
-              <button
-                className={`${styles.meatballItem} ${showDuplicates ? styles.meatballItemActive : ''}`}
-                onClick={() => {
-                  setShowDuplicates((v) => !v)
-                  setShowMainMeatball(false)
-                }}
-              >
-                ⊖ Duplicates{duplicateNames.size > 0 && ` (${duplicateNames.size})`}
-              </button>
-              <button
-                className={`${styles.meatballItem} ${filterUnassigned ? styles.meatballItemActive : ''}`}
-                onClick={() => {
-                  setFilterUnassigned((v) => !v)
-                  setShowMainMeatball(false)
-                }}
-              >
-                👤 Unassigned only
-              </button>
-              {isStoryBoard && (
-                <button
-                  className={`${styles.meatballItem} ${filterNoEpic ? styles.meatballItemActive : ''}`}
-                  onClick={() => {
-                    setFilterNoEpic((v) => !v)
-                    setShowMainMeatball(false)
-                  }}
-                >
-                  ⚡ No epic only
-                </button>
-              )}
-              {board.storyPointsConfig.length > 0 && (
-                <button
-                  className={`${styles.meatballItem} ${filterNoSize ? styles.meatballItemActive : ''}`}
-                  onClick={() => {
-                    setFilterNoSize((v) => !v)
-                    setShowMainMeatball(false)
-                  }}
-                >
-                  📏 No size only
-                </button>
-              )}
-              <button
-                className={styles.meatballItem}
-                onClick={() => {
-                  setShowTicketsModal(true)
-                  setShowMainMeatball(false)
-                }}
-              >
-                🎫 Number Tickets
-              </button>
-              <button
-                className={styles.meatballItem}
-                onClick={() => {
-                  gen.handleOpenGenModal()
-                  setShowMainMeatball(false)
-                }}
-              >
-                📋 Generate from Template
-              </button>
-            </div>
-          )}
-        </div>
+        <KanbanMeatballMenu
+          meatballRef={mainMeatballRef}
+          showMeatball={showMainMeatball}
+          hasActiveMenuFilter={hasActiveMenuFilter}
+          showDuplicates={showDuplicates}
+          duplicateCount={duplicateNames.size}
+          filterUnassigned={filterUnassigned}
+          filterNoEpic={filterNoEpic}
+          filterNoSize={filterNoSize}
+          isStoryBoard={isStoryBoard}
+          storyPointsConfig={board.storyPointsConfig}
+          onToggleMeatball={() => setShowMainMeatball((v) => !v)}
+          onToggleDuplicates={() => {
+            setShowDuplicates((v) => !v)
+            setShowMainMeatball(false)
+          }}
+          onToggleUnassigned={() => {
+            setFilterUnassigned((v) => !v)
+            setShowMainMeatball(false)
+          }}
+          onToggleNoEpic={() => {
+            setFilterNoEpic((v) => !v)
+            setShowMainMeatball(false)
+          }}
+          onToggleNoSize={() => {
+            setFilterNoSize((v) => !v)
+            setShowMainMeatball(false)
+          }}
+          onOpenTickets={() => {
+            setShowTicketsModal(true)
+            setShowMainMeatball(false)
+          }}
+          onOpenGenerate={() => {
+            gen.handleOpenGenModal()
+            setShowMainMeatball(false)
+          }}
+        />
         {selectedCardCount > 0 && (
           <button
             className={styles.clearSelectionBtn}
-            onClick={() => setSelectedCardIds(new Set())}
+            onClick={() => bulk.setSelectedCardIds(new Set())}
             title="Clear selection (Esc)"
           >
             ✕ Clear {selectedCardCount} selected
@@ -538,22 +473,12 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         <div className={styles.board}>
           {filteredColumns.map((column) => (
             <div key={column.id} className={styles.column}>
-              <div className={styles.columnHeader}>
-                <span className={styles.columnName}>{column.name}</span>
-                <div className={styles.columnHeaderActions}>
-                  {column.cards.length > 0 && (
-                    <button
-                      className={styles.columnSelectAllBtn}
-                      onClick={() => handleSelectAllInColumn(column.id)}
-                      title={`Select all ${column.cards.length} cards in ${column.name}`}
-                      aria-label={`Select all cards in ${column.name}`}
-                    >
-                      ☑
-                    </button>
-                  )}
-                  <span className={styles.columnCount}>{column.cards.length}</span>
-                </div>
-              </div>
+              <KanbanColumnHeader
+                columnId={column.id}
+                columnName={column.name}
+                cardCount={column.cards.length}
+                onSelectAll={handleSelectAllInColumn}
+              />
 
               <StrictModeDroppable droppableId={column.id}>
                 {(provided, snapshot) => (
@@ -631,6 +556,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           onArchive={handleArchiveCard}
           onToggleMember={handleToggleMember}
           onToggleLabel={handleToggleLabel}
+          onClose={() => setContextMenu(null)}
         />
       )}
 
