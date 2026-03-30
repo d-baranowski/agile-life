@@ -1,7 +1,92 @@
+import styled from 'styled-components'
 import type { TrelloLabel } from '@shared/trello.types'
 import { labelColor } from '../../lib/label-colors'
 import type { BulkLabelModal as BulkLabelModalState } from './kanban.types'
-import styles from '../KanbanPage.module.css'
+import {
+  Overlay,
+  Modal,
+  Header,
+  Title,
+  CloseButton,
+  Body,
+  Textarea,
+  PreviewList,
+  PreviewItem,
+  PreviewName,
+  Footer,
+  CancelButton,
+  StartButton,
+  QueueList,
+  QueueItem,
+  QueueIcon,
+  QueueName,
+  RetryButton,
+  UploadingLabel
+} from './AddCardModal.styled'
+
+const Section = styled.div`
+  display: flex;
+  flex-direction: column;
+`
+
+const SectionLabel = styled.div`
+  padding: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+`
+
+const PickerGrid = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
+const LabelChip = styled.button<{ $selected: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid
+    ${(p) => (p.$selected ? 'var(--chip-color, var(--color-accent))' : 'var(--color-border)')};
+  background: ${(p) =>
+    p.$selected
+      ? 'color-mix(in srgb, var(--chip-color, var(--color-accent)) 15%, transparent)'
+      : 'var(--color-surface)'};
+  color: var(--color-text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    background var(--transition);
+
+  &:hover {
+    border-color: var(--chip-color, var(--color-accent));
+  }
+`
+
+const ChipDot = styled.span`
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+`
+
+const ChipCheck = styled.span`
+  margin-left: 2px;
+  color: var(--chip-color, var(--color-accent));
+  font-weight: 700;
+  font-size: 0.75rem;
+`
+
+const NotFound = styled.span`
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+`
 
 interface Props {
   modal: BulkLabelModalState
@@ -32,24 +117,17 @@ export default function BulkLabelModal(props: Props): JSX.Element {
     onClose
   } = props
   return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.addCardModal} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className={styles.addCardModalHeader}>
-          <span className={styles.addCardModalTitle}>
+    <Overlay onClick={onClose}>
+      <Modal onClick={(e) => e.stopPropagation()}>
+        <Header>
+          <Title>
             <strong>Bulk Label Cards</strong>
-          </span>
-          <button
-            className={styles.modalClose}
-            onClick={onClose}
-            disabled={modal.uploading}
-            title="Close (Esc)"
-          >
+          </Title>
+          <CloseButton onClick={onClose} disabled={modal.uploading} title="Close (Esc)">
             ✕
-          </button>
-        </div>
+          </CloseButton>
+        </Header>
 
-        {/* Edit phase */}
         {modal.queue === null && (
           <EditPhase
             modal={modal}
@@ -63,7 +141,6 @@ export default function BulkLabelModal(props: Props): JSX.Element {
           />
         )}
 
-        {/* Queue phase */}
         {modal.queue !== null && (
           <QueuePhase
             modal={modal}
@@ -73,8 +150,8 @@ export default function BulkLabelModal(props: Props): JSX.Element {
             onClose={onClose}
           />
         )}
-      </div>
-    </div>
+      </Modal>
+    </Overlay>
   )
 }
 
@@ -99,40 +176,32 @@ function EditPhase({
 }): JSX.Element {
   return (
     <>
-      <div className={styles.addCardModalBody}>
-        <div className={styles.bulkLabelSection}>
-          <div className={styles.contextMenuLabel} style={{ padding: '0 0 6px' }}>
-            Select labels to apply:
-          </div>
-          <div className={styles.bulkLabelPickerGrid}>
+      <Body>
+        <Section>
+          <SectionLabel>Select labels to apply:</SectionLabel>
+          <PickerGrid>
             {boardLabels.map((label) => {
               const selected = modal.selectedLabelIds.has(label.id)
               return (
-                <button
+                <LabelChip
                   key={label.id}
-                  className={`${styles.bulkLabelChip} ${selected ? styles.bulkLabelChipSelected : ''}`}
+                  $selected={selected}
                   onClick={() => onToggleLabelSelection(label.id)}
                   style={{ '--chip-color': labelColor(label.color) } as React.CSSProperties}
                 >
-                  <span
-                    className={styles.bulkLabelChipDot}
-                    style={{ background: labelColor(label.color) }}
-                  />
+                  <ChipDot style={{ background: labelColor(label.color) }} />
                   {label.name || label.color}
-                  {selected && <span className={styles.bulkLabelChipCheck}>✓</span>}
-                </button>
+                  {selected && <ChipCheck>✓</ChipCheck>}
+                </LabelChip>
               )
             })}
-          </div>
-        </div>
+          </PickerGrid>
+        </Section>
         {!modal.fromSelection && (
-          <div className={styles.bulkLabelSection}>
-            <div className={styles.contextMenuLabel} style={{ padding: '0 0 6px' }}>
-              Enter card names to label (one per line):
-            </div>
-            <textarea
+          <Section>
+            <SectionLabel>Enter card names to label (one per line):</SectionLabel>
+            <Textarea
               ref={textareaRef}
-              className={styles.addCardTextarea}
               placeholder={'Paste from Excel or type card names — one per line'}
               value={modal.text}
               onChange={(e) => onTextChange(e.target.value)}
@@ -144,33 +213,26 @@ function EditPhase({
                 .map((line) => line.trim())
                 .filter(Boolean)
               return previewLines.length > 0 ? (
-                <div className={styles.addCardPreviewList}>
+                <PreviewList>
                   {previewLines.map((line, idx) => (
-                    <div key={idx} className={styles.addCardPreviewItem}>
-                      <span className={styles.addCardPreviewName}>{line}</span>
-                    </div>
+                    <PreviewItem key={idx}>
+                      <PreviewName>{line}</PreviewName>
+                    </PreviewItem>
                   ))}
-                </div>
+                </PreviewList>
               ) : null
             })()}
-          </div>
+          </Section>
         )}
-      </div>
-      <div className={styles.addCardModalFooter}>
-        <button className={styles.addCardCancelBtn} onClick={onClose}>
-          Cancel
-        </button>
+      </Body>
+      <Footer>
+        <CancelButton onClick={onClose}>Cancel</CancelButton>
         {modal.fromSelection ? (
-          <button
-            className={styles.addCardStartBtn}
-            onClick={onStart}
-            disabled={modal.selectedLabelIds.size === 0}
-          >
+          <StartButton onClick={onStart} disabled={modal.selectedLabelIds.size === 0}>
             Apply to {selectedCardCount} card{selectedCardCount !== 1 ? 's' : ''}
-          </button>
+          </StartButton>
         ) : (
-          <button
-            className={styles.addCardStartBtn}
+          <StartButton
             onClick={onStart}
             disabled={modal.selectedLabelIds.size === 0 || modal.text.trim().length === 0}
           >
@@ -189,9 +251,9 @@ function EditPhase({
               ? 's'
               : ''}
             )
-          </button>
+          </StartButton>
         )}
-      </div>
+      </Footer>
     </>
   )
 }
@@ -215,60 +277,44 @@ function QueuePhase({
 
   return (
     <>
-      <div className={styles.addCardQueueList}>
+      <QueueList>
         {queue.map((item) => (
-          <div
-            key={item.id}
-            className={`${styles.addCardQueueItem} ${
-              item.status === 'done'
-                ? styles.queueItemDone
-                : item.status === 'failed'
-                  ? styles.queueItemFailed
-                  : item.status === 'running'
-                    ? styles.queueItemRunning
-                    : ''
-            }`}
-          >
-            <span className={styles.queueItemIcon}>
+          <QueueItem key={item.id} $status={item.status}>
+            <QueueIcon $status={item.status}>
               {item.status === 'pending' && '⏳'}
               {item.status === 'running' && (
                 <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
               )}
               {item.status === 'done' && '✓'}
               {item.status === 'failed' && '✕'}
-            </span>
-            <span className={styles.queueItemName}>
+            </QueueIcon>
+            <QueueName $status={item.status}>
               {item.cardName}
-              {item.notFound && <span className={styles.bulkLabelNotFound}> (not found)</span>}
-            </span>
+              {item.notFound && <NotFound> (not found)</NotFound>}
+            </QueueName>
             {!modal.uploading && item.status === 'failed' && !item.notFound && (
-              <button className={styles.queueRetryBtn} onClick={() => onRetryItem(item.id)}>
-                ↺ Retry
-              </button>
+              <RetryButton onClick={() => onRetryItem(item.id)}>↺ Retry</RetryButton>
             )}
-          </div>
+          </QueueItem>
         ))}
-      </div>
-      <div className={styles.addCardModalFooter}>
-        {modal.uploading && <span className={styles.uploadingLabel}>Applying labels…</span>}
+      </QueueList>
+      <Footer>
+        {modal.uploading && <UploadingLabel>Applying labels…</UploadingLabel>}
         {!modal.uploading && allDone && hasAnyFailed && (
-          <button className={styles.addCardStartBtn} onClick={onRetryAllFailed}>
-            ↺ Retry all failed
-          </button>
+          <StartButton onClick={onRetryAllFailed}>↺ Retry all failed</StartButton>
         )}
         {!modal.uploading && !allDone && (
-          <button
-            className={styles.addCardStartBtn}
+          <StartButton
             onClick={onRunBulkLabel}
             disabled={queue.every((q) => q.status === 'failed' && q.notFound)}
           >
             Apply labels ({queue.filter((q) => q.status === 'pending').length} remaining)
-          </button>
+          </StartButton>
         )}
-        <button className={styles.addCardCancelBtn} onClick={onClose} disabled={modal.uploading}>
+        <CancelButton onClick={onClose} disabled={modal.uploading}>
           {allDone && !modal.uploading ? 'Close' : 'Cancel'}
-        </button>
-      </div>
+        </CancelButton>
+      </Footer>
     </>
   )
 }

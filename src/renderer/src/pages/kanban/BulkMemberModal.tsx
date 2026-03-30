@@ -1,6 +1,25 @@
 import type { KanbanColumn } from '@shared/trello.types'
 import type { BulkMemberModal } from './kanban.types'
-import styles from '../KanbanPage.module.css'
+import {
+  Overlay,
+  Modal,
+  Header,
+  Title,
+  CloseButton,
+  Body,
+  PreviewList,
+  PreviewItem,
+  PreviewName,
+  Footer,
+  CancelButton,
+  StartButton,
+  QueueList,
+  QueueItem,
+  QueueIcon,
+  QueueName,
+  RetryButton,
+  UploadingLabel
+} from './AddCardModal.styled'
 
 interface Props {
   modal: BulkMemberModal
@@ -13,66 +32,59 @@ interface Props {
   onClose: () => void
 }
 
-export default function BulkMemberModalComponent({
-  modal,
-  columns,
-  selectedCardIds,
-  onStart,
-  onRun,
-  onRetryItem,
-  onRetryAllFailed,
-  onClose
-}: Props): JSX.Element {
+export default function BulkMemberModalComponent(props: Props): JSX.Element {
+  const {
+    modal,
+    columns,
+    selectedCardIds,
+    onStart,
+    onRun,
+    onRetryItem,
+    onRetryAllFailed,
+    onClose
+  } = props
+
   return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.addCardModal} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.addCardModalHeader}>
-          <span className={styles.addCardModalTitle}>
+    <Overlay onClick={onClose}>
+      <Modal onClick={(e) => e.stopPropagation()}>
+        <Header>
+          <Title>
             <strong>
               👤 {modal.assign ? 'Assign' : 'Remove'}: {modal.memberName}
             </strong>
-          </span>
-          <button
-            className={styles.modalClose}
-            onClick={onClose}
-            disabled={modal.running}
-            title="Close (Esc)"
-          >
+          </Title>
+          <CloseButton onClick={onClose} disabled={modal.running} title="Close (Esc)">
             ✕
-          </button>
-        </div>
+          </CloseButton>
+        </Header>
 
         {modal.queue === null && (
           <>
-            <div className={styles.addCardModalBody}>
+            <Body>
               <p style={{ margin: '0 0 10px', fontSize: '0.88rem', color: 'var(--color-text)' }}>
                 {modal.assign ? 'Assign' : 'Remove'} <strong>{modal.memberName}</strong>{' '}
                 {modal.assign ? 'to' : 'from'} {selectedCardIds.size} card
                 {selectedCardIds.size !== 1 ? 's' : ''}:
               </p>
-              <div className={styles.addCardPreviewList}>
+              <PreviewList>
                 {(() => {
                   const allCards = columns.flatMap((col) => col.cards)
                   const cardMap = new Map(allCards.map((c) => [c.id, c]))
                   return Array.from(selectedCardIds).map((cardId) => (
-                    <div key={cardId} className={styles.addCardPreviewItem}>
-                      <span className={styles.addCardPreviewName}>
-                        {cardMap.get(cardId)?.name ?? cardId}
-                      </span>
-                    </div>
+                    <PreviewItem key={cardId}>
+                      <PreviewName>{cardMap.get(cardId)?.name ?? cardId}</PreviewName>
+                    </PreviewItem>
                   ))
                 })()}
-              </div>
-            </div>
-            <div className={styles.addCardModalFooter}>
-              <button className={styles.addCardCancelBtn} onClick={onClose}>
-                Cancel
-              </button>
-              <button className={styles.addCardStartBtn} onClick={onStart}>
+              </PreviewList>
+            </Body>
+            <Footer>
+              <CancelButton onClick={onClose}>Cancel</CancelButton>
+              <StartButton onClick={onStart}>
                 {modal.assign ? 'Assign' : 'Remove'} for {selectedCardIds.size} card
                 {selectedCardIds.size !== 1 ? 's' : ''}
-              </button>
-            </div>
+              </StartButton>
+            </Footer>
           </>
         )}
 
@@ -83,21 +95,10 @@ export default function BulkMemberModalComponent({
             const pendingCount = modal.queue.filter((q) => q.status === 'pending').length
             return (
               <>
-                <div className={styles.addCardQueueList}>
+                <QueueList>
                   {modal.queue.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`${styles.addCardQueueItem} ${
-                        item.status === 'done'
-                          ? styles.queueItemDone
-                          : item.status === 'failed'
-                            ? styles.queueItemFailed
-                            : item.status === 'running'
-                              ? styles.queueItemRunning
-                              : ''
-                      }`}
-                    >
-                      <span className={styles.queueItemIcon}>
+                    <QueueItem key={item.id} $status={item.status}>
+                      <QueueIcon $status={item.status}>
                         {item.status === 'pending' && '⏳'}
                         {item.status === 'running' && (
                           <span
@@ -107,47 +108,36 @@ export default function BulkMemberModalComponent({
                         )}
                         {item.status === 'done' && '✓'}
                         {item.status === 'failed' && '✕'}
-                      </span>
-                      <span className={styles.queueItemName}>{item.cardName}</span>
+                      </QueueIcon>
+                      <QueueName $status={item.status}>{item.cardName}</QueueName>
                       {!modal.running && item.status === 'failed' && (
-                        <button
-                          className={styles.queueRetryBtn}
-                          onClick={() => onRetryItem(item.id)}
-                        >
-                          ↺ Retry
-                        </button>
+                        <RetryButton onClick={() => onRetryItem(item.id)}>↺ Retry</RetryButton>
                       )}
-                    </div>
+                    </QueueItem>
                   ))}
-                </div>
-                <div className={styles.addCardModalFooter}>
+                </QueueList>
+                <Footer>
                   {modal.running && (
-                    <span className={styles.uploadingLabel}>
+                    <UploadingLabel>
                       {modal.assign ? 'Assigning' : 'Removing'} member…
-                    </span>
+                    </UploadingLabel>
                   )}
                   {!modal.running && allDone && hasAnyFailed && (
-                    <button className={styles.addCardStartBtn} onClick={onRetryAllFailed}>
-                      ↺ Retry all failed
-                    </button>
+                    <StartButton onClick={onRetryAllFailed}>↺ Retry all failed</StartButton>
                   )}
                   {!modal.running && !allDone && pendingCount > 0 && (
-                    <button className={styles.addCardStartBtn} onClick={onRun}>
+                    <StartButton onClick={onRun}>
                       {modal.assign ? 'Assign' : 'Remove'} remaining ({pendingCount})
-                    </button>
+                    </StartButton>
                   )}
-                  <button
-                    className={styles.addCardCancelBtn}
-                    onClick={onClose}
-                    disabled={modal.running}
-                  >
+                  <CancelButton onClick={onClose} disabled={modal.running}>
                     {allDone && !modal.running ? 'Close' : 'Cancel'}
-                  </button>
-                </div>
+                  </CancelButton>
+                </Footer>
               </>
             )
           })()}
-      </div>
-    </div>
+      </Modal>
+    </Overlay>
   )
 }
