@@ -1,7 +1,19 @@
 import { useState, useRef, useEffect } from 'react'
 import type { EpicCardOption } from '@shared/board.types'
 import { fuzzyMatch } from '../lib/fuzzy-match'
-import styles from './EpicSelect.module.css'
+import {
+  Container,
+  Trigger,
+  TriggerLabel,
+  TriggerArrow,
+  Dropdown,
+  SearchWrapper,
+  SearchInput,
+  Option,
+  OptionName,
+  OptionList,
+  Empty
+} from './styled/epic-select.styled'
 
 interface Props {
   epicCards: EpicCardOption[]
@@ -9,7 +21,8 @@ interface Props {
   onChange: (id: string) => void
 }
 
-export function EpicSelect({ epicCards, value, onChange }: Props): JSX.Element {
+export function EpicSelect(props: Props): JSX.Element {
+  const { epicCards, value, onChange } = props
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
@@ -46,45 +59,40 @@ export function EpicSelect({ epicCards, value, onChange }: Props): JSX.Element {
   }
 
   return (
-    <div ref={containerRef} className={styles.container}>
-      <button
-        type="button"
-        className={`${styles.trigger} ${open ? styles.triggerOpen : ''}`}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span className={styles.triggerLabel}>{triggerLabel}</span>
-        <span className={styles.triggerArrow}>{open ? '▲' : '▼'}</span>
-      </button>
+    <Container ref={containerRef}>
+      <Trigger type="button" $open={open} onClick={() => setOpen((o) => !o)}>
+        <TriggerLabel>{triggerLabel}</TriggerLabel>
+        <TriggerArrow>{open ? '▲' : '▼'}</TriggerArrow>
+      </Trigger>
 
       {open && (
-        <div className={styles.dropdown}>
-          <div className={styles.searchWrapper}>
-            <input
+        <Dropdown>
+          <SearchWrapper>
+            <SearchInput
               ref={searchRef}
               type="text"
-              className={styles.searchInput}
               placeholder="Search epics…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-          </div>
-          <button type="button" className={styles.option} onClick={() => select('')}>
+          </SearchWrapper>
+          <Option type="button" onClick={() => select('')}>
             — None —
-          </button>
+          </Option>
           {filtered.map((opt) => (
-            <button
+            <Option
               key={opt.id}
               type="button"
-              className={`${styles.option} ${value === opt.id ? styles.optionActive : ''}`}
+              $active={value === opt.id}
               onClick={() => select(opt.id)}
             >
-              <span className={styles.optionName}>{opt.name}</span>
-              <span className={styles.optionList}>{opt.listName}</span>
-            </button>
+              <OptionName>{opt.name}</OptionName>
+              <OptionList>{opt.listName}</OptionList>
+            </Option>
           ))}
-          {filtered.length === 0 && <span className={styles.empty}>No epics found</span>}
-        </div>
+          {filtered.length === 0 && <Empty>No epics found</Empty>}
+        </Dropdown>
       )}
-    </div>
+    </Container>
   )
 }

@@ -1,13 +1,11 @@
-/* Trigger button styled to match the other search-bar controls
-   (same height, font-size and border-radius as .epicFilterSelect /
-   .searchInput in KanbanPage.module.css). */
+import styled from 'styled-components'
 
-.container {
+export const Container = styled.div`
   position: relative;
   min-width: 160px;
-}
+`
 
-.trigger {
+export const Trigger = styled.button<{ $open?: boolean }>`
   appearance: none;
   -webkit-appearance: none;
   display: flex;
@@ -16,7 +14,7 @@
   box-sizing: border-box;
   width: 100%;
   padding: 6px 10px;
-  border: 1px solid var(--color-border);
+  border: 1px solid ${(p) => (p.$open ? 'var(--color-accent)' : 'var(--color-border)')};
   border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-text);
@@ -26,32 +24,27 @@
   text-align: left;
   gap: 8px;
   transition: border-color var(--transition);
-}
+  outline: ${(p) => (p.$open ? 'none' : undefined)};
 
-.trigger:hover {
-  border-color: var(--color-text-muted);
-}
+  &:hover {
+    border-color: ${(p) => (p.$open ? 'var(--color-accent)' : 'var(--color-text-muted)')};
+  }
+`
 
-.triggerOpen {
-  border-color: var(--color-accent);
-  outline: none;
-}
-
-.triggerLabel {
+export const TriggerLabel = styled.span`
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
+`
 
-.triggerArrow {
+export const TriggerArrow = styled.span`
   font-size: 10px;
   color: var(--color-text-muted);
   flex-shrink: 0;
-}
+`
 
-/* Dropdown: wider than the trigger, not constrained to trigger width */
-.dropdown {
+export const Dropdown = styled.div`
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
@@ -65,4 +58,4 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-}
+`
