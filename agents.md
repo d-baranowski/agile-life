@@ -11,6 +11,7 @@ Rules that all agents must follow when contributing to this repository.
 - Keep functions small and single-purpose; extract helpers rather than growing complex bodies
 - Avoid deeply nested conditionals; use early returns to keep the happy path at the top level
 - Prefer explicit types over `any`; only use `any` when interoperating with untyped third-party code
+- **One React component per `.tsx` file.** This is enforced by the ESLint `react/no-multi-comp` rule. Extract sub-components into their own files (e.g. `AddCardEditPhase.tsx`, `AddCardQueuePhase.tsx`).
 
 ## Component Props Pattern
 

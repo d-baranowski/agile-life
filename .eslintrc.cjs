@@ -24,7 +24,9 @@ module.exports = {
     {
       files: ['*.tsx'],
       rules: {
-        'max-lines': ['error', { max: 600, skipBlankLines: true, skipComments: true }]
+        'max-lines': ['error', { max: 600, skipBlankLines: true, skipComments: true }],
+        // Enforce one React component per file
+        'react/no-multi-comp': ['error', { ignoreStateless: false }]
       }
     }
   ]
