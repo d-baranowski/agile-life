@@ -6,7 +6,16 @@ import { api } from '../hooks/useApi'
 import { isSoundEnabled, setSoundEnabled, getSoundVolume, setSoundVolume } from '../utils/sound'
 import ArchiveDoneCards from './settings/ArchiveDoneCards'
 import StoryPointsEditor from './settings/StoryPointsEditor'
-import styles from './SettingsPage.module.css'
+import {
+  Container,
+  Title,
+  CardTitle,
+  ErrorBanner,
+  SuccessBanner
+} from './settings/settings-layout.styled'
+import { Form, Label, Hint, Actions } from './settings/settings-form.styled'
+import { DangerCard, DangerTitle, ConfirmDelete } from './settings/settings-danger.styled'
+import { InfoTable } from './settings/settings-table.styled'
 
 interface Props {
   board: BoardConfig
@@ -15,12 +24,8 @@ interface Props {
   onBoardDeleted: (boardId: string) => void
 }
 
-export default function SettingsPage({
-  board,
-  allBoards,
-  onBoardUpdated,
-  onBoardDeleted
-}: Props): JSX.Element {
+export default function SettingsPage(props: Props): JSX.Element {
+  const { board, allBoards, onBoardUpdated, onBoardDeleted } = props
   const [boardName, setBoardName] = useState(board.boardName)
   const [doneListNames, setDoneListNames] = useState(board.doneListNames.join(', '))
   const [saving, setSaving] = useState(false)
@@ -189,48 +194,48 @@ export default function SettingsPage({
   }
 
   return (
-    <div className={styles.container}>
-      <h1 className={styles.title}>⚙️ Settings — {board.boardName}</h1>
+    <Container>
+      <Title>⚙️ Settings — {board.boardName}</Title>
 
-      {error && <div className={styles.errorBanner}>{error}</div>}
-      {success && <div className={styles.successBanner}>{success}</div>}
+      {error && <ErrorBanner>{error}</ErrorBanner>}
+      {success && <SuccessBanner>{success}</SuccessBanner>}
 
       {/* ── General Settings ── */}
       <div className="card">
-        <h2 className={styles.cardTitle}>General</h2>
-        <div className={styles.form}>
-          <label className={styles.label}>
+        <CardTitle>General</CardTitle>
+        <Form>
+          <Label>
             Board Display Name
             <input type="text" value={boardName} onChange={(e) => setBoardName(e.target.value)} />
-          </label>
-          <label className={styles.label}>
-            &quot;Done&quot; List Names <span className={styles.hint}>(comma-separated)</span>
+          </Label>
+          <Label>
+            &quot;Done&quot; List Names <Hint>(comma-separated)</Hint>
             <input
               type="text"
               value={doneListNames}
               onChange={(e) => setDoneListNames(e.target.value)}
               placeholder="Done, Shipped, Closed"
             />
-          </label>
-        </div>
-        <div className={styles.actions}>
+          </Label>
+        </Form>
+        <Actions>
           <button className="btn-primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : '✓ Save Settings'}
           </button>
-        </div>
+        </Actions>
       </div>
 
       {/* ── Epic Board ── */}
       <div className="card">
-        <h2 className={styles.cardTitle}>Epic Board</h2>
-        <p className={styles.hint}>
+        <CardTitle>Epic Board</CardTitle>
+        <Hint as="p">
           Link another board as the <strong>Epic Board</strong> for this board. Cards from the epic
           board can then be assigned as epics for cards on this board. On the epic board,
           double-click any card to see all stories assigned to it.
-        </p>
-        {epicBoardError && <div className={styles.errorBanner}>{epicBoardError}</div>}
-        <div className={styles.form}>
-          <label className={styles.label}>
+        </Hint>
+        {epicBoardError && <ErrorBanner>{epicBoardError}</ErrorBanner>}
+        <Form>
+          <Label>
             Epic Board
             <select
               value={board.epicBoardId ?? ''}
@@ -246,35 +251,35 @@ export default function SettingsPage({
                   </option>
                 ))}
             </select>
-          </label>
-        </div>
+          </Label>
+        </Form>
         {board.epicBoardId && (
-          <p className={styles.hint}>
+          <Hint as="p">
             ✓ Epics are sourced from{' '}
             <strong>
               {allBoards.find((b) => b.boardId === board.epicBoardId)?.boardName ??
                 board.epicBoardId}
             </strong>
             .
-          </p>
+          </Hint>
         )}
       </div>
 
       {/* ── My Identity ── */}
       <div className="card">
-        <h2 className={styles.cardTitle}>My Identity</h2>
-        <p className={styles.hint}>
+        <CardTitle>My Identity</CardTitle>
+        <Hint as="p">
           Select which board member is <strong>you</strong>. When set, the Kanban board will show
           your weekly story-point progress in the top bar.
-        </p>
-        {myMemberError && <div className={styles.errorBanner}>{myMemberError}</div>}
-        <div className={styles.form}>
-          <label className={styles.label}>
+        </Hint>
+        {myMemberError && <ErrorBanner>{myMemberError}</ErrorBanner>}
+        <Form>
+          <Label>
             My Member
             {boardMembers.length === 0 ? (
-              <p className={styles.hint}>
+              <Hint as="p">
                 No members found. Sync the board first to populate the member list.
-              </p>
+              </Hint>
             ) : (
               <select
                 value={board.myMemberId ?? ''}
@@ -289,16 +294,16 @@ export default function SettingsPage({
                 ))}
               </select>
             )}
-          </label>
-        </div>
+          </Label>
+        </Form>
         {board.myMemberId && (
-          <p className={styles.hint}>
+          <Hint as="p">
             ✓ Tracking gamification stats for{' '}
             <strong>
               {boardMembers.find((m) => m.id === board.myMemberId)?.fullName ?? board.myMemberId}
             </strong>
             .
-          </p>
+          </Hint>
         )}
       </div>
 
@@ -306,8 +311,8 @@ export default function SettingsPage({
 
       {/* ── Board Info ── */}
       <div className="card">
-        <h2 className={styles.cardTitle}>Board Info</h2>
-        <table>
+        <CardTitle>Board Info</CardTitle>
+        <InfoTable>
           <tbody>
             <tr>
               <th style={{ width: 160 }}>Board ID</th>
@@ -340,7 +345,7 @@ export default function SettingsPage({
               </td>
             </tr>
           </tbody>
-        </table>
+        </InfoTable>
       </div>
 
       <ArchiveDoneCards
@@ -351,12 +356,9 @@ export default function SettingsPage({
 
       {/* ── Sound & Notifications ── */}
       <div className="card">
-        <h2 className={styles.cardTitle}>Sound &amp; Notifications</h2>
-        <div className={styles.form}>
-          <label
-            className={styles.label}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
-          >
+        <CardTitle>Sound &amp; Notifications</CardTitle>
+        <Form>
+          <Label $row>
             <input
               type="checkbox"
               checked={soundEnabled}
@@ -364,8 +366,8 @@ export default function SettingsPage({
               style={{ width: 16, height: 16, cursor: 'pointer' }}
             />
             Play coin sound when a card is moved to a done column
-          </label>
-          <label className={styles.label} style={{ marginTop: 8 }}>
+          </Label>
+          <Label style={{ marginTop: 8 }}>
             Volume
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
               <span style={{ fontSize: 14 }}>🔇</span>
@@ -384,39 +386,39 @@ export default function SettingsPage({
                 {Math.round(soundVolume * 100)}%
               </span>
             </div>
-          </label>
-          <span className={styles.hint}>
+          </Label>
+          <Hint>
             An 8-bit Mario-inspired sound plays each time you complete a task. Disable it here if
             you prefer a quieter experience.
-          </span>
-        </div>
+          </Hint>
+        </Form>
       </div>
 
       {/* ── Database ── */}
       <div className="card">
-        <h2 className={styles.cardTitle}>Database</h2>
-        {dbPathError && <div className={styles.errorBanner}>{dbPathError}</div>}
+        <CardTitle>Database</CardTitle>
+        {dbPathError && <ErrorBanner>{dbPathError}</ErrorBanner>}
         {dbPathChanged && (
-          <div className={styles.successBanner}>
+          <SuccessBanner>
             Database location updated. Restart the app for the change to take effect.
-          </div>
+          </SuccessBanner>
         )}
-        <div className={styles.form}>
-          <label className={styles.label}>
+        <Form>
+          <Label>
             Database File Location
-            <span className={styles.hint}>
+            <Hint>
               The SQLite file where all board data is stored locally.
               {dbPathInfo?.isCustom ? ' (custom)' : ' (default)'}
-            </span>
+            </Hint>
             <input
               type="text"
               readOnly
               value={dbPathInfo?.currentPath ?? '…'}
               style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
             />
-          </label>
-        </div>
-        <div className={styles.actions}>
+          </Label>
+        </Form>
+        <Actions>
           {dbPathInfo?.isCustom && (
             <button className="btn-ghost" onClick={handleResetDbPath} disabled={dbPathChanging}>
               Restore Default
@@ -425,29 +427,29 @@ export default function SettingsPage({
           <button className="btn-primary" onClick={handleChooseDbPath} disabled={dbPathChanging}>
             {dbPathChanging ? 'Choosing…' : '📂 Choose Location'}
           </button>
-        </div>
+        </Actions>
       </div>
 
       {/* ── Logs ── */}
       <div className="card">
-        <h2 className={styles.cardTitle}>Logs</h2>
-        {logPathError && <div className={styles.errorBanner}>{logPathError}</div>}
-        <div className={styles.form}>
-          <label className={styles.label}>
+        <CardTitle>Logs</CardTitle>
+        {logPathError && <ErrorBanner>{logPathError}</ErrorBanner>}
+        <Form>
+          <Label>
             Log File Location
-            <span className={styles.hint}>
+            <Hint>
               Structured application logs written by electron-log.
               {logPathInfo?.isCustom ? ' (custom)' : ' (default)'}
-            </span>
+            </Hint>
             <input
               type="text"
               readOnly
               value={logPathInfo?.currentPath ?? '…'}
               style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
             />
-          </label>
-        </div>
-        <div className={styles.actions}>
+          </Label>
+        </Form>
+        <Actions>
           {logPathInfo?.isCustom && (
             <button className="btn-ghost" onClick={handleResetLogPath} disabled={logPathChanging}>
               Restore Default
@@ -459,24 +461,22 @@ export default function SettingsPage({
           <button className="btn-primary" onClick={handleChooseLogPath} disabled={logPathChanging}>
             {logPathChanging ? 'Choosing…' : '📁 Choose Location'}
           </button>
-        </div>
+        </Actions>
       </div>
 
       {/* ── Danger Zone ── */}
-      <div className={`card ${styles.dangerCard}`}>
-        <h2 className={styles.cardTitle} style={{ color: 'var(--color-danger)' }}>
-          Danger Zone
-        </h2>
-        <p className={styles.hint}>
+      <DangerCard className="card">
+        <DangerTitle>Danger Zone</DangerTitle>
+        <Hint as="p">
           Removing this board will delete all locally cached data (lists, cards, analytics). Your
           Trello board will <strong>not</strong> be modified.
-        </p>
+        </Hint>
         {confirmDelete ? (
-          <div className={styles.confirmDelete}>
+          <ConfirmDelete>
             <p>
               Are you sure you want to remove <strong>{board.boardName}</strong>?
             </p>
-            <div className={styles.actions}>
+            <Actions>
               <button
                 className="btn-ghost"
                 onClick={() => setConfirmDelete(false)}
@@ -487,14 +487,14 @@ export default function SettingsPage({
               <button className="btn-danger" onClick={handleDelete} disabled={deleting}>
                 {deleting ? 'Removing…' : 'Yes, remove board'}
               </button>
-            </div>
-          </div>
+            </Actions>
+          </ConfirmDelete>
         ) : (
           <button className="btn-danger" onClick={() => setConfirmDelete(true)}>
             Remove Board
           </button>
         )}
-      </div>
-    </div>
+      </DangerCard>
+    </Container>
   )
 }

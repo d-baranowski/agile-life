@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import type { BoardConfig, StoryPointRule } from '@shared/board.types'
 import { api } from '../../hooks/useApi'
-import styles from '../SettingsPage.module.css'
+import { CardTitle, ErrorBanner, SuccessBanner } from './settings-layout.styled'
+import { Hint } from './settings-form.styled'
+import { SpTable, SpInput, SpPointsInput, SpActions } from './settings-table.styled'
 
 interface Props {
   board: BoardConfig
   onBoardUpdated: (board: BoardConfig) => void
 }
 
-export default function StoryPointsEditor({ board, onBoardUpdated }: Props): JSX.Element {
+export default function StoryPointsEditor(props: Props): JSX.Element {
+  const { board, onBoardUpdated } = props
   const [storyPoints, setStoryPoints] = useState<StoryPointRule[]>(board.storyPointsConfig)
   const [spSaving, setSpSaving] = useState(false)
   const [spError, setSpError] = useState<string | null>(null)
@@ -39,17 +42,17 @@ export default function StoryPointsEditor({ board, onBoardUpdated }: Props): JSX
 
   return (
     <div className="card">
-      <h2 className={styles.cardTitle}>Story Points</h2>
-      <p className={styles.hint}>
+      <CardTitle>Story Points</CardTitle>
+      <Hint as="p">
         Assign story-point values to ticket labels. The analytics trend chart multiplies each
         completed ticket by the points of its first matching label. Tickets with no matching label
         count as <strong>1</strong> point.
-      </p>
+      </Hint>
 
-      {spError && <div className={styles.errorBanner}>{spError}</div>}
-      {spSuccess && <div className={styles.successBanner}>{spSuccess}</div>}
+      {spError && <ErrorBanner>{spError}</ErrorBanner>}
+      {spSuccess && <SuccessBanner>{spSuccess}</SuccessBanner>}
 
-      <table className={styles.spTable}>
+      <SpTable>
         <thead>
           <tr>
             <th>Label Name</th>
@@ -61,7 +64,7 @@ export default function StoryPointsEditor({ board, onBoardUpdated }: Props): JSX
           {storyPoints.map((rule, idx) => (
             <tr key={idx}>
               <td>
-                <input
+                <SpInput
                   type="text"
                   value={rule.labelName}
                   placeholder="e.g. Large"
@@ -70,11 +73,10 @@ export default function StoryPointsEditor({ board, onBoardUpdated }: Props): JSX
                     next[idx] = { ...next[idx], labelName: e.target.value }
                     setStoryPoints(next)
                   }}
-                  className={styles.spInput}
                 />
               </td>
               <td>
-                <input
+                <SpPointsInput
                   type="number"
                   min={0}
                   value={rule.points}
@@ -86,7 +88,6 @@ export default function StoryPointsEditor({ board, onBoardUpdated }: Props): JSX
                     }
                     setStoryPoints(next)
                   }}
-                  className={styles.spPointsInput}
                 />
               </td>
               <td>
@@ -101,9 +102,9 @@ export default function StoryPointsEditor({ board, onBoardUpdated }: Props): JSX
             </tr>
           ))}
         </tbody>
-      </table>
+      </SpTable>
 
-      <div className={styles.spActions}>
+      <SpActions>
         <button
           className="btn-ghost"
           onClick={() => setStoryPoints([...storyPoints, { labelName: '', points: 1 }])}
@@ -113,7 +114,7 @@ export default function StoryPointsEditor({ board, onBoardUpdated }: Props): JSX
         <button className="btn-primary" onClick={handleSaveStoryPoints} disabled={spSaving}>
           {spSaving ? 'Saving…' : '✓ Save Story Points'}
         </button>
-      </div>
+      </SpActions>
     </div>
   )
 }

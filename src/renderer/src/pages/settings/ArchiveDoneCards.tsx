@@ -3,7 +3,30 @@ import type { ArchiveResult, DoneCardPreview, DoneCardDebugInfo } from '@shared/
 import { api } from '../../hooks/useApi'
 import { weeksAgo } from '../../lib/weeks-ago'
 import { fmtDate } from '../../lib/fmt-date'
-import styles from '../SettingsPage.module.css'
+import { CardTitle, ErrorBanner, ArchiveSuccess, Centred } from './settings-layout.styled'
+import {
+  Hint,
+  SyncingLabel,
+  ArchiveControls,
+  WeeksLabel,
+  WeeksInput,
+  PreviewSection,
+  PreviewEmpty,
+  PreviewCount,
+  PreviewList,
+  PreviewItem,
+  PreviewCardName,
+  PreviewCardMeta,
+  PreviewActions
+} from './settings-form.styled'
+import {
+  DebugHeader,
+  DebugTableWrap,
+  DebugTable,
+  DebugCardName,
+  DebugAge,
+  DebugBadge
+} from './settings-table.styled'
 
 interface Props {
   boardId: string
@@ -11,11 +34,8 @@ interface Props {
   doneListCount: number
 }
 
-export default function ArchiveDoneCards({
-  boardId,
-  doneListLabel,
-  doneListCount
-}: Props): JSX.Element {
+export default function ArchiveDoneCards(props: Props): JSX.Element {
+  const { boardId, doneListLabel, doneListCount } = props
   const [archiveWeeks, setArchiveWeeks] = useState(4)
   const [previewing, setPreviewing] = useState(false)
   const [previewCards, setPreviewCards] = useState<DoneCardPreview[] | null>(null)
@@ -80,86 +100,85 @@ export default function ArchiveDoneCards({
     <>
       {/* ── Archive Done Cards ── */}
       <div className="card">
-        <h2 className={styles.cardTitle}>Archive Done Cards</h2>
-        <p className={styles.hint}>
+        <CardTitle>Archive Done Cards</CardTitle>
+        <Hint as="p">
           Archive cards from the <strong>{doneListLabel}</strong>{' '}
           {doneListCount === 1 ? 'column' : 'columns'} on Trello that have been in the done column
           for the selected number of weeks. The cards will remain in your local database (marked as
           archived) so your history is preserved.
-        </p>
+        </Hint>
 
-        <div className={styles.archiveControls}>
-          <label className={styles.weeksLabel}>
+        <ArchiveControls>
+          <WeeksLabel>
             In done for at least
-            <input
+            <WeeksInput
               type="number"
               min={1}
               max={52}
               value={archiveWeeks}
               onChange={(e) => setArchiveWeeks(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className={styles.weeksInput}
             />
             week{archiveWeeks !== 1 ? 's' : ''}
-          </label>
+          </WeeksLabel>
           <button
             className="btn-secondary"
             onClick={handlePreview}
             disabled={previewing || archiving}
           >
             {previewing ? (
-              <span className={styles.syncingLabel}>
+              <SyncingLabel>
                 <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
                 Loading…
-              </span>
+              </SyncingLabel>
             ) : (
               '🔍 Preview'
             )}
           </button>
-        </div>
+        </ArchiveControls>
 
-        {previewError && <div className={styles.errorBanner}>{previewError}</div>}
-        {archiveError && <div className={styles.errorBanner}>{archiveError}</div>}
+        {previewError && <ErrorBanner>{previewError}</ErrorBanner>}
+        {archiveError && <ErrorBanner>{archiveError}</ErrorBanner>}
 
         {archiveResult && (
-          <div className={styles.archiveSuccess}>
+          <ArchiveSuccess>
             ✓ Archived {archiveResult.archivedCount} card
             {archiveResult.archivedCount !== 1 ? 's' : ''}
             {archiveResult.skippedCount > 0 ? ` (${archiveResult.skippedCount} skipped)` : ''}.
-          </div>
+          </ArchiveSuccess>
         )}
 
         {previewCards !== null && (
-          <div className={styles.previewSection}>
+          <PreviewSection>
             {previewCards.length === 0 ? (
-              <p className={styles.previewEmpty}>
+              <PreviewEmpty>
                 No cards have been in the done column for {archiveWeeks} week
                 {archiveWeeks !== 1 ? 's' : ''} or more.
-              </p>
+              </PreviewEmpty>
             ) : (
               <>
-                <p className={styles.previewCount}>
+                <PreviewCount>
                   {previewCards.length} card{previewCards.length !== 1 ? 's' : ''} will be archived:
-                </p>
-                <ul className={styles.previewList}>
+                </PreviewCount>
+                <PreviewList>
                   {previewCards.map((card) => (
-                    <li key={card.id} className={styles.previewItem}>
-                      <span className={styles.previewCardName}>{card.name}</span>
-                      <span className={styles.previewCardMeta}>
+                    <PreviewItem key={card.id}>
+                      <PreviewCardName>{card.name}</PreviewCardName>
+                      <PreviewCardMeta>
                         {card.listName} · {weeksAgo(card.enteredDoneAt)} in Done
-                      </span>
-                    </li>
+                      </PreviewCardMeta>
+                    </PreviewItem>
                   ))}
-                </ul>
-                <div className={styles.previewActions}>
+                </PreviewList>
+                <PreviewActions>
                   <button className="btn-danger" onClick={handleArchive} disabled={archiving}>
                     {archiving ? (
-                      <span className={styles.syncingLabel}>
+                      <SyncingLabel>
                         <span
                           className="spinner"
                           style={{ width: 14, height: 14, borderWidth: 2 }}
                         />
                         Archiving…
-                      </span>
+                      </SyncingLabel>
                     ) : (
                       `🗄 Archive ${previewCards.length} Card${previewCards.length !== 1 ? 's' : ''}`
                     )}
@@ -171,25 +190,25 @@ export default function ArchiveDoneCards({
                   >
                     Cancel
                   </button>
-                </div>
+                </PreviewActions>
               </>
             )}
-          </div>
+          </PreviewSection>
         )}
       </div>
 
       {/* ── Diagnostic: Done Column Data ── */}
       <div className="card">
-        <div className={styles.debugHeader}>
+        <DebugHeader>
           <div>
-            <h2 className={styles.cardTitle}>Diagnostic: Done Column Data</h2>
-            <p className={styles.hint}>
+            <CardTitle>Diagnostic: Done Column Data</CardTitle>
+            <Hint as="p">
               Shows the raw data stored for every card currently in the{' '}
               <strong>{doneListLabel}</strong> {doneListCount === 1 ? 'column' : 'columns'}. Use
               this to understand why a card is or is not being picked up by the archive threshold.
               The <em>Entered Done</em> timestamp is what the archive query compares against your
               threshold.
-            </p>
+            </Hint>
           </div>
           <button
             className="btn-ghost"
@@ -199,28 +218,28 @@ export default function ArchiveDoneCards({
           >
             {debugOpen ? '▲ Hide' : '▼ Show'}
           </button>
-        </div>
+        </DebugHeader>
 
         {debugOpen && (
           <>
-            {debugError && <div className={styles.errorBanner}>{debugError}</div>}
+            {debugError && <ErrorBanner>{debugError}</ErrorBanner>}
             {debugLoading && (
-              <div className={styles.centred}>
+              <Centred>
                 <div className="spinner" />
                 <span>Loading…</span>
-              </div>
+              </Centred>
             )}
             {!debugLoading && debugCards !== null && (
               <>
                 {debugCards.length === 0 ? (
-                  <p className={styles.previewEmpty}>
+                  <PreviewEmpty>
                     No open cards found in the <strong>{doneListLabel}</strong>{' '}
                     {doneListCount === 1 ? 'column' : 'columns'}. Make sure you have synced the
                     board and that the done list name matches exactly.
-                  </p>
+                  </PreviewEmpty>
                 ) : (
-                  <div className={styles.debugTableWrap}>
-                    <table className={styles.debugTable}>
+                  <DebugTableWrap>
+                    <DebugTable>
                       <thead>
                         <tr>
                           <th>Card</th>
@@ -233,31 +252,23 @@ export default function ArchiveDoneCards({
                       <tbody>
                         {debugCards.map((card) => (
                           <tr key={card.id}>
-                            <td className={styles.debugCardName}>{card.name}</td>
+                            <DebugCardName>{card.name}</DebugCardName>
                             <td>{card.listName}</td>
                             <td>
                               {fmtDate(card.enteredDoneAt)}{' '}
-                              <span className={styles.debugAge}>
-                                ({weeksAgo(card.enteredDoneAt)})
-                              </span>
+                              <DebugAge>({weeksAgo(card.enteredDoneAt)})</DebugAge>
                             </td>
                             <td>{fmtDate(card.dateLastActivity)}</td>
                             <td>
-                              <span
-                                className={
-                                  card.hasActionEntry
-                                    ? styles.debugBadgeAction
-                                    : styles.debugBadgeFallback
-                                }
-                              >
+                              <DebugBadge $variant={card.hasActionEntry ? 'action' : 'fallback'}>
                                 {card.hasActionEntry ? '🟢 move action' : '🟡 fallback'}
-                              </span>
+                              </DebugBadge>
                             </td>
                           </tr>
                         ))}
                       </tbody>
-                    </table>
-                  </div>
+                    </DebugTable>
+                  </DebugTableWrap>
                 )}
               </>
             )}
