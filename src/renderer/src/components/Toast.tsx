@@ -1,5 +1,10 @@
 import { useEffect } from 'react'
-import styles from './Toast.module.css'
+import {
+  ToastCloseButton,
+  ToastLogsButton,
+  ToastMessage,
+  ToastWrapper
+} from './styled/toast.styled'
 
 interface Props {
   message: string | null
@@ -8,12 +13,9 @@ interface Props {
   variant?: 'error' | 'success'
 }
 
-export default function Toast({
-  message,
-  onDismiss,
-  onOpenLogs,
-  variant = 'error'
-}: Props): JSX.Element | null {
+export default function Toast(props: Props): JSX.Element | null {
+  const { message, onDismiss, onOpenLogs, variant = 'error' } = props
+
   useEffect(() => {
     if (!message) return
     const timer = setTimeout(onDismiss, 5000)
@@ -23,19 +25,16 @@ export default function Toast({
   if (!message) return null
 
   return (
-    <div
-      className={`${styles.toast} ${variant === 'success' ? styles.toastSuccess : ''}`}
-      role="alert"
-    >
-      <span className={styles.toastMessage}>{message}</span>
+    <ToastWrapper $success={variant === 'success'} role="alert">
+      <ToastMessage>{message}</ToastMessage>
       {onOpenLogs && (
-        <button className={styles.toastLogsBtn} onClick={onOpenLogs} aria-label="Open log folder">
+        <ToastLogsButton onClick={onOpenLogs} aria-label="Open log folder">
           📂 Logs
-        </button>
+        </ToastLogsButton>
       )}
-      <button className={styles.toastClose} onClick={onDismiss} aria-label="Dismiss">
+      <ToastCloseButton onClick={onDismiss} aria-label="Dismiss">
         ✕
-      </button>
-    </div>
+      </ToastCloseButton>
+    </ToastWrapper>
   )
 }

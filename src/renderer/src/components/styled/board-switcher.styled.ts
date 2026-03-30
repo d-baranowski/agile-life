@@ -1,12 +1,14 @@
-.container {
+import styled from 'styled-components'
+
+export const Container = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 200px;
   max-width: 300px;
-}
+`
 
-.select {
+export const Select = styled.select`
   flex: 1;
   height: 32px;
   padding: 0 8px;
@@ -17,9 +19,9 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   width: auto;
-}
+`
 
-.addBtn {
+export const AddButton = styled.button`
   height: 32px;
   width: 32px;
   padding: 0;
@@ -29,4 +31,4 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
-}
+`

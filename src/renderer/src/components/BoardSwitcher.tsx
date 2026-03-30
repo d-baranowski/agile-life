@@ -1,5 +1,5 @@
 import type { BoardConfig } from '@shared/board.types'
-import styles from './BoardSwitcher.module.css'
+import { AddButton, Container, Select } from './styled/board-switcher.styled'
 
 interface Props {
   boards: BoardConfig[]
@@ -8,19 +8,15 @@ interface Props {
   onAddNew: () => void
 }
 
-export default function BoardSwitcher({
-  boards,
-  selectedBoardId,
-  onSelect,
-  onAddNew
-}: Props): JSX.Element {
+export default function BoardSwitcher(props: Props): JSX.Element {
+  const { boards, selectedBoardId, onSelect, onAddNew } = props
+
   return (
-    <div className={styles.container}>
-      <button className={`btn-secondary ${styles.addBtn}`} onClick={onAddNew} title="Add board">
+    <Container>
+      <AddButton className="btn-secondary" onClick={onAddNew} title="Add board">
         +
-      </button>
-      <select
-        className={styles.select}
+      </AddButton>
+      <Select
         value={selectedBoardId ?? ''}
         onChange={(e) => e.target.value && onSelect(e.target.value)}
         disabled={boards.length === 0}
@@ -36,7 +32,7 @@ export default function BoardSwitcher({
             </option>
           ))
         )}
-      </select>
-    </div>
+      </Select>
+    </Container>
   )
 }
