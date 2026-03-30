@@ -51,6 +51,19 @@ interface BulkLabelQueueItem {
   notFound?: boolean
 }
 
+interface BulkArchiveQueueItem {
+  id: string
+  cardId: string
+  cardName: string
+  status: QueueItemStatus
+}
+
+interface BulkArchiveModal {
+  /** null = confirm phase; non-null = progress phase */
+  queue: BulkArchiveQueueItem[] | null
+  running: boolean
+}
+
 interface BulkLabelModal {
   /** Labels selected to apply */
   selectedLabelIds: Set<string>
@@ -219,7 +232,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [bulkMemberDropdownOpen, setBulkMemberDropdownOpen] = useState(false)
   const [isBulkAssigning, setIsBulkAssigning] = useState(false)
   const bulkMemberDropdownRef = useRef<HTMLDivElement>(null)
-  const [isBulkArchiving, setIsBulkArchiving] = useState(false)
+  const [bulkArchiveModal, setBulkArchiveModal] = useState<BulkArchiveModal | null>(null)
 
   // Is this board a story board (has a linked epic board)?
   const isStoryBoard = !!board.epicBoardId
@@ -466,6 +479,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setSelectedCardIds(new Set())
         setShowEmptyMeatball(false)
         setShowMainMeatball(false)
+        setBulkArchiveModal((prev) => (prev?.running ? prev : null))
       }
     }
     window.addEventListener('keydown', handleKey)
@@ -610,27 +624,155 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     [board.boardId, selectedCardIds, epicCardOptions, loadBoardData]
   )
 
-  const handleBulkArchive = useCallback(async () => {
+  // ── Bulk archive modal handlers ──────────────────────────────────────────────
+
+  /** Opens the archive confirmation phase listing all selected cards. */
+  const handleOpenBulkArchive = useCallback(() => {
     if (selectedCardIds.size === 0) return
-    setIsBulkArchiving(true)
-    const cardIds = [...selectedCardIds]
-    // Optimistically remove selected cards from the UI
-    const prevColumns = columns
-    setColumns((prev) =>
-      prev.map((col) => ({ ...col, cards: col.cards.filter((c) => !selectedCardIds.has(c.id)) }))
-    )
-    setSelectedCardIds(new Set())
-    const result = await api.trello.archiveCards(board.boardId, cardIds)
-    setIsBulkArchiving(false)
-    if (!result.success) {
-      setColumns(prevColumns)
-      setToastMessage(result.error ?? 'Failed to archive cards. Please try again.')
-    } else if (result.data && result.data.skippedCount > 0) {
-      setToastMessage(
-        `Archived ${result.data.archivedCount} card(s). ${result.data.skippedCount} could not be archived.`
-      )
+    setBulkArchiveModal({ queue: null, running: false })
+  }, [selectedCardIds])
+
+  /** Builds the progress queue and immediately starts archiving, one card at a time. */
+  const handleStartBulkArchive = useCallback(async () => {
+    const allCards = columns.flatMap((col) => col.cards)
+    const cardMap = new Map(allCards.map((c) => [c.id, c]))
+    const initialQueue: BulkArchiveQueueItem[] = Array.from(selectedCardIds).map((cardId) => ({
+      id: `archive-${cardId}`,
+      cardId,
+      cardName: cardMap.get(cardId)?.name ?? cardId,
+      status: 'pending' as QueueItemStatus
+    }))
+    setBulkArchiveModal({ queue: initialQueue, running: true })
+
+    for (let i = 0; i < initialQueue.length; i++) {
+      const item = initialQueue[i]
+
+      setBulkArchiveModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) => (q.id === item.id ? { ...q, status: 'running' } : q))
+        }
+      })
+
+      const result = await api.trello.archiveCard(board.boardId, item.cardId)
+      const success = result.success
+
+      if (success) {
+        setColumns((prev) =>
+          prev.map((col) => ({
+            ...col,
+            cards: col.cards.filter((c) => c.id !== item.cardId)
+          }))
+        )
+        setSelectedCardIds((prev) => {
+          const next = new Set(prev)
+          next.delete(item.cardId)
+          return next
+        })
+      }
+
+      setBulkArchiveModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) =>
+            q.id === item.id ? { ...q, status: success ? 'done' : 'failed' } : q
+          )
+        }
+      })
+
+      // 350 ms delay between requests to avoid Trello 429 rate-limiting
+      if (i < initialQueue.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 350))
+      }
     }
+
+    setBulkArchiveModal((prev) => (prev ? { ...prev, running: false } : null))
   }, [board.boardId, columns, selectedCardIds])
+
+  /** Retries pending items after failures (triggered by the "Retry" buttons). */
+  const handleRunBulkArchive = useCallback(async () => {
+    setBulkArchiveModal((prev) => (prev ? { ...prev, running: true } : null))
+
+    const snapshot = bulkArchiveModal
+    if (!snapshot?.queue) return
+
+    const pendingItems = snapshot.queue.filter((q) => q.status === 'pending')
+
+    for (let i = 0; i < pendingItems.length; i++) {
+      const item = pendingItems[i]
+
+      setBulkArchiveModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) => (q.id === item.id ? { ...q, status: 'running' } : q))
+        }
+      })
+
+      const result = await api.trello.archiveCard(board.boardId, item.cardId)
+      const success = result.success
+
+      if (success) {
+        setColumns((prev) =>
+          prev.map((col) => ({
+            ...col,
+            cards: col.cards.filter((c) => c.id !== item.cardId)
+          }))
+        )
+        setSelectedCardIds((prev) => {
+          const next = new Set(prev)
+          next.delete(item.cardId)
+          return next
+        })
+      }
+
+      setBulkArchiveModal((prev) => {
+        if (!prev?.queue) return prev
+        return {
+          ...prev,
+          queue: prev.queue.map((q) =>
+            q.id === item.id ? { ...q, status: success ? 'done' : 'failed' } : q
+          )
+        }
+      })
+
+      if (i < pendingItems.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 350))
+      }
+    }
+
+    setBulkArchiveModal((prev) => (prev ? { ...prev, running: false } : null))
+  }, [board.boardId, bulkArchiveModal])
+
+  const handleCloseBulkArchive = useCallback(() => {
+    setBulkArchiveModal((prev) => (prev?.running ? prev : null))
+  }, [])
+
+  const handleBulkArchiveRetryItem = useCallback((itemId: string) => {
+    setBulkArchiveModal((prev) => {
+      if (!prev?.queue) return prev
+      return {
+        ...prev,
+        queue: prev.queue.map((q) =>
+          q.id === itemId ? { ...q, status: 'pending' as QueueItemStatus } : q
+        )
+      }
+    })
+  }, [])
+
+  const handleBulkArchiveRetryAllFailed = useCallback(() => {
+    setBulkArchiveModal((prev) => {
+      if (!prev?.queue) return prev
+      return {
+        ...prev,
+        queue: prev.queue.map((q) =>
+          q.status === 'failed' ? { ...q, status: 'pending' as QueueItemStatus } : q
+        )
+      }
+    })
+  }, [])
 
   // Close bulk epic dropdown on outside click
   useEffect(() => {
@@ -1535,12 +1677,8 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                 )}
               </div>
             )}
-            <button
-              className={styles.bulkArchiveBtn}
-              onClick={handleBulkArchive}
-              disabled={isBulkArchiving}
-            >
-              {isBulkArchiving ? 'Archiving…' : `🗄️ Archive ${selectedCardCount}`}
+            <button className={styles.bulkArchiveBtn} onClick={handleOpenBulkArchive}>
+              {`🗄️ Archive ${selectedCardCount}`}
             </button>
             <button
               className={styles.bulkClearBtn}
@@ -1946,6 +2084,141 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
                         disabled={addCardModal.uploading}
                       >
                         {allDone && !addCardModal.uploading ? 'Close' : 'Cancel'}
+                      </button>
+                    </div>
+                  </>
+                )
+              })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk archive modal ── */}
+      {bulkArchiveModal && (
+        <div className={styles.modalOverlay} onClick={handleCloseBulkArchive}>
+          <div className={styles.addCardModal} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className={styles.addCardModalHeader}>
+              <span className={styles.addCardModalTitle}>
+                <strong>🗄️ Bulk Archive Cards</strong>
+              </span>
+              <button
+                className={styles.modalClose}
+                onClick={handleCloseBulkArchive}
+                disabled={bulkArchiveModal.running}
+                title="Close (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Confirm phase */}
+            {bulkArchiveModal.queue === null && (
+              <>
+                <div className={styles.addCardModalBody}>
+                  <p
+                    style={{ margin: '0 0 10px', fontSize: '0.88rem', color: 'var(--color-text)' }}
+                  >
+                    The following {selectedCardIds.size} card
+                    {selectedCardIds.size !== 1 ? 's' : ''} will be archived on Trello:
+                  </p>
+                  <div className={styles.addCardPreviewList}>
+                    {(() => {
+                      const allCards = columns.flatMap((col) => col.cards)
+                      const cardMap = new Map(allCards.map((c) => [c.id, c]))
+                      return Array.from(selectedCardIds).map((cardId) => (
+                        <div key={cardId} className={styles.addCardPreviewItem}>
+                          <span className={styles.addCardPreviewName}>
+                            {cardMap.get(cardId)?.name ?? cardId}
+                          </span>
+                        </div>
+                      ))
+                    })()}
+                  </div>
+                </div>
+                <div className={styles.addCardModalFooter}>
+                  <button className={styles.addCardCancelBtn} onClick={handleCloseBulkArchive}>
+                    Cancel
+                  </button>
+                  <button className={styles.bulkArchiveBtn} onClick={handleStartBulkArchive}>
+                    Archive {selectedCardIds.size} card{selectedCardIds.size !== 1 ? 's' : ''}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Progress phase */}
+            {bulkArchiveModal.queue !== null &&
+              (() => {
+                const hasAnyFailed = bulkArchiveModal.queue.some((q) => q.status === 'failed')
+                const allDone = bulkArchiveModal.queue.every(
+                  (q) => q.status === 'done' || q.status === 'failed'
+                )
+                const pendingCount = bulkArchiveModal.queue.filter(
+                  (q) => q.status === 'pending'
+                ).length
+                return (
+                  <>
+                    <div className={styles.addCardQueueList}>
+                      {bulkArchiveModal.queue.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`${styles.addCardQueueItem} ${
+                            item.status === 'done'
+                              ? styles.queueItemDone
+                              : item.status === 'failed'
+                                ? styles.queueItemFailed
+                                : item.status === 'running'
+                                  ? styles.queueItemRunning
+                                  : ''
+                          }`}
+                        >
+                          <span className={styles.queueItemIcon}>
+                            {item.status === 'pending' && '⏳'}
+                            {item.status === 'running' && (
+                              <span
+                                className="spinner"
+                                style={{ width: 14, height: 14, borderWidth: 2 }}
+                              />
+                            )}
+                            {item.status === 'done' && '✓'}
+                            {item.status === 'failed' && '✕'}
+                          </span>
+                          <span className={styles.queueItemName}>{item.cardName}</span>
+                          {!bulkArchiveModal.running && item.status === 'failed' && (
+                            <button
+                              className={styles.queueRetryBtn}
+                              onClick={() => handleBulkArchiveRetryItem(item.id)}
+                            >
+                              ↺ Retry
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className={styles.addCardModalFooter}>
+                      {bulkArchiveModal.running && (
+                        <span className={styles.uploadingLabel}>Archiving cards…</span>
+                      )}
+                      {!bulkArchiveModal.running && allDone && hasAnyFailed && (
+                        <button
+                          className={styles.addCardStartBtn}
+                          onClick={handleBulkArchiveRetryAllFailed}
+                        >
+                          ↺ Retry all failed
+                        </button>
+                      )}
+                      {!bulkArchiveModal.running && !allDone && pendingCount > 0 && (
+                        <button className={styles.addCardStartBtn} onClick={handleRunBulkArchive}>
+                          Archive remaining ({pendingCount})
+                        </button>
+                      )}
+                      <button
+                        className={styles.addCardCancelBtn}
+                        onClick={handleCloseBulkArchive}
+                        disabled={bulkArchiveModal.running}
+                      >
+                        {allDone && !bulkArchiveModal.running ? 'Close' : 'Cancel'}
                       </button>
                     </div>
                   </>
