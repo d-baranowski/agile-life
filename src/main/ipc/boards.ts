@@ -49,6 +49,7 @@ import {
   getDoneColumnDebug,
   getDb,
   setEpicBoard,
+  setMyMember,
   setCardEpic,
   setBulkCardEpic,
   getEpicCardsForBoard,
@@ -505,6 +506,22 @@ export function registerBoardHandlers(): void {
     }
   )
 
+  // ── Gamification: set member identity ───────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.BOARDS_SET_MY_MEMBER,
+    async (_e, boardId: string, myMemberId: string | null): Promise<IpcResult<BoardConfig>> => {
+      try {
+        const updated = setMyMember(boardId, myMemberId)
+        log.info(`[boards] setMyMember boardId=${boardId} myMemberId=${myMemberId}`)
+        return { success: true, data: updated }
+      } catch (err) {
+        log.error('[boards] setMyMember failed:', err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
   ipcMain.handle(
     IPC_CHANNELS.EPICS_GET_CARDS,
     async (_e, storyBoardId: string): Promise<IpcResult<EpicCardOption[]>> => {
@@ -679,6 +696,49 @@ export function registerBoardHandlers(): void {
         return { success: true }
       } catch (err) {
         log.error(`[boards] archiveCard failed cardId=${cardId}:`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Archive multiple cards at once (from the bulk-select action bar) ──────────
+  //
+  // Archives each card on Trello and removes it from the local cache.
+  // Cards that fail individually are skipped; the others are still archived.
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_ARCHIVE_CARDS,
+    async (
+      _e,
+      boardId: string,
+      cardIds: string[]
+    ): Promise<IpcResult<{ archivedCount: number; skippedCount: number }>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) {
+          log.warn(`[boards] archiveCards: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
+
+        log.info(`[boards] archiveCards boardId=${boardId} count=${cardIds.length}`)
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+
+        let archivedCount = 0
+        let skippedCount = 0
+        for (const cardId of cardIds) {
+          try {
+            await client.archiveCard(cardId)
+            archiveCardLocally(cardId)
+            archivedCount++
+          } catch (err) {
+            log.warn(`[boards] archiveCards: failed to archive cardId=${cardId}:`, err)
+            skippedCount++
+          }
+        }
+
+        return { success: true, data: { archivedCount, skippedCount } }
+      } catch (err) {
+        log.error(`[boards] archiveCards failed boardId=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }

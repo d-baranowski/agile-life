@@ -59,6 +59,7 @@ export const IPC_CHANNELS = {
   TRELLO_MOVE_CARD: 'trello:moveCard',
   TRELLO_UPDATE_CARD_POS: 'trello:updateCardPos',
   TRELLO_ARCHIVE_CARD: 'trello:archiveCard',
+  TRELLO_ARCHIVE_CARDS: 'trello:archiveCards',
   TRELLO_GET_BOARD_MEMBERS: 'trello:getBoardMembers',
   TRELLO_ASSIGN_CARD_MEMBER: 'trello:assignCardMember',
   TRELLO_CREATE_CARD: 'trello:createCard',
@@ -72,7 +73,11 @@ export const IPC_CHANNELS = {
   EPICS_GET_CARDS: 'epics:getCards',
   EPICS_SET_CARD_EPIC: 'epics:setCardEpic',
   EPICS_SET_BULK_CARD_EPIC: 'epics:setBulkCardEpic',
-  EPICS_GET_STORIES: 'epics:getStories'
+  EPICS_GET_STORIES: 'epics:getStories',
+
+  // Gamification
+  BOARDS_SET_MY_MEMBER: 'boards:setMyMember',
+  ANALYTICS_GAMIFICATION_STATS: 'analytics:gamificationStats'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]

@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { DragDropContext, Draggable, DropResult } from 'react-beautiful-dnd'
+import confetti from 'canvas-confetti'
 import type { BoardConfig } from '@shared/board.types'
-import type { EpicCardOption, EpicStory } from '@shared/board.types'
+import type { EpicCardOption, EpicStory, StoryPointRule } from '@shared/board.types'
 import type { KanbanColumn, KanbanCard, TrelloMember, TrelloLabel } from '@shared/trello.types'
 import type { TemplateGroup, TicketTemplate, GenerateCardsResult } from '@shared/template.types'
+import type { GamificationStats } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
 import Toast from '../components/Toast'
 import StrictModeDroppable from '../components/StrictModeDroppable'
 import TicketNumberingPage from './TicketNumberingPage'
+import { playCoinSound } from '../utils/sound'
 import { EpicFilterSelect } from '../components/EpicFilterSelect'
 import styles from './KanbanPage.module.css'
 
@@ -61,6 +64,50 @@ interface BulkLabelModal {
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the story-point value for a card based on its labels.
+ * Mirrors the server-side `cardStoryPoints` function in analytics.ts.
+ * Falls back to 1 when no label matches any configured rule.
+ */
+function cardStoryPoints(card: KanbanCard, config: StoryPointRule[]): number {
+  if (!config || config.length === 0) return 1
+  const rulesMap = new Map(config.map((r) => [r.labelName.trim().toLowerCase(), r.points]))
+  for (const label of card.labels) {
+    const pts = rulesMap.get((label.name || '').trim().toLowerCase())
+    if (pts !== undefined) return pts
+  }
+  return 1
+}
+
+/**
+ * Fires a confetti burst and plays a coin sound to celebrate completing a task.
+ * The number of particles scales with the card's story-point value.
+ * @param points  Story-point value of the completed card.
+ * @param origin  Fractional viewport position {x, y} where the burst starts.
+ *                Defaults to the centre of the screen when omitted.
+ */
+function triggerDoneEffect(points: number, origin?: { x: number; y: number }): void {
+  const particleCount = Math.min(points * 10, 150)
+  const label = `+${points}`
+  const textShape = confetti.shapeFromText({ text: label, scalar: 1, color: '#FFD700' })
+  const textShape2 = confetti.shapeFromText({ text: label, scalar: 1, color: '#d0b209d4' })
+  const textShape3 = confetti.shapeFromText({ text: label, scalar: 1, color: '#e7d10c' })
+
+  confetti({
+    particleCount,
+    spread: 50,
+    origin: origin ?? { x: 0.5, y: 0.55 },
+    shapes: [textShape, textShape2, textShape3],
+    scalar: 1.2,
+    ticks: 70,
+    gravity: 3,
+    startVelocity: 25,
+    drift: 0.5,
+    flat: true
+  })
+  playCoinSound()
+}
 
 /** Parse card names from a multiline textarea value (one per non-blank line). */
 function parseCardNames(text: string): string[] {
@@ -137,6 +184,18 @@ function resolvePlaceholders(template: string, now: Date): string {
     .replace(/\{\{date\}\}/g, date)
 }
 
+/**
+ * Returns the CSS width percentage string for a gamification progress bar.
+ * When yearlyHighScore is 0 the bar is empty unless the user has points
+ * (in which case they are the only data point, so fill 100%).
+ */
+function gamificationBarWidth(points: number, yearlyHighScore: number): string {
+  if (yearlyHighScore > 0) {
+    return `${Math.min((points / yearlyHighScore) * 100, 100)}%`
+  }
+  return points > 0 ? '100%' : '0%'
+}
+
 // ─── component ───────────────────────────────────────────────────────────────
 
 export default function KanbanPage({ board, allBoards, syncVersion }: Props): JSX.Element {
@@ -150,12 +209,16 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
   const contextMenuRef = useRef<HTMLDivElement>(null)
+  // Track the most-recent pointer position so we can fire confetti from the drop location
+  // without waiting for React to re-render or querying the DOM after an async API call.
+  const lastPointerPos = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 })
 
-  // Multi-select state (story boards only)
+  // Multi-select state
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
   const [bulkEpicDropdownOpen, setBulkEpicDropdownOpen] = useState(false)
   const [bulkEpicSearch, setBulkEpicSearch] = useState('')
   const bulkEpicDropdownRef = useRef<HTMLDivElement>(null)
+  const [isBulkArchiving, setIsBulkArchiving] = useState(false)
 
   // Is this board a story board (has a linked epic board)?
   const isStoryBoard = !!board.epicBoardId
@@ -187,6 +250,9 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
   const [bulkLabelModal, setBulkLabelModal] = useState<BulkLabelModal | null>(null)
   const bulkLabelTextareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Gamification stats (loaded when myMemberId is set)
+  const [gamificationStats, setGamificationStats] = useState<GamificationStats | null>(null)
+
   const loadBoardData = useCallback(async () => {
     const [dataResult, membersResult, labelsResult] = await Promise.all([
       api.trello.getBoardData(board.boardId),
@@ -208,12 +274,38 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     setLoading(false)
   }, [board.boardId, syncVersion])
 
+  // Load gamification stats whenever the board or syncVersion changes
+  useEffect(() => {
+    if (!board.myMemberId) {
+      setGamificationStats(null)
+      return
+    }
+    api.analytics
+      .gamificationStats(board.boardId, board.myMemberId, board.storyPointsConfig)
+      .then((result) => {
+        if (result.success && result.data) setGamificationStats(result.data)
+      })
+  }, [board.boardId, board.myMemberId, board.storyPointsConfig, syncVersion])
+
   useEffect(() => {
     setLoading(true)
     setError(null)
     setSelectedCardIds(new Set())
     loadBoardData()
   }, [loadBoardData])
+
+  // Keep lastPointerPos in sync with the cursor so handleDragEnd can read the
+  // drop position immediately, without querying the DOM after a re-render.
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent): void => {
+      lastPointerPos.current = {
+        x: e.clientX / window.innerWidth,
+        y: e.clientY / window.innerHeight
+      }
+    }
+    document.addEventListener('pointermove', onPointerMove)
+    return () => document.removeEventListener('pointermove', onPointerMove)
+  }, [])
 
   // Load epic card options when this is a story board
   useEffect(() => {
@@ -281,6 +373,13 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
       const toCol = columns.find((c) => c.id === toColId)
       if (!toCol) return
 
+      // Detect whether the destination is a "done" column so we can fire the celebration effect.
+      const fromCol = columns.find((c) => c.id === fromColId)
+      const movedCard = fromCol?.cards[source.index]
+      const isDoneMove = board.doneListNames.some(
+        (name) => name.trim().toLowerCase() === toCol.name.trim().toLowerCase()
+      )
+
       // Compute a stable pos for the new position in the target column so
       // Trello and the local DB stay in sync after cross-column moves.
       const destCards = toCol.cards
@@ -296,6 +395,15 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
               : 65536
 
       const prevColumns = columns
+
+      // ── Celebrate moving a card into a done column ──
+      // Fire immediately (optimistically) using the last known pointer position as the
+      // confetti origin, so there is no perceived delay waiting for the Trello API.
+      if (isDoneMove && movedCard) {
+        const points = cardStoryPoints(movedCard, board.storyPointsConfig)
+        triggerDoneEffect(points, lastPointerPos.current)
+      }
+
       // Optimistically update UI: move card into new column with the computed pos
       setColumns((prev) => {
         const cols = moveCard(prev, fromColId, toColId, source.index, destination.index)
@@ -319,7 +427,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         setToastMessage(syncResult.error ?? 'Failed to move card. Please try again.')
       }
     },
-    [board.boardId, columns]
+    [board.boardId, board.doneListNames, board.storyPointsConfig, columns]
   )
 
   const [showTicketsModal, setShowTicketsModal] = useState(false)
@@ -500,6 +608,28 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     },
     [board.boardId, selectedCardIds, epicCardOptions, loadBoardData]
   )
+
+  const handleBulkArchive = useCallback(async () => {
+    if (selectedCardIds.size === 0) return
+    setIsBulkArchiving(true)
+    const cardIds = [...selectedCardIds]
+    // Optimistically remove selected cards from the UI
+    const prevColumns = columns
+    setColumns((prev) =>
+      prev.map((col) => ({ ...col, cards: col.cards.filter((c) => !selectedCardIds.has(c.id)) }))
+    )
+    setSelectedCardIds(new Set())
+    const result = await api.trello.archiveCards(board.boardId, cardIds)
+    setIsBulkArchiving(false)
+    if (!result.success) {
+      setColumns(prevColumns)
+      setToastMessage(result.error ?? 'Failed to archive cards. Please try again.')
+    } else if (result.data && result.data.skippedCount > 0) {
+      setToastMessage(
+        `Archived ${result.data.archivedCount} card(s). ${result.data.skippedCount} could not be archived.`
+      )
+    }
+  }, [board.boardId, columns, selectedCardIds])
 
   // Close bulk epic dropdown on outside click
   useEffect(() => {
@@ -1156,6 +1286,65 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
           )}
         </div>
       </div>
+
+      {/* ── Gamification bar ── */}
+      {gamificationStats && (
+        <div className={styles.gamificationBar}>
+          {/* Previous week reference bar */}
+          <div
+            className={styles.gamificationTrack}
+            data-tooltip={`Last week: ${gamificationStats.prevWeekPoints} SP`}
+          >
+            <div
+              className={styles.gamificationFillPrev}
+              style={{
+                width: gamificationBarWidth(
+                  gamificationStats.prevWeekPoints,
+                  gamificationStats.yearlyHighScore
+                )
+              }}
+            />
+          </div>
+
+          {/* Yearly high score — shown above current week when current beats previous */}
+          {gamificationStats.currentWeekPoints > 0 &&
+            gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
+            gamificationStats.yearlyHighScore > gamificationStats.prevWeekPoints && (
+              <div
+                className={styles.gamificationTrack}
+                data-tooltip={`🏆 Year best: ${gamificationStats.yearlyHighScore} SP`}
+              >
+                <div className={styles.gamificationFillHigh} style={{ width: '100%' }} />
+              </div>
+            )}
+
+          {/* Current week bar */}
+          <div
+            className={styles.gamificationTrack}
+            data-tooltip={`${
+              gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
+              gamificationStats.currentWeekPoints > 0
+                ? '🔥 This week'
+                : 'This week'
+            }: ${gamificationStats.currentWeekPoints} SP`}
+          >
+            <div
+              className={`${styles.gamificationFillCurrent} ${
+                gamificationStats.currentWeekPoints > gamificationStats.prevWeekPoints &&
+                gamificationStats.currentWeekPoints > 0
+                  ? styles.gamificationFillCurrentBeat
+                  : ''
+              }`}
+              style={{
+                width: gamificationBarWidth(
+                  gamificationStats.currentWeekPoints,
+                  gamificationStats.yearlyHighScore
+                )
+              }}
+            />
+          </div>
+        </div>
+      )}
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className={styles.board}>
           {filteredColumns.map((column) => (
@@ -1212,62 +1401,71 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
         </div>
       </DragDropContext>
 
-      {/* ── Bulk action bar (shown when ≥1 card is selected on a story board) ── */}
-      {isStoryBoard && selectedCardCount > 0 && (
+      {/* ── Bulk action bar (shown when ≥1 card is selected) ── */}
+      {selectedCardCount > 0 && (
         <div className={styles.bulkActionBar}>
           <span className={styles.bulkActionCount}>
             {selectedCardCount} card{selectedCardCount !== 1 ? 's' : ''} selected
           </span>
           <div className={styles.bulkActionControls}>
-            <div ref={bulkEpicDropdownRef} className={styles.bulkEpicWrapper}>
-              <button
-                className={styles.bulkEpicBtn}
-                onClick={() => setBulkEpicDropdownOpen((prev) => !prev)}
-              >
-                ⚡ Set Epic
-              </button>
-              {bulkEpicDropdownOpen && (
-                <div className={styles.bulkEpicDropdown}>
-                  <div className={styles.bulkEpicSearchWrapper}>
-                    <input
-                      type="text"
-                      className={styles.bulkEpicSearchInput}
-                      placeholder="Search epics…"
-                      value={bulkEpicSearch}
-                      onChange={(e) => setBulkEpicSearch(e.target.value)}
-                      autoFocus
-                    />
+            {isStoryBoard && (
+              <div ref={bulkEpicDropdownRef} className={styles.bulkEpicWrapper}>
+                <button
+                  className={styles.bulkEpicBtn}
+                  onClick={() => setBulkEpicDropdownOpen((prev) => !prev)}
+                >
+                  ⚡ Set Epic
+                </button>
+                {bulkEpicDropdownOpen && (
+                  <div className={styles.bulkEpicDropdown}>
+                    <div className={styles.bulkEpicSearchWrapper}>
+                      <input
+                        type="text"
+                        className={styles.bulkEpicSearchInput}
+                        placeholder="Search epics…"
+                        value={bulkEpicSearch}
+                        onChange={(e) => setBulkEpicSearch(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    <button
+                      className={styles.bulkEpicDropdownItem}
+                      onClick={() => handleBulkSetEpic(null)}
+                    >
+                      — None
+                    </button>
+                    {epicCardOptions
+                      .filter(
+                        (opt) =>
+                          !bulkEpicSearch.trim() ||
+                          fuzzyMatch(bulkEpicSearch, `${opt.name} ${opt.listName}`)
+                      )
+                      .map((opt) => (
+                        <button
+                          key={opt.id}
+                          className={styles.bulkEpicDropdownItem}
+                          onClick={() => handleBulkSetEpic(opt.id)}
+                        >
+                          <span className={styles.epicDropdownName}>{opt.name}</span>
+                          <span className={styles.epicDropdownList}>{opt.listName}</span>
+                        </button>
+                      ))}
                   </div>
-                  <button
-                    className={styles.bulkEpicDropdownItem}
-                    onClick={() => handleBulkSetEpic(null)}
-                  >
-                    — None
-                  </button>
-                  {epicCardOptions
-                    .filter(
-                      (opt) =>
-                        !bulkEpicSearch.trim() ||
-                        fuzzyMatch(bulkEpicSearch, `${opt.name} ${opt.listName}`)
-                    )
-                    .map((opt) => (
-                      <button
-                        key={opt.id}
-                        className={styles.bulkEpicDropdownItem}
-                        onClick={() => handleBulkSetEpic(opt.id)}
-                      >
-                        <span className={styles.epicDropdownName}>{opt.name}</span>
-                        <span className={styles.epicDropdownList}>{opt.listName}</span>
-                      </button>
-                    ))}
-                </div>
-              )}
-            </div>
-            {boardLabels.length > 0 && (
+                )}
+              </div>
+            )}
+            {isStoryBoard && boardLabels.length > 0 && (
               <button className={styles.bulkEpicBtn} onClick={() => handleOpenBulkLabelFromBar()}>
                 🏷️ Set Label
               </button>
             )}
+            <button
+              className={styles.bulkArchiveBtn}
+              onClick={handleBulkArchive}
+              disabled={isBulkArchiving}
+            >
+              {isBulkArchiving ? 'Archiving…' : `🗄️ Archive ${selectedCardCount}`}
+            </button>
             <button
               className={styles.bulkClearBtn}
               onClick={() => setSelectedCardIds(new Set())}
@@ -1985,20 +2183,18 @@ function DraggableCard({
               )}
               {card.name}
             </span>
-            {isStoryBoard && (
-              <button
-                className={`${styles.cardCheckbox} ${isSelected ? styles.cardCheckboxChecked : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleSelect(card.id)
-                }}
-                title={isSelected ? 'Deselect card' : 'Select card'}
-                aria-label={isSelected ? 'Deselect card' : 'Select card'}
-                aria-pressed={isSelected}
-              >
-                {isSelected ? '✓' : ''}
-              </button>
-            )}
+            <button
+              className={`${styles.cardCheckbox} ${isSelected ? styles.cardCheckboxChecked : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleSelect(card.id)
+              }}
+              title={isSelected ? 'Deselect card' : 'Select card'}
+              aria-label={isSelected ? 'Deselect card' : 'Select card'}
+              aria-pressed={isSelected}
+            >
+              {isSelected ? '✓' : ''}
+            </button>
           </div>
 
           {/* Epic label (story board only) */}

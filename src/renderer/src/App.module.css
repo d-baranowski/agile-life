@@ -94,6 +94,11 @@
   padding: 24px;
 }
 
+.mainKanban {
+  padding: 0;
+  overflow: hidden;
+}
+
 .emptyState {
   display: flex;
   flex-direction: column;
