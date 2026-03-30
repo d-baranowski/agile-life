@@ -1,5 +1,5 @@
 import type { GamificationStats } from '@shared/analytics.types'
-import { gamificationBarWidth } from '../../lib/gamification'
+import { gamificationBarWidth } from './gamification'
 import styles from '../KanbanPage.module.css'
 
 interface Props {

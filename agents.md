@@ -29,10 +29,14 @@ src/renderer/src/
 ├── lib/                  # Shared utilities used across many features
 │   ├── label-colors.ts   # Trello label colour mapping
 │   ├── fuzzy-match.ts    # Fuzzy string matching
-│   ├── format-utils.ts   # Date/number formatting helpers
-│   ├── card-utils.ts     # Card reorder/move/story-point helpers
-│   ├── confetti.ts       # Done-card celebration effects
-│   ├── gamification.ts   # Level & XP threshold helpers
+│   ├── format-age.ts     # Compact human-readable age string
+│   ├── weeks-ago.ts      # Relative age label
+│   ├── fmt-date.ts       # Localised short date formatting
+│   ├── card-story-points.ts # Story-point value for a card
+│   ├── parse-card-names.ts  # Multiline textarea → card name list
+│   ├── reorder-cards.ts  # Reorder cards within a column
+│   ├── move-card.ts      # Move a card between columns
+│   ├── month-names.ts    # Calendar month name constants
 │   └── placeholders.ts   # Template placeholder expansion
 ├── components/           # Shared UI components (Toast, StrictModeDroppable, …)
 ├── hooks/                # Shared hooks (useApi, …)
@@ -42,6 +46,9 @@ src/renderer/src/
 │   │   ├── DraggableCard.tsx
 │   │   ├── CardContextMenu.tsx
 │   │   ├── BulkActionBar.tsx
+│   │   ├── GamificationBar.tsx
+│   │   ├── gamification.ts  # gamification helper (single-feature, not reusable)
+│   │   ├── confetti.ts      # done-card celebration effect (single-feature)
 │   │   ├── hooks/
 │   │   │   ├── useAddCardQueue.ts
 │   │   │   ├── useBulkActions.ts
@@ -59,6 +66,8 @@ src/renderer/src/
 - If a function, hook, or component is used by **one page only**, keep it in that page's feature directory (e.g. `pages/kanban/hooks/useDragDrop.ts`).
 - If it is used by **two or more pages**, move it to `src/renderer/src/lib/` (for utilities) or `src/renderer/src/components/` (for UI components).
 - Never duplicate utilities across files — import from the shared `lib/` directory instead.
+- **No catch-all `*-utils.ts` files.** Every exported function must live in its own single-purpose module (e.g. `format-age.ts`, not `format-utils.ts`). Each module must have a corresponding unit test file.
+- Only **truly reusable** code belongs in `lib/`. If a helper is only used by one component or feature, keep it next to that component in its feature directory.
 
 ## Formatting Conventions
 

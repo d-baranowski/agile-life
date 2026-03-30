@@ -6,7 +6,7 @@ import { api } from '../../../hooks/useApi'
 import { cardStoryPoints } from '../../../lib/card-story-points'
 import { reorderCards } from '../../../lib/reorder-cards'
 import { moveCard } from '../../../lib/move-card'
-import { triggerDoneEffect } from '../../../lib/confetti'
+import { triggerDoneEffect } from '../confetti'
 
 export function useDragDrop(
   boardId: string,

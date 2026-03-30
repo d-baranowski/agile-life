@@ -3,7 +3,7 @@ import { Draggable } from 'react-beautiful-dnd'
 import type { KanbanCard, EpicCardOption } from '@shared/trello.types'
 import { fuzzyMatch } from '../../lib/fuzzy-match'
 import { labelColor, labelTextColor } from '../../lib/label-colors'
-import { formatAge } from '../../lib/format-utils'
+import { formatAge } from '../../lib/format-age'
 import styles from '../KanbanPage.module.css'
 
 interface CardProps {

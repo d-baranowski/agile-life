@@ -1,17 +1,4 @@
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December'
-]
+import { MONTH_NAMES } from './month-names'
 
 /** Resolve date-based placeholders in a template string (mirrors server-side logic). */
 export function resolvePlaceholders(template: string, now: Date): string {

@@ -17,19 +17,20 @@ interface Props {
   onClose: () => void
 }
 
-export default function BulkLabelModal({
-  modal,
-  boardLabels,
-  selectedCardCount,
-  textareaRef,
-  onTextChange,
-  onToggleLabelSelection,
-  onStart,
-  onRunBulkLabel,
-  onRetryItem,
-  onRetryAllFailed,
-  onClose
-}: Props): JSX.Element {
+export default function BulkLabelModal(props: Props): JSX.Element {
+  const {
+    modal,
+    boardLabels,
+    selectedCardCount,
+    textareaRef,
+    onTextChange,
+    onToggleLabelSelection,
+    onStart,
+    onRunBulkLabel,
+    onRetryItem,
+    onRetryAllFailed,
+    onClose
+  } = props
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.addCardModal} onClick={(e) => e.stopPropagation()}>

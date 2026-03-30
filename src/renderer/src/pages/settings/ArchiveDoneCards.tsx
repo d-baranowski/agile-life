@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { ArchiveResult, DoneCardPreview, DoneCardDebugInfo } from '@shared/board.types'
 import { api } from '../../hooks/useApi'
-import { weeksAgo, fmtDate } from '../../lib/format-utils'
+import { weeksAgo } from '../../lib/weeks-ago'
+import { fmtDate } from '../../lib/fmt-date'
 import styles from '../SettingsPage.module.css'
 
 interface Props {
