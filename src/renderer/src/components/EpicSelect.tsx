@@ -3,7 +3,6 @@ import type { EpicCardOption } from '@shared/board.types'
 import { fuzzyMatch } from '../lib/fuzzy-match'
 import styles from './EpicSelect.module.css'
 
-
 interface Props {
   epicCards: EpicCardOption[]
   value: string

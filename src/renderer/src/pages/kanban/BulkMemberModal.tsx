@@ -79,9 +79,7 @@ export default function BulkMemberModalComponent({
         {modal.queue !== null &&
           (() => {
             const hasAnyFailed = modal.queue.some((q) => q.status === 'failed')
-            const allDone = modal.queue.every(
-              (q) => q.status === 'done' || q.status === 'failed'
-            )
+            const allDone = modal.queue.every((q) => q.status === 'done' || q.status === 'failed')
             const pendingCount = modal.queue.filter((q) => q.status === 'pending').length
             return (
               <>

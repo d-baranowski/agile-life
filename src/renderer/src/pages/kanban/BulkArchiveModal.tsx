@@ -75,9 +75,7 @@ export default function BulkArchiveModalComponent({
         {modal.queue !== null &&
           (() => {
             const hasAnyFailed = modal.queue.some((q) => q.status === 'failed')
-            const allDone = modal.queue.every(
-              (q) => q.status === 'done' || q.status === 'failed'
-            )
+            const allDone = modal.queue.every((q) => q.status === 'done' || q.status === 'failed')
             const pendingCount = modal.queue.filter((q) => q.status === 'pending').length
             return (
               <>
@@ -119,9 +117,7 @@ export default function BulkArchiveModalComponent({
                   ))}
                 </div>
                 <div className={styles.addCardModalFooter}>
-                  {modal.running && (
-                    <span className={styles.uploadingLabel}>Archiving cards…</span>
-                  )}
+                  {modal.running && <span className={styles.uploadingLabel}>Archiving cards…</span>}
                   {!modal.running && allDone && hasAnyFailed && (
                     <button className={styles.addCardStartBtn} onClick={onRetryAllFailed}>
                       ↺ Retry all failed
