@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
+import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit'
 import type { PayloadAction } from '@reduxjs/toolkit'
 import type { KanbanColumn, TrelloMember, TrelloLabel } from '../../trello/trello.types'
 import type { EpicCardOption, EpicStory } from '../../lib/board.types'
@@ -660,3 +660,30 @@ export const {
 } = kanbanSlice.actions
 
 export default kanbanSlice.reducer
+
+// ── Memoized selectors ────────────────────────────────────────────────────────
+
+const selectKanban = (state: { kanban: KanbanState }) => state.kanban
+
+const selectColumns = createSelector(selectKanban, (k) => k.columns)
+const selectEpicCardOptions = createSelector(selectKanban, (k) => k.epicCardOptions)
+
+/** Set of lowercase card names that appear more than once across all columns. */
+export const selectDuplicateNames = createSelector(selectColumns, (columns) => {
+  const counts = new Map<string, number>()
+  for (const col of columns)
+    for (const card of col.cards) {
+      const key = card.name.trim().toLowerCase()
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+  return new Set([...counts.entries()].filter(([, c]) => c > 1).map(([n]) => n))
+})
+
+/** Deduplicated epic columns from epicCardOptions. */
+export const selectEpicColumns = createSelector(selectEpicCardOptions, (options) =>
+  options.reduce<{ listId: string; listName: string }[]>((acc, opt) => {
+    if (!acc.some((c) => c.listId === opt.listId))
+      acc.push({ listId: opt.listId, listName: opt.listName })
+    return acc
+  }, [])
+)

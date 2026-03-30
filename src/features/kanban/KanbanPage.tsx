@@ -1,8 +1,7 @@
-import { useEffect, useCallback, useRef, useMemo } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { DragDropContext } from 'react-beautiful-dnd'
 import type { BoardConfig } from '../../lib/board.types'
 import { api } from '../api/useApi'
-import { fuzzyMatch } from '../../lib/fuzzy-match'
 import Toast from '../toast/Toast'
 import StrictModeDroppable from './components/StrictModeDroppable'
 import TicketNumberingPage from '../tickets/TicketNumberingPage'
@@ -24,6 +23,7 @@ import { useEpicManagement } from './hooks/useEpicManagement'
 import { useGenerateTemplate } from './hooks/useGenerateTemplate'
 import { useBulkActions } from './hooks/useBulkActions'
 import { useDragDrop } from './hooks/useDragDrop'
+import { useFilteredColumns } from './hooks/useFilteredColumns'
 import KanbanMeatballMenu from './components/meatball-menu/KanbanMeatballMenu'
 import KanbanColumnHeader from './components/KanbanColumnHeader'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
@@ -197,93 +197,10 @@ export default function KanbanPage(props: Props): JSX.Element {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showEmptyMeatball, showMainMeatball, dispatch])
 
-  // ── Memoised values ───────────────────────────────────────────────────────
+  // ── Derived state (via hook) ────────────────────────────────────────────────
 
-  const duplicateNames = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const col of columns)
-      for (const card of col.cards) {
-        const key = card.name.trim().toLowerCase()
-        counts.set(key, (counts.get(key) ?? 0) + 1)
-      }
-    return new Set([...counts.entries()].filter(([, c]) => c > 1).map(([n]) => n))
-  }, [columns])
-
-  const epicColumns = useMemo(
-    () =>
-      epicMgmt.epicCardOptions.reduce<{ listId: string; listName: string }[]>((acc, opt) => {
-        if (!acc.some((c) => c.listId === opt.listId))
-          acc.push({ listId: opt.listId, listName: opt.listName })
-        return acc
-      }, []),
-    [epicMgmt.epicCardOptions]
-  )
-
-  const epicCardIdsInColumn = useMemo(
-    () =>
-      epicColumnFilter
-        ? new Set(
-            epicMgmt.epicCardOptions
-              .filter((opt) => opt.listId === epicColumnFilter)
-              .map((opt) => opt.id)
-          )
-        : null,
-    [epicMgmt.epicCardOptions, epicColumnFilter]
-  )
-
-  const sizeLabelsLower = useMemo(
-    () => new Set(board.storyPointsConfig.map((r) => r.labelName.trim().toLowerCase())),
-    [board.storyPointsConfig]
-  )
-
-  const hasActiveMenuFilter = showDuplicates || filterUnassigned || filterNoEpic || filterNoSize
-
-  const hasAnyFilter = useMemo(
-    () => !!searchQuery.trim() || !!epicFilter || !!epicColumnFilter || hasActiveMenuFilter,
-    [searchQuery, epicFilter, epicColumnFilter, hasActiveMenuFilter]
-  )
-
-  const filteredColumns = useMemo(
-    () =>
-      hasAnyFilter
-        ? columns.map((col) => ({
-            ...col,
-            cards: col.cards.filter((card) => {
-              if (searchQuery.trim() && !fuzzyMatch(searchQuery, `${card.name} ${card.desc}`))
-                return false
-              if (epicFilter === '__none__' && card.epicCardId) return false
-              if (epicFilter && epicFilter !== '__none__' && card.epicCardId !== epicFilter)
-                return false
-              if (epicCardIdsInColumn)
-                return card.epicCardId !== null && epicCardIdsInColumn.has(card.epicCardId)
-              if (showDuplicates && !duplicateNames.has(card.name.trim().toLowerCase()))
-                return false
-              if (filterUnassigned && card.members.length > 0) return false
-              if (filterNoEpic && card.epicCardId) return false
-              if (filterNoSize) {
-                const hasSize = card.labels.some((l) =>
-                  sizeLabelsLower.has((l.name || '').trim().toLowerCase())
-                )
-                if (hasSize) return false
-              }
-              return true
-            })
-          }))
-        : columns,
-    [
-      columns,
-      hasAnyFilter,
-      searchQuery,
-      epicFilter,
-      epicColumnFilter,
-      epicCardIdsInColumn,
-      showDuplicates,
-      duplicateNames,
-      filterUnassigned,
-      filterNoEpic,
-      filterNoSize,
-      sizeLabelsLower
-    ]
+  const { filteredColumns, duplicateNames, epicColumns, hasActiveMenuFilter } = useFilteredColumns(
+    board.storyPointsConfig
   )
 
   // Select all visible cards in a given column
