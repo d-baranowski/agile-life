@@ -12,6 +12,56 @@ Rules that all agents must follow when contributing to this repository.
 - Avoid deeply nested conditionals; use early returns to keep the happy path at the top level
 - Prefer explicit types over `any`; only use `any` when interoperating with untyped third-party code
 
+## Component Props Pattern
+
+React component functions must accept a single `props` parameter and destructure inside the body — **never** destructure in the function signature.
+
+```tsx
+// ✅ Correct
+function MyComponent(props: Props): JSX.Element {
+  const { title, onClick } = props
+  return <button onClick={onClick}>{title}</button>
+}
+
+// ❌ Wrong — do NOT destructure in the parameter list
+function MyComponent({ title, onClick }: Props): JSX.Element {
+  return <button onClick={onClick}>{title}</button>
+}
+```
+
+## Styling — styled-components
+
+Use **[styled-components](https://styled-components.com/docs/basics#styling-any-component)** for all component-specific styling. Keep styles co-located with the component so you can identify the styles of each component at a glance.
+
+- **Component-specific styles**: Define styled components in the same `.tsx` file, above the component function. For larger style sets, create a sibling `ComponentName.styled.ts` file.
+- **Global / app-wide styles**: Keep only truly global styles (CSS resets, CSS custom properties, body/html rules) in plain `.css` files.
+- **No new `.module.css` files.** When touching an existing component that uses CSS modules, migrate its styles to styled-components.
+- Prefer semantic styled component names (e.g. `CardWrapper`, `ColumnHeader`) over generic ones.
+
+```tsx
+// ✅ Correct — styles live next to the component
+import styled from 'styled-components'
+
+const Wrapper = styled.div`
+  display: flex;
+  gap: 8px;
+`
+
+const Title = styled.h2`
+  font-size: 1rem;
+  color: var(--color-text);
+`
+
+function MyComponent(props: Props): JSX.Element {
+  const { title } = props
+  return (
+    <Wrapper>
+      <Title>{title}</Title>
+    </Wrapper>
+  )
+}
+```
+
 ## File Size Limits
 
 - **No `.tsx` file may exceed 600 lines** (blank lines and comments excluded). This is enforced by the ESLint `max-lines` rule.
