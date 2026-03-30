@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { BoardConfig } from '@shared/board.types'
 import type { WeeklyUserStats, LabelUserStats, WeeklyHistory } from '@shared/analytics.types'
 import { api } from '../hooks/useApi'
+import { labelColor } from '../lib/label-colors'
 import styles from './AnalyticsPage.module.css'
 import {
   Chart as ChartJS,
@@ -34,24 +35,6 @@ const USER_PALETTE = [
   '#344563',
   '#f2d600'
 ]
-
-// Map Trello label colours to CSS colour values
-const LABEL_COLORS: Record<string, string> = {
-  red: '#eb5a46',
-  orange: '#ff9f1a',
-  yellow: '#f2d600',
-  green: '#61bd4f',
-  blue: '#0079bf',
-  purple: '#c377e0',
-  pink: '#ff78cb',
-  sky: '#00c2e0',
-  lime: '#51e898',
-  black: '#344563'
-}
-
-function resolveLabelColor(color: string): string {
-  return LABEL_COLORS[color?.toLowerCase()] ?? '#8892a4'
-}
 
 const HISTORY_PAGE_SIZE = 13
 
@@ -279,10 +262,7 @@ export default function AnalyticsPage({ board }: Props): JSX.Element {
                 {Object.entries(labelGroups).map(([labelName, { color, users }]) => (
                   <div key={labelName} className={styles.labelGroup}>
                     <div className={styles.labelHeader}>
-                      <span
-                        className={styles.labelDot}
-                        style={{ background: resolveLabelColor(color) }}
-                      />
+                      <span className={styles.labelDot} style={{ background: labelColor(color) }} />
                       <span className={styles.labelName}>{labelName || '(no name)'}</span>
                       <span className={styles.labelTotal}>
                         {users.reduce((s, u) => s + u.count, 0)} total

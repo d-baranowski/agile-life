@@ -65,10 +65,7 @@ export default function GenerateTemplateModal({
                   <div className={styles.genPreviewTitle}>Preview</div>
                   {loading ? (
                     <div className={styles.genPreviewLoading}>
-                      <div
-                        className="spinner"
-                        style={{ width: 14, height: 14, borderWidth: 2 }}
-                      />
+                      <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
                       <span>Loading…</span>
                     </div>
                   ) : templates.length === 0 ? (

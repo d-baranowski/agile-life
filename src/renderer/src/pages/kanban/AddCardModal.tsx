@@ -43,10 +43,23 @@ export default function AddCardModal({
         </div>
 
         {/* Edit phase */}
-        {modal.queue === null && <EditPhase {...{ modal, textareaRef, onTextChange, onRemovePreviewLine, onStartUpload, onClose }} />}
+        {modal.queue === null && (
+          <EditPhase
+            {...{ modal, textareaRef, onTextChange, onRemovePreviewLine, onStartUpload, onClose }}
+          />
+        )}
 
         {/* Queue phase */}
-        {modal.queue !== null && <QueuePhase queue={modal.queue} uploading={modal.uploading} onRemoveQueueItem={onRemoveQueueItem} onRetryItem={onRetryItem} onRetryAllFailed={onRetryAllFailed} onClose={onClose} />}
+        {modal.queue !== null && (
+          <QueuePhase
+            queue={modal.queue}
+            uploading={modal.uploading}
+            onRemoveQueueItem={onRemoveQueueItem}
+            onRetryItem={onRetryItem}
+            onRetryAllFailed={onRetryAllFailed}
+            onClose={onClose}
+          />
+        )}
       </div>
     </div>
   )

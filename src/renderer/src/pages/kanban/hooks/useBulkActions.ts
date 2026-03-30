@@ -82,11 +82,14 @@ export function useBulkActions(
     return () => window.removeEventListener('mousedown', handleClick)
   }, [bulkEpicDropdownOpen])
 
-  const onCardsCreated = useCallback((listId: string, cards: KanbanCard[]) => {
-    setColumns((prev) =>
-      prev.map((col) => (col.id === listId ? { ...col, cards: [...col.cards, ...cards] } : col))
-    )
-  }, [setColumns])
+  const onCardsCreated = useCallback(
+    (listId: string, cards: KanbanCard[]) => {
+      setColumns((prev) =>
+        prev.map((col) => (col.id === listId ? { ...col, cards: [...col.cards, ...cards] } : col))
+      )
+    },
+    [setColumns]
+  )
 
   return {
     selectedCardIds,

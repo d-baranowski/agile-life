@@ -117,7 +117,7 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
     setError(null)
     bulk.setSelectedCardIds(new Set())
     loadBoardData()
-  }, [loadBoardData]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadBoardData])
 
   useEffect(() => {
     const onPointerMove = (e: PointerEvent): void => {
@@ -265,7 +265,15 @@ export default function KanbanPage({ board, allBoards, syncVersion }: Props): JS
             })
           }))
         : columns,
-    [columns, searchQuery, epicFilter, epicColumnFilter, epicCardIdsInColumn, showDuplicates, duplicateNames]
+    [
+      columns,
+      searchQuery,
+      epicFilter,
+      epicColumnFilter,
+      epicCardIdsInColumn,
+      showDuplicates,
+      duplicateNames
+    ]
   )
 
   const selectedCardCount = bulk.selectedCardIds.size

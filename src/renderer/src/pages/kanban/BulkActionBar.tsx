@@ -43,10 +43,7 @@ export default function BulkActionBar({
             </button>
             {bulkEpicDropdownOpen && (
               <div className={styles.bulkEpicDropdown}>
-                <button
-                  className={styles.bulkEpicDropdownItem}
-                  onClick={() => onBulkSetEpic(null)}
-                >
+                <button className={styles.bulkEpicDropdownItem} onClick={() => onBulkSetEpic(null)}>
                   — None
                 </button>
                 {epicCardOptions.map((opt) => (

@@ -101,6 +101,14 @@ export function useDragDrop(
         setToastMessage(syncResult.error ?? 'Failed to move card. Please try again.')
       }
     },
-    [boardId, doneListNames, storyPointsConfig, columns, setColumns, setToastMessage, lastPointerPos]
+    [
+      boardId,
+      doneListNames,
+      storyPointsConfig,
+      columns,
+      setColumns,
+      setToastMessage,
+      lastPointerPos
+    ]
   )
 }

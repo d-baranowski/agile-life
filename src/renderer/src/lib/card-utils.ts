@@ -24,7 +24,11 @@ export function parseCardNames(text: string): string[] {
     .filter(Boolean)
 }
 
-export function reorderCards(cards: KanbanCard[], fromIndex: number, toIndex: number): KanbanCard[] {
+export function reorderCards(
+  cards: KanbanCard[],
+  fromIndex: number,
+  toIndex: number
+): KanbanCard[] {
   const result = [...cards]
   const [removed] = result.splice(fromIndex, 1)
   result.splice(toIndex, 0, removed)

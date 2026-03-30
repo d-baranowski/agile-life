@@ -1,17 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { EpicCardOption } from '@shared/board.types'
+import { fuzzyMatch } from '../lib/fuzzy-match'
 import styles from './EpicSelect.module.css'
-
-function fuzzyMatch(needle: string, haystack: string): boolean {
-  const n = needle.toLowerCase()
-  const h = haystack.toLowerCase()
-  const nLen = n.length
-  let ni = 0
-  for (let i = 0; i < h.length && ni < nLen; i++) {
-    if (h[i] === n[ni]) ni++
-  }
-  return ni === nLen
-}
 
 interface Props {
   epicCards: EpicCardOption[]

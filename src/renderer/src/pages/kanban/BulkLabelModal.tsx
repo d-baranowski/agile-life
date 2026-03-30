@@ -171,9 +171,7 @@ function EditPhase({
           <button
             className={styles.addCardStartBtn}
             onClick={onStart}
-            disabled={
-              modal.selectedLabelIds.size === 0 || modal.text.trim().length === 0
-            }
+            disabled={modal.selectedLabelIds.size === 0 || modal.text.trim().length === 0}
           >
             Preview (
             {
@@ -266,11 +264,7 @@ function QueuePhase({
             Apply labels ({queue.filter((q) => q.status === 'pending').length} remaining)
           </button>
         )}
-        <button
-          className={styles.addCardCancelBtn}
-          onClick={onClose}
-          disabled={modal.uploading}
-        >
+        <button className={styles.addCardCancelBtn} onClick={onClose} disabled={modal.uploading}>
           {allDone && !modal.uploading ? 'Close' : 'Cancel'}
         </button>
       </div>

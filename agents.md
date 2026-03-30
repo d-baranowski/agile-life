@@ -12,6 +12,54 @@ Rules that all agents must follow when contributing to this repository.
 - Avoid deeply nested conditionals; use early returns to keep the happy path at the top level
 - Prefer explicit types over `any`; only use `any` when interoperating with untyped third-party code
 
+## File Size Limits
+
+- **No `.tsx` file may exceed 600 lines** (blank lines and comments excluded). This is enforced by the ESLint `max-lines` rule.
+- When a component grows beyond this limit, refactor by:
+  1. Extracting reusable **utility functions** into `src/renderer/src/lib/`
+  2. Extracting **custom hooks** into a `hooks/` directory next to the page
+  3. Extracting **sub-components** into a feature directory next to the page (e.g. `pages/kanban/DraggableCard.tsx`)
+
+## File Structure
+
+Organise files by the feature they support. Keep code close to where it is used.
+
+```
+src/renderer/src/
+├── lib/                  # Shared utilities used across many features
+│   ├── label-colors.ts   # Trello label colour mapping
+│   ├── fuzzy-match.ts    # Fuzzy string matching
+│   ├── format-utils.ts   # Date/number formatting helpers
+│   ├── card-utils.ts     # Card reorder/move/story-point helpers
+│   ├── confetti.ts       # Done-card celebration effects
+│   ├── gamification.ts   # Level & XP threshold helpers
+│   └── placeholders.ts   # Template placeholder expansion
+├── components/           # Shared UI components (Toast, StrictModeDroppable, …)
+├── hooks/                # Shared hooks (useApi, …)
+├── pages/
+│   ├── KanbanPage.tsx    # Page-level orchestrator (≤ 600 lines)
+│   ├── kanban/           # Feature directory — components & hooks for KanbanPage
+│   │   ├── DraggableCard.tsx
+│   │   ├── CardContextMenu.tsx
+│   │   ├── BulkActionBar.tsx
+│   │   ├── hooks/
+│   │   │   ├── useAddCardQueue.ts
+│   │   │   ├── useBulkActions.ts
+│   │   │   └── useDragDrop.ts
+│   │   └── kanban.types.ts
+│   ├── SettingsPage.tsx
+│   ├── settings/         # Feature directory — extracted SettingsPage sections
+│   │   ├── ArchiveDoneCards.tsx
+│   │   └── StoryPointsEditor.tsx
+│   ├── Dashboard.tsx
+│   └── AnalyticsPage.tsx
+```
+
+**Rules:**
+- If a function, hook, or component is used by **one page only**, keep it in that page's feature directory (e.g. `pages/kanban/hooks/useDragDrop.ts`).
+- If it is used by **two or more pages**, move it to `src/renderer/src/lib/` (for utilities) or `src/renderer/src/components/` (for UI components).
+- Never duplicate utilities across files — import from the shared `lib/` directory instead.
+
 ## Formatting Conventions
 
 The project enforces the following Prettier settings (`.prettierrc`):

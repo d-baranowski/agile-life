@@ -1,15 +1,11 @@
 import { useState, useEffect } from 'react'
-import type {
-  BoardConfig,
-  ArchiveResult,
-  DoneCardPreview,
-  DoneCardDebugInfo,
-  StoryPointRule
-} from '@shared/board.types'
+import type { BoardConfig } from '@shared/board.types'
 import type { TrelloMember } from '@shared/trello.types'
 import type { DbPathInfo, LogPathInfo } from '@shared/settings.types'
 import { api } from '../hooks/useApi'
 import { isSoundEnabled, setSoundEnabled, getSoundVolume, setSoundVolume } from '../utils/sound'
+import ArchiveDoneCards from './settings/ArchiveDoneCards'
+import StoryPointsEditor from './settings/StoryPointsEditor'
 import styles from './SettingsPage.module.css'
 
 interface Props {
@@ -32,33 +28,6 @@ export default function SettingsPage({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-
-  // Story points configuration
-  const [storyPoints, setStoryPoints] = useState<StoryPointRule[]>(board.storyPointsConfig)
-  const [spSaving, setSpSaving] = useState(false)
-  const [spSuccess, setSpSuccess] = useState<string | null>(null)
-  const [spError, setSpError] = useState<string | null>(null)
-
-  const [archiveWeeks, setArchiveWeeks] = useState(2)
-  const [previewing, setPreviewing] = useState(false)
-  const [previewCards, setPreviewCards] = useState<DoneCardPreview[] | null>(null)
-  const [previewError, setPreviewError] = useState<string | null>(null)
-  const [archiving, setArchiving] = useState(false)
-  const [archiveResult, setArchiveResult] = useState<ArchiveResult | null>(null)
-  const [archiveError, setArchiveError] = useState<string | null>(null)
-
-  const [debugOpen, setDebugOpen] = useState(false)
-  const [debugLoading, setDebugLoading] = useState(false)
-  const [debugCards, setDebugCards] = useState<DoneCardDebugInfo[] | null>(null)
-  const [debugError, setDebugError] = useState<string | null>(null)
-
-  // Reset preview when weeks threshold changes
-  useEffect(() => {
-    setPreviewCards(null)
-    setPreviewError(null)
-    setArchiveResult(null)
-    setArchiveError(null)
-  }, [archiveWeeks])
 
   const [dbPathInfo, setDbPathInfo] = useState<DbPathInfo | null>(null)
   const [dbPathChanging, setDbPathChanging] = useState(false)
@@ -103,73 +72,6 @@ export default function SettingsPage({
   }
 
   const doneListLabel = (board.doneListNames ?? ['Done']).join(', ')
-
-  function weeksAgo(isoDate: string): string {
-    const days = Math.floor((Date.now() - new Date(isoDate).getTime()) / (1000 * 60 * 60 * 24))
-    if (days <= 0) return 'today'
-    if (days < 7) return `${days}d`
-    const weeks = Math.floor(days / 7)
-    return `${weeks}w`
-  }
-
-  function fmtDate(isoDate: string): string {
-    try {
-      return new Date(isoDate).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      })
-    } catch {
-      return isoDate
-    }
-  }
-
-  const handlePreview = async (): Promise<void> => {
-    setPreviewing(true)
-    setPreviewError(null)
-    setPreviewCards(null)
-    setArchiveResult(null)
-    setArchiveError(null)
-    const result = await api.trello.previewArchiveDoneCards(board.boardId, archiveWeeks)
-    if (result.success && result.data) {
-      setPreviewCards(result.data)
-    } else {
-      setPreviewError(result.error ?? 'Preview failed.')
-    }
-    setPreviewing(false)
-  }
-
-  const handleArchive = async (): Promise<void> => {
-    setArchiving(true)
-    setArchiveError(null)
-    setArchiveResult(null)
-    const result = await api.trello.archiveDoneCards(board.boardId, archiveWeeks)
-    if (result.success && result.data) {
-      setArchiveResult(result.data)
-      setPreviewCards(null)
-      setDebugCards(null)
-    } else {
-      setArchiveError(result.error ?? 'Archive failed.')
-    }
-    setArchiving(false)
-  }
-
-  const handleDebugToggle = async (): Promise<void> => {
-    if (debugOpen) {
-      setDebugOpen(false)
-      return
-    }
-    setDebugOpen(true)
-    setDebugLoading(true)
-    setDebugError(null)
-    const result = await api.trello.getDoneColumnDebug(board.boardId)
-    if (result.success && result.data) {
-      setDebugCards(result.data)
-    } else {
-      setDebugError(result.error ?? 'Failed to load debug data.')
-    }
-    setDebugLoading(false)
-  }
 
   const handleSetEpicBoard = async (epicBoardId: string | null): Promise<void> => {
     setEpicBoardSaving(true)
@@ -218,29 +120,6 @@ export default function SettingsPage({
       setTimeout(() => setSuccess(null), 3000)
     } else {
       setError(result.error ?? 'Failed to save settings.')
-    }
-  }
-
-  const handleSaveStoryPoints = async () => {
-    setSpSaving(true)
-    setSpError(null)
-    setSpSuccess(null)
-
-    const validRules = storyPoints
-      .filter((r) => r.labelName.trim() !== '')
-      .map((r) => ({ labelName: r.labelName.trim(), points: r.points }))
-
-    const result = await api.boards.update(board.boardId, { storyPointsConfig: validRules })
-
-    setSpSaving(false)
-
-    if (result.success && result.data) {
-      onBoardUpdated(result.data)
-      setStoryPoints(result.data.storyPointsConfig)
-      setSpSuccess('Story point rules saved.')
-      setTimeout(() => setSpSuccess(null), 3000)
-    } else {
-      setSpError(result.error ?? 'Failed to save story point rules.')
     }
   }
 
@@ -423,84 +302,7 @@ export default function SettingsPage({
         )}
       </div>
 
-      {/* ── Story Points ── */}
-      <div className="card">
-        <h2 className={styles.cardTitle}>Story Points</h2>
-        <p className={styles.hint}>
-          Assign story-point values to ticket labels. The analytics trend chart multiplies each
-          completed ticket by the points of its first matching label. Tickets with no matching label
-          count as <strong>1</strong> point.
-        </p>
-
-        {spError && <div className={styles.errorBanner}>{spError}</div>}
-        {spSuccess && <div className={styles.successBanner}>{spSuccess}</div>}
-
-        <table className={styles.spTable}>
-          <thead>
-            <tr>
-              <th>Label Name</th>
-              <th>Points</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {storyPoints.map((rule, idx) => (
-              <tr key={idx}>
-                <td>
-                  <input
-                    type="text"
-                    value={rule.labelName}
-                    placeholder="e.g. Large"
-                    onChange={(e) => {
-                      const next = [...storyPoints]
-                      next[idx] = { ...next[idx], labelName: e.target.value }
-                      setStoryPoints(next)
-                    }}
-                    className={styles.spInput}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    min={0}
-                    value={rule.points}
-                    onChange={(e) => {
-                      const next = [...storyPoints]
-                      next[idx] = {
-                        ...next[idx],
-                        points: Math.max(0, parseInt(e.target.value, 10) || 0)
-                      }
-                      setStoryPoints(next)
-                    }}
-                    className={styles.spPointsInput}
-                  />
-                </td>
-                <td>
-                  <button
-                    className="btn-ghost"
-                    onClick={() => setStoryPoints(storyPoints.filter((_, i) => i !== idx))}
-                    title="Remove rule"
-                  >
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className={styles.spActions}>
-          <button
-            className="btn-ghost"
-            onClick={() => setStoryPoints([...storyPoints, { labelName: '', points: 1 }])}
-          >
-            + Add Rule
-          </button>
-          <button className="btn-primary" onClick={handleSaveStoryPoints} disabled={spSaving}>
-            {spSaving ? 'Saving…' : '✓ Save Story Points'}
-          </button>
-        </div>
-      </div>
+      <StoryPointsEditor board={board} onBoardUpdated={onBoardUpdated} />
 
       {/* ── Board Info ── */}
       <div className="card">
@@ -541,193 +343,11 @@ export default function SettingsPage({
         </table>
       </div>
 
-      {/* ── Archive Done Cards ── */}
-      <div className="card">
-        <h2 className={styles.cardTitle}>Archive Done Cards</h2>
-        <p className={styles.hint}>
-          Archive cards from the <strong>{doneListLabel}</strong>{' '}
-          {board.doneListNames.length === 1 ? 'column' : 'columns'} on Trello that have been in the
-          done column for the selected number of weeks. The cards will remain in your local database
-          (marked as archived) so your history is preserved.
-        </p>
-
-        <div className={styles.archiveControls}>
-          <label className={styles.weeksLabel}>
-            In done for at least
-            <input
-              type="number"
-              min={1}
-              max={52}
-              value={archiveWeeks}
-              onChange={(e) => setArchiveWeeks(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className={styles.weeksInput}
-            />
-            week{archiveWeeks !== 1 ? 's' : ''}
-          </label>
-          <button
-            className="btn-secondary"
-            onClick={handlePreview}
-            disabled={previewing || archiving}
-          >
-            {previewing ? (
-              <span className={styles.syncingLabel}>
-                <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
-                Loading…
-              </span>
-            ) : (
-              '🔍 Preview'
-            )}
-          </button>
-        </div>
-
-        {previewError && <div className={styles.errorBanner}>{previewError}</div>}
-        {archiveError && <div className={styles.errorBanner}>{archiveError}</div>}
-
-        {archiveResult && (
-          <div className={styles.archiveSuccess}>
-            ✓ Archived {archiveResult.archivedCount} card
-            {archiveResult.archivedCount !== 1 ? 's' : ''}
-            {archiveResult.skippedCount > 0 ? ` (${archiveResult.skippedCount} skipped)` : ''}.
-          </div>
-        )}
-
-        {previewCards !== null && (
-          <div className={styles.previewSection}>
-            {previewCards.length === 0 ? (
-              <p className={styles.previewEmpty}>
-                No cards have been in the done column for {archiveWeeks} week
-                {archiveWeeks !== 1 ? 's' : ''} or more.
-              </p>
-            ) : (
-              <>
-                <p className={styles.previewCount}>
-                  {previewCards.length} card{previewCards.length !== 1 ? 's' : ''} will be archived:
-                </p>
-                <ul className={styles.previewList}>
-                  {previewCards.map((card) => (
-                    <li key={card.id} className={styles.previewItem}>
-                      <span className={styles.previewCardName}>{card.name}</span>
-                      <span className={styles.previewCardMeta}>
-                        {card.listName} · {weeksAgo(card.enteredDoneAt)} in Done
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <div className={styles.previewActions}>
-                  <button className="btn-danger" onClick={handleArchive} disabled={archiving}>
-                    {archiving ? (
-                      <span className={styles.syncingLabel}>
-                        <span
-                          className="spinner"
-                          style={{ width: 14, height: 14, borderWidth: 2 }}
-                        />
-                        Archiving…
-                      </span>
-                    ) : (
-                      `🗄 Archive ${previewCards.length} Card${previewCards.length !== 1 ? 's' : ''}`
-                    )}
-                  </button>
-                  <button
-                    className="btn-secondary"
-                    onClick={() => setPreviewCards(null)}
-                    disabled={archiving}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Diagnostic: Done Column Data ── */}
-      <div className="card">
-        <div className={styles.debugHeader}>
-          <div>
-            <h2 className={styles.cardTitle}>Diagnostic: Done Column Data</h2>
-            <p className={styles.hint}>
-              Shows the raw data stored for every card currently in the{' '}
-              <strong>{doneListLabel}</strong>{' '}
-              {board.doneListNames.length === 1 ? 'column' : 'columns'}. Use this to understand why
-              a card is or is not being picked up by the archive threshold. The{' '}
-              <em>Entered Done</em> timestamp is what the archive query compares against your
-              threshold.
-            </p>
-          </div>
-          <button
-            className="btn-ghost"
-            onClick={handleDebugToggle}
-            disabled={debugLoading}
-            style={{ flexShrink: 0 }}
-          >
-            {debugOpen ? '▲ Hide' : '▼ Show'}
-          </button>
-        </div>
-
-        {debugOpen && (
-          <>
-            {debugError && <div className={styles.errorBanner}>{debugError}</div>}
-            {debugLoading && (
-              <div className={styles.centred}>
-                <div className="spinner" />
-                <span>Loading…</span>
-              </div>
-            )}
-            {!debugLoading && debugCards !== null && (
-              <>
-                {debugCards.length === 0 ? (
-                  <p className={styles.previewEmpty}>
-                    No open cards found in the <strong>{doneListLabel}</strong>{' '}
-                    {board.doneListNames.length === 1 ? 'column' : 'columns'}. Make sure you have
-                    synced the board and that the done list name matches exactly.
-                  </p>
-                ) : (
-                  <div className={styles.debugTableWrap}>
-                    <table className={styles.debugTable}>
-                      <thead>
-                        <tr>
-                          <th>Card</th>
-                          <th>Column</th>
-                          <th>Entered Done</th>
-                          <th>Last Activity</th>
-                          <th>Source</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {debugCards.map((card) => (
-                          <tr key={card.id}>
-                            <td className={styles.debugCardName}>{card.name}</td>
-                            <td>{card.listName}</td>
-                            <td>
-                              {fmtDate(card.enteredDoneAt)}{' '}
-                              <span className={styles.debugAge}>
-                                ({weeksAgo(card.enteredDoneAt)})
-                              </span>
-                            </td>
-                            <td>{fmtDate(card.dateLastActivity)}</td>
-                            <td>
-                              <span
-                                className={
-                                  card.hasActionEntry
-                                    ? styles.debugBadgeAction
-                                    : styles.debugBadgeFallback
-                                }
-                              >
-                                {card.hasActionEntry ? '🟢 move action' : '🟡 fallback'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </div>
+      <ArchiveDoneCards
+        boardId={board.boardId}
+        doneListLabel={doneListLabel}
+        doneListCount={board.doneListNames.length}
+      />
 
       {/* ── Sound & Notifications ── */}
       <div className="card">
