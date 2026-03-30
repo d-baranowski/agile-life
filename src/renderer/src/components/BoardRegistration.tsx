@@ -2,14 +2,36 @@ import { useState, useEffect } from 'react'
 import type { BoardConfig } from '@shared/board.types'
 import type { TrelloBoard } from '@shared/trello.types'
 import { api } from '../hooks/useApi'
-import styles from './BoardRegistration.module.css'
+import { BoardDesc, BoardList, BoardName, BoardOption } from './styled/registration-boards.styled'
+import {
+  ActionLink,
+  Form,
+  GuideList,
+  Hint,
+  InfoPanel,
+  Label,
+  LinkRow,
+  Optional,
+  TipBox
+} from './styled/registration-form.styled'
+import {
+  Actions,
+  Card,
+  Container,
+  ErrorBanner,
+  RegistrationHeader,
+  Step,
+  StepLabel,
+  StepNumber,
+  Steps
+} from './styled/registration-layout.styled'
 
 interface Props {
   onBoardAdded: (board: BoardConfig) => void
   onCancel?: () => void
 }
 
-type Step = 'credentials' | 'select-board' | 'configure'
+type StepType = 'credentials' | 'select-board' | 'configure'
 
 function looksLikeUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim())
@@ -49,8 +71,9 @@ function getTrelloAuthorizeUrl(apiKey: string): string {
   return `https://trello.com/1/authorize?${params.toString()}`
 }
 
-export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JSX.Element {
-  const [step, setStep] = useState<Step>('credentials')
+export default function BoardRegistration(props: Props): JSX.Element {
+  const { onBoardAdded, onCancel } = props
+  const [step, setStep] = useState<StepType>('credentials')
   const [apiKey, setApiKey] = useState('')
   const [apiToken, setApiToken] = useState('')
   const [boards, setBoards] = useState<TrelloBoard[]>([])
@@ -168,63 +191,57 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
   }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.card}>
+    <Container>
+      <Card>
         {/* ── Header ── */}
-        <div className={styles.header}>
+        <RegistrationHeader>
           <h2>Register a Trello Board</h2>
           {onCancel && (
             <button className="btn-ghost" onClick={onCancel}>
               ✕ Cancel
             </button>
           )}
-        </div>
+        </RegistrationHeader>
 
         {/* ── Step Indicator ── */}
-        <div className={styles.steps}>
-          {(['credentials', 'select-board', 'configure'] as Step[]).map((s, idx) => (
-            <div
-              key={s}
-              className={`${styles.step} ${step === s ? styles.stepActive : ''} ${
-                ['credentials', 'select-board', 'configure'].indexOf(step) > idx
-                  ? styles.stepDone
-                  : ''
-              }`}
-            >
-              <span className={styles.stepNumber}>{idx + 1}</span>
-              <span className={styles.stepLabel}>
-                {s === 'credentials' && 'Credentials'}
-                {s === 'select-board' && 'Select Board'}
-                {s === 'configure' && 'Configure'}
-              </span>
-            </div>
-          ))}
-        </div>
+        <Steps>
+          {(['credentials', 'select-board', 'configure'] as StepType[]).map((s, idx) => {
+            const isActive = step === s
+            const isDone = ['credentials', 'select-board', 'configure'].indexOf(step) > idx
+            return (
+              <Step key={s} $active={isActive} $done={isDone}>
+                <StepNumber $active={isActive} $done={isDone}>
+                  {idx + 1}
+                </StepNumber>
+                <StepLabel>
+                  {s === 'credentials' && 'Credentials'}
+                  {s === 'select-board' && 'Select Board'}
+                  {s === 'configure' && 'Configure'}
+                </StepLabel>
+              </Step>
+            )
+          })}
+        </Steps>
 
         {/* ── Error Banner ── */}
-        {error && <div className={styles.errorBanner}>{error}</div>}
+        {error && <ErrorBanner>{error}</ErrorBanner>}
 
         {/* ── Step 1: Credentials ── */}
         {step === 'credentials' && (
-          <div className={styles.form}>
-            <div className={styles.infoPanel}>
+          <Form>
+            <InfoPanel>
               <h3>Connect Trello in 3 quick steps</h3>
-              <ol className={styles.guideList}>
+              <GuideList>
                 <li>Open your Trello API key page and copy the API key value.</li>
                 <li>Use that key to open Trello authorization in your browser.</li>
                 <li>Approve access, copy the token Trello shows, then paste it here.</li>
-              </ol>
-              <div className={styles.linkRow}>
-                <a
-                  className={styles.actionLink}
-                  href="https://trello.com/app-key"
-                  target="_blank"
-                  rel="noreferrer"
-                >
+              </GuideList>
+              <LinkRow>
+                <ActionLink href="https://trello.com/app-key" target="_blank" rel="noreferrer">
                   Open Trello API key page
-                </a>
-                <a
-                  className={`${styles.actionLink} ${!normalizedApiKey ? styles.actionLinkDisabled : ''}`}
+                </ActionLink>
+                <ActionLink
+                  $disabled={!normalizedApiKey}
                   href={normalizedApiKey ? authorizeUrl : undefined}
                   target="_blank"
                   rel="noreferrer"
@@ -237,17 +254,17 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
                   }}
                 >
                   Open Trello authorization
-                </a>
-              </div>
-            </div>
+                </ActionLink>
+              </LinkRow>
+            </InfoPanel>
 
-            <div className={styles.tipBox}>
+            <TipBox>
               If you copied a link like <code>trello.com/power-ups/.../edit/api-key</code> that is
               only the settings page. You need the API key value shown on that page, plus a token
               generated after approving access.
-            </div>
+            </TipBox>
 
-            <label className={styles.label}>
+            <Label>
               Trello API Key
               <input
                 type="text"
@@ -256,8 +273,8 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
                 onChange={(e) => setApiKey(e.target.value)}
                 autoComplete="off"
               />
-            </label>
-            <label className={styles.label}>
+            </Label>
+            <Label>
               Trello API Token
               <input
                 type="password"
@@ -266,44 +283,42 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
                 onChange={(e) => setApiToken(e.target.value)}
                 autoComplete="off"
               />
-            </label>
-            <p className={styles.hint}>
+            </Label>
+            <Hint>
               Prefer the classic Trello page instead? Open{' '}
               <a href="https://trello.com/app-key" target="_blank" rel="noreferrer">
                 trello.com/app-key
               </a>
               , then use the token link shown there after signing in.
-            </p>
-            <div className={styles.actions}>
+            </Hint>
+            <Actions>
               <button className="btn-primary" onClick={handleFetchBoards} disabled={loading}>
                 {loading ? 'Connecting…' : 'Connect and load boards →'}
               </button>
-            </div>
-          </div>
+            </Actions>
+          </Form>
         )}
 
         {/* ── Step 2: Select Board ── */}
         {step === 'select-board' && (
-          <div className={styles.form}>
-            <p className={styles.hint}>
+          <Form>
+            <Hint>
               {boards.length} board{boards.length !== 1 ? 's' : ''} found. Select the one you want
               to register.
-            </p>
-            <div className={styles.boardList}>
+            </Hint>
+            <BoardList>
               {boards.map((board) => (
-                <button
+                <BoardOption
                   key={board.id}
-                  className={`${styles.boardOption} ${
-                    selectedBoardId === board.id ? styles.boardOptionSelected : ''
-                  }`}
+                  $selected={selectedBoardId === board.id}
                   onClick={() => setSelectedBoardId(board.id)}
                 >
-                  <span className={styles.boardName}>{board.name}</span>
-                  {board.desc && <span className={styles.boardDesc}>{board.desc}</span>}
-                </button>
+                  <BoardName>{board.name}</BoardName>
+                  {board.desc && <BoardDesc>{board.desc}</BoardDesc>}
+                </BoardOption>
               ))}
-            </div>
-            <div className={styles.actions}>
+            </BoardList>
+            <Actions>
               <button className="btn-ghost" onClick={() => setStep('credentials')}>
                 ← Back
               </button>
@@ -314,19 +329,16 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
               >
                 Next →
               </button>
-            </div>
-          </div>
+            </Actions>
+          </Form>
         )}
 
         {/* ── Step 3: Configure ── */}
         {step === 'configure' && (
-          <div className={styles.form}>
-            <p className={styles.hint}>
-              Optionally set a project code for JIRA-style ticket numbering.
-            </p>
-            <label className={styles.label}>
-              Project Code{' '}
-              <span className={styles.optional}>(optional, 3 uppercase letters, e.g. AGI)</span>
+          <Form>
+            <Hint>Optionally set a project code for JIRA-style ticket numbering.</Hint>
+            <Label>
+              Project Code <Optional>(optional, 3 uppercase letters, e.g. AGI)</Optional>
               <input
                 type="text"
                 placeholder="AGI"
@@ -334,28 +346,27 @@ export default function BoardRegistration({ onBoardAdded, onCancel }: Props): JS
                 value={projectCode}
                 onChange={(e) => setProjectCode(e.target.value.toUpperCase())}
               />
-            </label>
-            <label className={styles.label}>
-              &quot;Done&quot; List Names{' '}
-              <span className={styles.optional}>(comma-separated, e.g. Done, Shipped)</span>
+            </Label>
+            <Label>
+              &quot;Done&quot; List Names <Optional>(comma-separated, e.g. Done, Shipped)</Optional>
               <input
                 type="text"
                 placeholder="Done"
                 value={doneListNames}
                 onChange={(e) => setDoneListNames(e.target.value)}
               />
-            </label>
-            <div className={styles.actions}>
+            </Label>
+            <Actions>
               <button className="btn-ghost" onClick={() => setStep('select-board')}>
                 ← Back
               </button>
               <button className="btn-primary" onClick={handleSave} disabled={loading}>
                 {loading ? 'Saving…' : '✓ Save Board'}
               </button>
-            </div>
-          </div>
+            </Actions>
+          </Form>
         )}
-      </div>
-    </div>
+      </Card>
+    </Container>
   )
 }
