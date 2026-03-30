@@ -87,7 +87,11 @@ src/renderer/src/
 │   ├── reorder-cards.ts  # Reorder cards within a column
 │   ├── move-card.ts      # Move a card between columns
 │   ├── month-names.ts    # Calendar month name constants
-│   └── placeholders.ts   # Template placeholder expansion
+│   ├── placeholders.ts   # Template placeholder expansion
+│   └── __tests__/        # Co-located tests for lib utilities
+│       ├── card-story-points.test.ts
+│       ├── format-age.test.ts
+│       └── ...
 ├── components/           # Shared UI components (Toast, StrictModeDroppable, …)
 ├── hooks/                # Shared hooks (useApi, …)
 ├── pages/
@@ -133,10 +137,11 @@ Always run `pnpm format` after editing files to stay consistent with these setti
 
 ## Testing and Coverage
 
-- Unit tests live in `src/**/__tests__/**/*.test.ts` and run with `pnpm test`
+- Unit tests live in co-located `__tests__/` folders **next to the code they test** — not in a single global `__tests__/` directory. For example, tests for `src/renderer/src/lib/format-age.ts` go in `src/renderer/src/lib/__tests__/format-age.test.ts`.
+- The Jest `testMatch` pattern `**/__tests__/**/*.test.ts` picks up all co-located test folders automatically.
 - Coverage is measured with `pnpm test:coverage`; renderer code is excluded from coverage collection
 - **Target: 50 % statement coverage** across `src/main` and `src/shared`
-- Every new module or utility must have a corresponding `__tests__/*.test.ts` file
+- Every new module or utility must have a corresponding `__tests__/*.test.ts` file in the same directory
 - Write tests that cover both the happy path and meaningful error/edge cases
 - Do not delete or weaken existing tests to make coverage numbers look better
 

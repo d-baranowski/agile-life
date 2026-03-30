@@ -1,7 +1,7 @@
 /**
  * Tests for weeksAgo — relative age label from ISO date.
  */
-import { weeksAgo } from '../renderer/src/lib/weeks-ago'
+import { weeksAgo } from '../weeks-ago'
 
 describe('weeksAgo', () => {
   it('returns "today" for current or future timestamps', () => {

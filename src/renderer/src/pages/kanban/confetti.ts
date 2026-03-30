@@ -1,5 +1,5 @@
 import confetti from 'canvas-confetti'
-import { playCoinSound } from '../utils/sound'
+import { playCoinSound } from '../../utils/sound'
 
 /**
  * Fires a confetti burst and plays a coin sound to celebrate completing a task.

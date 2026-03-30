@@ -1,7 +1,7 @@
 /**
  * Tests for fmtDate — localised short date from ISO string.
  */
-import { fmtDate } from '../renderer/src/lib/fmt-date'
+import { fmtDate } from '../fmt-date'
 
 describe('fmtDate', () => {
   it('formats a valid ISO date into a human-readable string', () => {

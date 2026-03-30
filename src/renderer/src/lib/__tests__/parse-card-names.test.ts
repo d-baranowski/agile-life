@@ -1,7 +1,7 @@
 /**
  * Tests for parseCardNames — splits multiline textarea input into card names.
  */
-import { parseCardNames } from '../renderer/src/lib/parse-card-names'
+import { parseCardNames } from '../parse-card-names'
 
 describe('parseCardNames', () => {
   it('splits multiple lines into card names', () => {

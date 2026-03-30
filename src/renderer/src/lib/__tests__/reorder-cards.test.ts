@@ -1,7 +1,7 @@
 /**
  * Tests for reorderCards — reorders cards within the same column.
  */
-import { reorderCards } from '../renderer/src/lib/reorder-cards'
+import { reorderCards } from '../reorder-cards'
 import type { KanbanCard } from '@shared/trello.types'
 
 function makeCard(id: string): KanbanCard {
