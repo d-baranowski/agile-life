@@ -1,5 +1,27 @@
 import type { AddCardModal, QueueItem } from './kanban.types'
-import styles from '../KanbanPage.module.css'
+import {
+  Overlay,
+  Modal,
+  Header,
+  Title,
+  CloseButton,
+  Body,
+  Textarea,
+  PreviewList,
+  PreviewItem,
+  PreviewName,
+  PreviewRemove,
+  Footer,
+  CancelButton,
+  StartButton,
+  QueueList,
+  QueueItem as StyledQueueItem,
+  QueueIcon,
+  QueueName,
+  RemoveButton,
+  RetryButton,
+  UploadingLabel
+} from './AddCardModal.styled'
 
 interface Props {
   modal: AddCardModal
@@ -13,34 +35,31 @@ interface Props {
   onClose: () => void
 }
 
-export default function AddCardModal({
-  modal,
-  textareaRef,
-  onTextChange,
-  onRemovePreviewLine,
-  onRemoveQueueItem,
-  onStartUpload,
-  onRetryItem,
-  onRetryAllFailed,
-  onClose
-}: Props): JSX.Element {
+export default function AddCardModalComponent(props: Props): JSX.Element {
+  const {
+    modal,
+    textareaRef,
+    onTextChange,
+    onRemovePreviewLine,
+    onRemoveQueueItem,
+    onStartUpload,
+    onRetryItem,
+    onRetryAllFailed,
+    onClose
+  } = props
+
   return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.addCardModal} onClick={(e) => e.stopPropagation()}>
+    <Overlay onClick={onClose}>
+      <Modal onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className={styles.addCardModalHeader}>
-          <span className={styles.addCardModalTitle}>
+        <Header>
+          <Title>
             Add cards to <strong>{modal.listName}</strong>
-          </span>
-          <button
-            className={styles.modalClose}
-            onClick={onClose}
-            disabled={modal.uploading}
-            title="Close (Esc)"
-          >
+          </Title>
+          <CloseButton onClick={onClose} disabled={modal.uploading} title="Close (Esc)">
             ✕
-          </button>
-        </div>
+          </CloseButton>
+        </Header>
 
         {/* Edit phase */}
         {modal.queue === null && (
@@ -60,8 +79,8 @@ export default function AddCardModal({
             onClose={onClose}
           />
         )}
-      </div>
-    </div>
+      </Modal>
+    </Overlay>
   )
 }
 
@@ -87,45 +106,34 @@ function EditPhase({
 
   return (
     <>
-      <div className={styles.addCardModalBody}>
-        <textarea
+      <Body>
+        <Textarea
           ref={textareaRef}
-          className={styles.addCardTextarea}
           placeholder={'Paste from Excel or type card names — one per line'}
           value={modal.text}
           onChange={(e) => onTextChange(e.target.value)}
           rows={5}
         />
         {previewLines.length > 0 && (
-          <div className={styles.addCardPreviewList}>
+          <PreviewList>
             {previewLines.map(({ line, idx }) => (
-              <div key={idx} className={styles.addCardPreviewItem}>
-                <span className={styles.addCardPreviewName}>{line}</span>
-                <button
-                  className={styles.addCardPreviewRemove}
-                  onClick={() => onRemovePreviewLine(idx)}
-                  title="Remove this item"
-                >
+              <PreviewItem key={idx}>
+                <PreviewName>{line}</PreviewName>
+                <PreviewRemove onClick={() => onRemovePreviewLine(idx)} title="Remove this item">
                   ✕
-                </button>
-              </div>
+                </PreviewRemove>
+              </PreviewItem>
             ))}
-          </div>
+          </PreviewList>
         )}
-      </div>
-      <div className={styles.addCardModalFooter}>
-        <button className={styles.addCardCancelBtn} onClick={onClose}>
-          Cancel
-        </button>
-        <button
-          className={styles.addCardStartBtn}
-          onClick={onStartUpload}
-          disabled={previewLines.length === 0}
-        >
+      </Body>
+      <Footer>
+        <CancelButton onClick={onClose}>Cancel</CancelButton>
+        <StartButton onClick={onStartUpload} disabled={previewLines.length === 0}>
           Start upload ({previewLines.length} card
           {previewLines.length !== 1 ? 's' : ''})
-        </button>
-      </div>
+        </StartButton>
+      </Footer>
     </>
   )
 }
@@ -150,57 +158,38 @@ function QueuePhase({
 
   return (
     <>
-      <div className={styles.addCardQueueList}>
+      <QueueList>
         {queue.map((item) => (
-          <div
-            key={item.id}
-            className={`${styles.addCardQueueItem} ${
-              item.status === 'done'
-                ? styles.queueItemDone
-                : item.status === 'failed'
-                  ? styles.queueItemFailed
-                  : item.status === 'running'
-                    ? styles.queueItemRunning
-                    : ''
-            }`}
-          >
-            <span className={styles.queueItemIcon}>
+          <StyledQueueItem key={item.id} $status={item.status}>
+            <QueueIcon $status={item.status}>
               {item.status === 'pending' && '⏳'}
               {item.status === 'running' && (
                 <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
               )}
               {item.status === 'done' && '✓'}
               {item.status === 'failed' && '✕'}
-            </span>
-            <span className={styles.queueItemName}>{item.name}</span>
+            </QueueIcon>
+            <QueueName $status={item.status}>{item.name}</QueueName>
             {!uploading && item.status === 'pending' && (
-              <button
-                className={styles.queueRemoveBtn}
-                onClick={() => onRemoveQueueItem(item.id)}
-                title="Remove"
-              >
+              <RemoveButton onClick={() => onRemoveQueueItem(item.id)} title="Remove">
                 ✕
-              </button>
+              </RemoveButton>
             )}
             {!uploading && item.status === 'failed' && (
-              <button className={styles.queueRetryBtn} onClick={() => onRetryItem(item.id)}>
-                ↺ Retry
-              </button>
+              <RetryButton onClick={() => onRetryItem(item.id)}>↺ Retry</RetryButton>
             )}
-          </div>
+          </StyledQueueItem>
         ))}
-      </div>
-      <div className={styles.addCardModalFooter}>
-        {uploading && <span className={styles.uploadingLabel}>Uploading…</span>}
+      </QueueList>
+      <Footer>
+        {uploading && <UploadingLabel>Uploading…</UploadingLabel>}
         {!uploading && allDone && hasAnyFailed && (
-          <button className={styles.addCardStartBtn} onClick={onRetryAllFailed}>
-            ↺ Retry all failed
-          </button>
+          <StartButton onClick={onRetryAllFailed}>↺ Retry all failed</StartButton>
         )}
-        <button className={styles.addCardCancelBtn} onClick={onClose} disabled={uploading}>
+        <CancelButton onClick={onClose} disabled={uploading}>
           {allDone && !uploading ? 'Close' : 'Cancel'}
-        </button>
-      </div>
+        </CancelButton>
+      </Footer>
     </>
   )
 }
