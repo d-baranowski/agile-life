@@ -16,7 +16,12 @@ import type {
   StoryPointRule,
   SavedCredentials
 } from '../../lib/board.types'
-import type { TrelloBoard, KanbanColumn, TrelloMember, TrelloLabel } from '../../trello/trello.types'
+import type {
+  TrelloBoard,
+  KanbanColumn,
+  TrelloMember,
+  TrelloLabel
+} from '../../trello/trello.types'
 import type {
   ColumnCount,
   WeeklyUserStats,

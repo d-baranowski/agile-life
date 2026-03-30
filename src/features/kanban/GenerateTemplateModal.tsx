@@ -1,4 +1,8 @@
-import type { TemplateGroup, TicketTemplate, GenerateCardsResult } from '../templates/template.types'
+import type {
+  TemplateGroup,
+  TicketTemplate,
+  GenerateCardsResult
+} from '../templates/template.types'
 import styled from 'styled-components'
 import { resolvePlaceholders } from '../../lib/placeholders'
 

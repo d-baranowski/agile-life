@@ -3,16 +3,15 @@ import type { BoardConfig } from '../../lib/board.types'
 import type { TrelloMember } from '../../trello/trello.types'
 import type { DbPathInfo, LogPathInfo } from './settings.types'
 import { api } from '../api/useApi'
-import { isSoundEnabled, setSoundEnabled, getSoundVolume, setSoundVolume } from '../kanban/confetti/sound'
+import {
+  isSoundEnabled,
+  setSoundEnabled,
+  getSoundVolume,
+  setSoundVolume
+} from '../kanban/confetti/sound'
 import ArchiveDoneCards from './ArchiveDoneCards'
 import StoryPointsEditor from './StoryPointsEditor'
-import {
-  Container,
-  Title,
-  CardTitle,
-  ErrorBanner,
-  SuccessBanner
-} from './settings-layout.styled'
+import { Container, Title, CardTitle, ErrorBanner, SuccessBanner } from './settings-layout.styled'
 import { Form, Label, Hint, Actions } from './settings-form.styled'
 import { DangerCard, DangerTitle, ConfirmDelete } from './settings-danger.styled'
 import { InfoTable } from './settings-table.styled'

@@ -1,10 +1,5 @@
 import { useEffect } from 'react'
-import {
-  ToastCloseButton,
-  ToastLogsButton,
-  ToastMessage,
-  ToastWrapper
-} from './toast.styled'
+import { ToastCloseButton, ToastLogsButton, ToastMessage, ToastWrapper } from './toast.styled'
 
 interface Props {
   message: string | null

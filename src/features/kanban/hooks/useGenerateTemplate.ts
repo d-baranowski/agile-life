@@ -1,5 +1,9 @@
 import { useState, useCallback } from 'react'
-import type { TemplateGroup, TicketTemplate, GenerateCardsResult } from '../../templates/template.types'
+import type {
+  TemplateGroup,
+  TicketTemplate,
+  GenerateCardsResult
+} from '../../templates/template.types'
 import { api } from '../../api/useApi'
 
 export function useGenerateTemplate(boardId: string, loadBoardData: () => Promise<void>) {
