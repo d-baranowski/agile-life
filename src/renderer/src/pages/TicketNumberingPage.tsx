@@ -6,13 +6,45 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { BoardConfig } from '@shared/board.types'
 import type { TicketNumberingConfig, UnnumberedCard } from '@shared/ticket.types'
 import { api } from '../hooks/useApi'
-import styles from './TicketNumberingPage.module.css'
+import type { CardStatus } from './tickets/tickets.types'
+import {
+  Container,
+  Title,
+  Description,
+  ErrorBanner,
+  CardTitle,
+  ConfigGrid,
+  Label,
+  Hint,
+  PreviewBox,
+  Code,
+  StatusRow,
+  StatusBadge,
+  Actions
+} from './tickets/tickets-layout.styled'
+import {
+  Table,
+  CellMuted,
+  ActionsCol,
+  StatusCol,
+  StatusCell,
+  CardRow,
+  BadgeQueued,
+  BadgeInProgress,
+  BadgeSuccess,
+  BadgeCancelled,
+  BadgeError,
+  ProposedName,
+  RemoveBtn,
+  ErrorToggle,
+  ErrorDetailRow,
+  ErrorDetail
+} from './tickets/tickets-table.styled'
+import { ProgressSummary, SummarySpinner, Spinner } from './tickets/tickets-progress.styled'
 
 interface Props {
   board: BoardConfig
 }
-
-type CardStatus = 'queued' | 'in-progress' | 'success' | 'error' | 'cancelled'
 
 interface CardState {
   card: UnnumberedCard
@@ -25,7 +57,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export default function TicketNumberingPage({ board }: Props): JSX.Element {
+export default function TicketNumberingPage(props: Props): JSX.Element {
+  const { board } = props
   const [config, setConfig] = useState<TicketNumberingConfig | null>(null)
   const [projectCode, setProjectCode] = useState('')
   const [nextTicketNumber, setNextTicketNumber] = useState(1)
@@ -211,33 +244,31 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
   const processedCount = successCount + errorCount
   const totalCount = cardStates?.length ?? 0
 
-  // Choose summary banner style
-  const summaryStyle =
+  // Choose summary banner variant
+  const summaryVariant: 'running' | 'success' | 'partial' =
     !applying && errorCount === 0 && cancelledCount === 0
-      ? styles.summarySuccess
-      : !applying && cancelledCount > 0
-        ? styles.summaryPartial
-        : !applying && errorCount > 0
-          ? styles.summaryPartial
-          : styles.summaryRunning
+      ? 'success'
+      : !applying && (cancelledCount > 0 || errorCount > 0)
+        ? 'partial'
+        : 'running'
 
   return (
-    <div className={styles.container}>
+    <Container>
       {/* ── Title ── */}
-      <h1 className={styles.title}>🎫 Ticket Numbering — {board.boardName}</h1>
-      <p className={styles.description}>
+      <Title>🎫 Ticket Numbering — {board.boardName}</Title>
+      <Description>
         Assigns a unique <code>AGI-000001</code>-style prefix to every open card that doesn&apos;t
         already have one. Cards already prefixed are left untouched.
-      </p>
+      </Description>
 
       {/* ── Config card ── */}
       <div className="card">
-        <h2 className={styles.cardTitle}>Configuration</h2>
+        <CardTitle>Configuration</CardTitle>
 
-        <div className={styles.configGrid}>
-          <label className={styles.label}>
+        <ConfigGrid>
+          <Label>
             Project Code
-            <span className={styles.hint}>Exactly 3 uppercase letters</span>
+            <Hint>Exactly 3 uppercase letters</Hint>
             <input
               className="input"
               value={projectCode}
@@ -245,11 +276,11 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
               placeholder="AGI"
               onChange={(e) => setProjectCode(e.target.value.toUpperCase())}
             />
-          </label>
+          </Label>
 
-          <label className={styles.label}>
+          <Label>
             Next Ticket Number
-            <span className={styles.hint}>Never lower than the current value</span>
+            <Hint>Never lower than the current value</Hint>
             <input
               className="input"
               type="number"
@@ -257,20 +288,20 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
               value={nextTicketNumber}
               onChange={(e) => setNextTicketNumber(Number(e.target.value))}
             />
-          </label>
-        </div>
+          </Label>
+        </ConfigGrid>
 
         {/* Preview of upcoming prefix */}
-        <div className={styles.previewBox}>
+        <PreviewBox>
           Next card will be prefixed:{' '}
-          <span className={styles.code}>
+          <Code>
             {projectCode.length === 3
               ? `${projectCode.toUpperCase()}-${String(nextTicketNumber).padStart(6, '0')} `
               : '???-000001 '}
-          </span>
-        </div>
+          </Code>
+        </PreviewBox>
 
-        {configError && <div className={styles.errorBanner}>{configError}</div>}
+        {configError && <ErrorBanner>{configError}</ErrorBanner>}
 
         <button className="btn-primary" onClick={handleSaveConfig} disabled={savingConfig}>
           {savingConfig ? 'Saving…' : 'Save Configuration'}
@@ -280,31 +311,29 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
       {/* ── Status card ── */}
       {config && (
         <div className="card">
-          <h2 className={styles.cardTitle}>Status</h2>
-          <div className={styles.statusRow}>
-            <span
-              className={`${styles.statusBadge} ${config.unnumberedCount === 0 ? styles.statusOk : styles.statusWarn}`}
-            >
+          <CardTitle>Status</CardTitle>
+          <StatusRow>
+            <StatusBadge $variant={config.unnumberedCount === 0 ? 'ok' : 'warn'}>
               {config.unnumberedCount === 0
                 ? '✅ All open cards are numbered'
                 : `⚠️ ${config.unnumberedCount} card${config.unnumberedCount !== 1 ? 's' : ''} need numbering`}
-            </span>
-          </div>
+            </StatusBadge>
+          </StatusRow>
         </div>
       )}
 
       {/* ── Preview + Apply card ── */}
       <div className="card">
-        <h2 className={styles.cardTitle}>Apply Numbering</h2>
+        <CardTitle>Apply Numbering</CardTitle>
 
-        {previewError && <div className={styles.errorBanner}>{previewError}</div>}
+        {previewError && <ErrorBanner>{previewError}</ErrorBanner>}
 
         {/* Progress summary while applying or after completion */}
         {cardStates && (
-          <div className={`${styles.progressSummary} ${summaryStyle}`}>
+          <ProgressSummary $variant={summaryVariant}>
             {applying ? (
               <>
-                <span className={styles.summarySpinner} />
+                <SummarySpinner />
                 Applying… {processedCount} / {totalCount} done
                 {errorCount > 0 && ` · ${errorCount} failed`}
               </>
@@ -323,125 +352,111 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
                 ⚠️ {successCount} updated, {errorCount} failed.
               </>
             )}
-          </div>
+          </ProgressSummary>
         )}
 
         {/* Empty state */}
         {preview && preview.length === 0 && !cardStates && (
-          <p className={styles.description}>No unnumbered cards found — nothing to do.</p>
+          <Description>No unnumbered cards found — nothing to do.</Description>
         )}
 
         {/* Card table — preview mode (before apply) */}
         {preview && preview.length > 0 && !cardStates && (
-          <table className={styles.table}>
+          <Table>
             <thead>
               <tr>
                 <th>List</th>
                 <th>Current Name</th>
                 <th>Proposed Name</th>
-                <th className={styles.actionsCol} />
+                <ActionsCol />
               </tr>
             </thead>
             <tbody>
               {preview.map((card) => (
                 <tr key={card.cardId}>
-                  <td className={styles.cellMuted}>{card.listName}</td>
+                  <CellMuted>{card.listName}</CellMuted>
                   <td>{card.cardName}</td>
                   <td>
-                    <span className={styles.proposedName}>{card.proposedName}</span>
+                    <ProposedName>{card.proposedName}</ProposedName>
                   </td>
                   <td>
-                    <button
-                      className={styles.removeBtn}
+                    <RemoveBtn
                       title="Remove from queue"
                       onClick={() => removeFromPreview(card.cardId)}
                     >
                       ✕ Remove
-                    </button>
+                    </RemoveBtn>
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         )}
 
         {/* Card table — apply mode (while running or after completion) */}
         {cardStates && (
-          <table className={styles.table}>
+          <Table>
             <thead>
               <tr>
-                <th className={styles.statusCol}>Status</th>
+                <StatusCol>Status</StatusCol>
                 <th>List</th>
                 <th>Current Name</th>
                 <th>Proposed Name</th>
-                <th className={styles.actionsCol} />
+                <ActionsCol />
               </tr>
             </thead>
             <tbody>
               {cardStates.map((cs) => (
                 <>
-                  <tr
-                    key={cs.card.cardId}
-                    className={`${styles.cardRow} ${styles[`row-${cs.status}`]}`}
-                  >
-                    <td className={styles.statusCell}>
-                      {cs.status === 'queued' && (
-                        <span className={styles.badgeQueued}>⏳ Queued</span>
-                      )}
+                  <CardRow key={cs.card.cardId} $status={cs.status}>
+                    <StatusCell>
+                      {cs.status === 'queued' && <BadgeQueued>⏳ Queued</BadgeQueued>}
                       {cs.status === 'in-progress' && (
-                        <span className={styles.badgeInProgress}>
-                          <span className={styles.spinner} /> Updating…
-                        </span>
+                        <BadgeInProgress>
+                          <Spinner /> Updating…
+                        </BadgeInProgress>
                       )}
-                      {cs.status === 'success' && (
-                        <span className={styles.badgeSuccess}>✅ Done</span>
-                      )}
-                      {cs.status === 'cancelled' && (
-                        <span className={styles.badgeCancelled}>🚫 Cancelled</span>
-                      )}
+                      {cs.status === 'success' && <BadgeSuccess>✅ Done</BadgeSuccess>}
+                      {cs.status === 'cancelled' && <BadgeCancelled>🚫 Cancelled</BadgeCancelled>}
                       {cs.status === 'error' && (
-                        <span className={styles.badgeError}>
+                        <BadgeError>
                           ❌ Failed
-                          <button
-                            className={styles.errorToggle}
-                            onClick={() => toggleErrorDetail(cs.card.cardId)}
-                          >
+                          <ErrorToggle onClick={() => toggleErrorDetail(cs.card.cardId)}>
                             {cs.showError ? 'Hide' : 'Details'}
-                          </button>
-                        </span>
+                          </ErrorToggle>
+                        </BadgeError>
                       )}
-                    </td>
-                    <td className={styles.cellMuted}>{cs.card.listName}</td>
+                    </StatusCell>
+                    <CellMuted>{cs.card.listName}</CellMuted>
                     <td>{cs.card.cardName}</td>
                     <td>
-                      <span className={styles.proposedName}>{cs.card.proposedName}</span>
+                      <ProposedName>{cs.card.proposedName}</ProposedName>
                     </td>
                     <td>
                       {cs.status === 'queued' && (
-                        <button
-                          className={styles.removeBtn}
+                        <RemoveBtn
                           title="Remove from queue"
                           onClick={() => removeFromQueue(cs.card.cardId)}
                         >
                           ✕ Remove
-                        </button>
+                        </RemoveBtn>
                       )}
                     </td>
-                  </tr>
+                  </CardRow>
                   {cs.status === 'error' && cs.showError && cs.error && (
-                    <tr key={`${cs.card.cardId}-err`} className={styles.errorDetailRow}>
+                    <ErrorDetailRow key={`${cs.card.cardId}-err`}>
                       <td colSpan={5}>
-                        <span className={styles.errorDetail}>{cs.error}</span>
+                        <ErrorDetail>{cs.error}</ErrorDetail>
                       </td>
-                    </tr>
+                    </ErrorDetailRow>
                   )}
                 </>
               ))}
             </tbody>
-          </table>
+          </Table>
         )}
 
-        <div className={styles.actions}>
+        <Actions>
           <button
             className="btn-secondary"
             onClick={handlePreview}
@@ -459,8 +474,8 @@ export default function TicketNumberingPage({ board }: Props): JSX.Element {
               ✕ Cancel
             </button>
           )}
-        </div>
+        </Actions>
       </div>
-    </div>
+    </Container>
   )
 }
