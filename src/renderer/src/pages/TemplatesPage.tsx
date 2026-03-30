@@ -14,7 +14,7 @@ import type {
   GenerateCardsResult
 } from '@shared/template.types'
 import { api } from '../hooks/useApi'
-import TemplateForm from './TemplateForm'
+import TemplateForm from './templates/TemplateForm'
 import styles from './TemplatesPage.module.css'
 
 interface Props {
@@ -399,7 +399,6 @@ export default function TemplatesPage(props: Props): JSX.Element {
         <TemplateForm
           initial={editingTemplate ?? undefined}
           groupId={selectedGroupId!}
-          boardId={board.boardId}
           lists={lists}
           boardLabels={boardLabels}
           epicCards={epicCards}

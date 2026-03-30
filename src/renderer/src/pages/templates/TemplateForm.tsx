@@ -2,9 +2,9 @@ import { useState } from 'react'
 import type { EpicCardOption } from '@shared/board.types'
 import type { KanbanColumn, TrelloLabel } from '@shared/trello.types'
 import type { TicketTemplate, TicketTemplateInput } from '@shared/template.types'
-import { labelColor } from '../lib/label-colors'
-import { EpicSelect } from '../components/EpicSelect'
-import styles from './TemplatesPage.module.css'
+import { labelColor } from '../../lib/label-colors'
+import { EpicSelect } from '../../components/EpicSelect'
+import styles from '../TemplatesPage.module.css'
 
 const PLACEHOLDER_HINT =
   'Supported placeholders: {{year}}, {{month}}, {{month_name}}, {{week}}, {{date}}'
@@ -12,7 +12,6 @@ const PLACEHOLDER_HINT =
 interface Props {
   initial?: TicketTemplate
   groupId: number
-  boardId: string
   lists: KanbanColumn[]
   boardLabels: TrelloLabel[]
   epicCards: EpicCardOption[]
