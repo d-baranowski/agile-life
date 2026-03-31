@@ -1,5 +1,5 @@
 import type { Middleware } from '@reduxjs/toolkit'
-import type { RootState } from '../../store/store'
+import type { GamificationStats } from '../analytics/analytics.types'
 import { fetchGamificationStats, levelUpAchieved } from './kanbanSlice'
 import { playLevelUpSound } from './confetti/sound'
 
@@ -16,7 +16,8 @@ function isCurrentWeekBeatingPrev(currentWeekPoints: number, prevWeekPoints: num
  */
 export const gamificationMiddleware: Middleware = (storeAPI) => (next) => (action) => {
   if (fetchGamificationStats.fulfilled.match(action)) {
-    const prevStats = (storeAPI.getState() as RootState).kanban.gamificationStats
+    const state = storeAPI.getState() as { kanban: { gamificationStats: GamificationStats | null } }
+    const prevStats = state.kanban.gamificationStats
     const newStats = action.payload
 
     const wasBeating = prevStats
