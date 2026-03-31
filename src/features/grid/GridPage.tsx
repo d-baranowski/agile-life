@@ -17,7 +17,7 @@ import GridToolbar from './components/GridToolbar'
 import LabelsCellRenderer from './components/cell-renderers/LabelsCellRenderer'
 import MembersCellRenderer from './components/cell-renderers/MembersCellRenderer'
 import { PageWrapper, GridWrapper } from './styled/grid-page.styled'
-import { formatAge } from '../../../lib/format-age'
+import { formatAge } from '../../lib/format-age'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
