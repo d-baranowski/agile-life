@@ -17,7 +17,7 @@ import GridToolbar from './components/GridToolbar'
 import LabelsCellRenderer from './components/cell-renderers/LabelsCellRenderer'
 import MembersCellRenderer from './components/cell-renderers/MembersCellRenderer'
 import { PageWrapper, GridWrapper } from './styled/grid-page.styled'
-import { formatAge } from '../kanban/format-age'
+import { formatAge } from '../../../lib/format-age'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -76,17 +76,6 @@ export default function GridPage(props: Props): JSX.Element {
   }, [exportToExcel, rows, board.boardName])
 
   const colDefs: ColDef<GridRow>[] = [
-    {
-      headerName: '',
-      checkboxSelection: true,
-      headerCheckboxSelection: true,
-      width: 44,
-      minWidth: 44,
-      maxWidth: 44,
-      pinned: 'left',
-      resizable: false,
-      sortable: false
-    },
     {
       field: 'name',
       headerName: 'Title',
@@ -162,7 +151,7 @@ export default function GridPage(props: Props): JSX.Element {
           theme={darkTheme}
           rowData={rows}
           columnDefs={colDefs}
-          rowSelection={{ mode: 'multiRow', checkboxes: false, headerCheckbox: false }}
+          rowSelection={{ mode: 'multiRow', checkboxes: true, headerCheckbox: true }}
           onSelectionChanged={handleSelectionChanged}
           rowHeight={40}
           getRowId={(p) => p.data.id}

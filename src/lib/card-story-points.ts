@@ -1,5 +1,5 @@
-import type { KanbanCard } from '../../trello/trello.types'
-import type { StoryPointRule } from '../../lib/board.types'
+import type { KanbanCard } from '../trello/trello.types'
+import type { StoryPointRule } from './board.types'
 
 /**
  * Returns the story-point value for a card based on its labels.

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { StoryPointRule } from '../../../lib/board.types'
 import { useFilteredColumns } from '../../kanban/hooks/useFilteredColumns'
-import { cardStoryPoints } from '../../kanban/card-story-points'
+import { cardStoryPoints } from '../../../lib/card-story-points'
 import type { GridRow } from '../grid.types'
 
 export function useGridRows(storyPointsConfig: StoryPointRule[]): GridRow[] {
