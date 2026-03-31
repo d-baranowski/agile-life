@@ -32,7 +32,6 @@ Object.defineProperty(global, 'localStorage', {
 const mockDisconnect = jest.fn()
 const mockConnect = jest.fn()
 const mockSetValueAtTime = jest.fn()
-const mockLinearRampToValueAtTime = jest.fn()
 const mockStart = jest.fn()
 const mockStop = jest.fn()
 
@@ -42,14 +41,6 @@ const mockOscillator = {
   connect: mockConnect,
   start: mockStart,
   stop: mockStop
-}
-
-const mockEnvGain = {
-  gain: {
-    setValueAtTime: mockSetValueAtTime,
-    linearRampToValueAtTime: mockLinearRampToValueAtTime
-  },
-  connect: mockConnect
 }
 
 const mockMasterGain = {
@@ -89,7 +80,7 @@ beforeEach(() => {
   localStorageMock.clear()
   // Reset AudioContext state mock
   mockAudioContext.state = 'running'
-  // Reset createGain to return mockMasterGain then mockEnvGain alternately
+  // Reset createGain and createOscillator
   mockAudioContext.createGain.mockReturnValue(mockMasterGain)
   mockAudioContext.createOscillator.mockReturnValue(mockOscillator)
 })
@@ -218,12 +209,7 @@ describe('playCoinSound', () => {
 
   it('plays sound when sound is enabled and AudioContext is available', () => {
     localStorageStore['agile-life-sound-effects-enabled'] = 'true'
-    // Make createGain return different objects for master and env gains
-    let gainCallCount = 0
-    mockAudioContext.createGain.mockImplementation(() => {
-      gainCallCount++
-      return gainCallCount === 1 ? mockMasterGain : mockEnvGain
-    })
+    mockAudioContext.createGain.mockReturnValue(mockMasterGain)
     mockAudioContext.createOscillator.mockReturnValue(mockOscillator)
     playCoinSound()
     expect(mockAudioContext.createGain).toHaveBeenCalled()

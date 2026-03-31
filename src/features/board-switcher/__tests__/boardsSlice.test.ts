@@ -426,6 +426,9 @@ describe('async thunks', () => {
           apiKey: 'k',
           apiToken: 't',
           projectCode: 'NB',
+          nextTicketNumber: 1,
+          storyPointsConfig: [],
+          myMemberId: null,
           doneListNames: ['Done']
         })
       )
@@ -447,6 +450,9 @@ describe('async thunks', () => {
           apiKey: 'k',
           apiToken: 't',
           projectCode: 'XX',
+          nextTicketNumber: 1,
+          storyPointsConfig: [],
+          myMemberId: null,
           doneListNames: ['Done']
         })
       )

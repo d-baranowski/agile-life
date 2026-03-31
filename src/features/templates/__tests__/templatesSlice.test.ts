@@ -363,7 +363,7 @@ describe('templatesSlice', () => {
       })
 
       it('fulfilled sets result', () => {
-        const result = { created: 5, errors: [] }
+        const result = { created: 5, failed: 0, errors: [] }
         const state = reducer(initialState(), {
           type: 'templates/generateCards/fulfilled',
           payload: result
@@ -610,6 +610,7 @@ describe('async thunks', () => {
             titleTemplate: '',
             descTemplate: '',
             listId: 'l1',
+            listName: 'Backlog',
             labelIds: [],
             epicCardId: null,
             position: 0,
@@ -636,6 +637,7 @@ describe('async thunks', () => {
             titleTemplate: '',
             descTemplate: '',
             listId: 'l1',
+            listName: 'Backlog',
             labelIds: [],
             epicCardId: null,
             position: 0,
@@ -665,6 +667,7 @@ describe('async thunks', () => {
             titleTemplate: '',
             descTemplate: '',
             listId: 'l1',
+            listName: 'Backlog',
             labelIds: [],
             epicCardId: null,
             position: 0,
@@ -691,6 +694,7 @@ describe('async thunks', () => {
             titleTemplate: '',
             descTemplate: '',
             listId: 'l1',
+            listName: 'Backlog',
             labelIds: [],
             epicCardId: null,
             position: 0,
@@ -708,11 +712,15 @@ describe('async thunks', () => {
     it('sets generateResult on success', async () => {
       ;(api.templates.generateCards as jest.Mock).mockResolvedValueOnce({
         success: true,
-        data: { created: 5, errors: [] }
+        data: { created: 5, failed: 0, errors: [] }
       })
       const store = makeStore()
       await store.dispatch(generateCards({ boardId: 'b1', groupId: 10 }))
-      expect(store.getState().templates.generateResult).toEqual({ created: 5, errors: [] })
+      expect(store.getState().templates.generateResult).toEqual({
+        created: 5,
+        failed: 0,
+        errors: []
+      })
     })
 
     it('rejects when generateCards fails', async () => {

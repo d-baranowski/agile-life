@@ -1289,7 +1289,7 @@ describe('async thunks', () => {
 
   describe('generateCardsFromTemplate', () => {
     it('fulfilled sets genResult', async () => {
-      const genResult: GenerateCardsResult = { created: 3, errors: [] }
+      const genResult: GenerateCardsResult = { created: 3, failed: 0, errors: [] }
       ;(api.templates.generateCards as jest.Mock).mockResolvedValueOnce({
         success: true,
         data: genResult
