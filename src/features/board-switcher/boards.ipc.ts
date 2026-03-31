@@ -193,6 +193,28 @@ export function registerBoardHandlers(): void {
     }
   )
 
+  ipcMain.handle(
+    IPC_CHANNELS.BOARDS_CREATE_TRELLO_BOARD,
+    async (
+      _e,
+      apiKey: string,
+      apiToken: string,
+      name: string,
+      desc?: string
+    ): Promise<IpcResult<TrelloBoard>> => {
+      try {
+        log.info(`[boards] createTrelloBoard: name="${name}"`)
+        const client = new TrelloClient(apiKey, apiToken)
+        const board = await client.createBoard(name, desc)
+        log.info(`[boards] createTrelloBoard: created board id=${board.id}`)
+        return { success: true, data: board }
+      } catch (err) {
+        log.error('[boards] createTrelloBoard failed:', err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
   // ── Full board sync ─────────────────────────────────────────────────────────
   //
   // Flow:

@@ -216,6 +216,19 @@ export class TrelloClient {
     await this.http.delete(`/cards/${cardId}/idLabels/${labelId}`)
   }
 
+  // ─── Board Mutation ──────────────────────────────────────────────────────────
+
+  /**
+   * Creates a new Trello board with the given name.
+   * By default Trello adds "To Do", "Doing", and "Done" lists automatically.
+   */
+  async createBoard(name: string, desc?: string): Promise<TrelloBoard> {
+    const body: Record<string, unknown> = { name, defaultLists: true }
+    if (desc) body.desc = desc
+    const { data } = await this.http.post<TrelloBoard>('/boards', body)
+    return data
+  }
+
   // ─── List Mutation ───────────────────────────────────────────────────────────
 
   /**

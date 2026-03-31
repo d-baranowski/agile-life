@@ -7,11 +7,31 @@
  */
 jest.mock('../../api/useApi', () => ({
   api: {
-    boards: { setLastSelected: jest.fn() }
+    boards: {
+      setLastSelected: jest.fn(),
+      getAll: jest.fn(),
+      getLastSelected: jest.fn(),
+      add: jest.fn(),
+      delete: jest.fn(),
+      update: jest.fn(),
+      setEpicBoard: jest.fn(),
+      setMyMember: jest.fn()
+    },
+    trello: {
+      sync: jest.fn()
+    }
   }
 }))
 
+import { configureStore } from '@reduxjs/toolkit'
 import reducer, {
+  fetchBoards,
+  syncBoard,
+  addBoard,
+  deleteBoard,
+  updateBoard,
+  setEpicBoard,
+  setMyMember,
   boardSelected,
   syncErrorDismissed,
   selectBoards,
@@ -330,6 +350,230 @@ describe('boardsSlice', () => {
 
     it('selectSyncError returns syncError', () => {
       expect(selectSyncError(makeRoot({ syncError: 'oops' }))).toBe('oops')
+    })
+  })
+})
+
+// ── Thunk dispatch tests ───────────────────────────────────────────────────────
+
+const makeStore = () => configureStore({ reducer: { boards: reducer } })
+
+describe('async thunks', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  describe('fetchBoards', () => {
+    it('sets items and selects first board when both calls succeed', async () => {
+      const board = makeBoardConfig({ boardId: 'b1' })
+      ;(api.boards.getAll as jest.Mock).mockResolvedValueOnce({ success: true, data: [board] })
+      ;(api.boards.getLastSelected as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: null
+      })
+      const store = makeStore()
+      await store.dispatch(fetchBoards())
+      const state = store.getState().boards
+      expect(state.items).toHaveLength(1)
+      expect(state.selectedBoardId).toBe('b1')
+      expect(state.loading).toBe(false)
+    })
+
+    it('uses empty arrays when getAll fails', async () => {
+      ;(api.boards.getAll as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.boards.getLastSelected as jest.Mock).mockResolvedValueOnce({ success: false })
+      const store = makeStore()
+      await store.dispatch(fetchBoards())
+      expect(store.getState().boards.items).toEqual([])
+    })
+  })
+
+  describe('syncBoard', () => {
+    it('increments syncVersion on success', async () => {
+      ;(api.trello.sync as jest.Mock).mockResolvedValueOnce({ success: true, data: {} })
+      ;(api.boards.getAll as jest.Mock).mockResolvedValueOnce({ success: true, data: [] })
+      ;(api.boards.getLastSelected as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: null
+      })
+      const store = makeStore()
+      await store.dispatch(syncBoard('board-1'))
+      expect(store.getState().boards.syncVersion).toBe(1)
+    })
+
+    it('rejects when sync fails', async () => {
+      ;(api.trello.sync as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Sync failed. Please try again.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(syncBoard('board-1'))
+      expect(result.type).toBe('boards/syncBoard/rejected')
+      expect(store.getState().boards.syncError).toBe('Sync failed. Please try again.')
+    })
+  })
+
+  describe('addBoard', () => {
+    it('adds board and selects it on success', async () => {
+      const newBoard = makeBoardConfig({ boardId: 'new-board' })
+      ;(api.boards.add as jest.Mock).mockResolvedValueOnce({ success: true, data: newBoard })
+      ;(api.boards.setLastSelected as jest.Mock).mockResolvedValueOnce({ success: true })
+      const store = makeStore()
+      await store.dispatch(
+        addBoard({
+          boardId: 'new-board',
+          boardName: 'New',
+          apiKey: 'k',
+          apiToken: 't',
+          projectCode: 'NB',
+          nextTicketNumber: 1,
+          storyPointsConfig: [],
+          myMemberId: null,
+          doneListNames: ['Done']
+        })
+      )
+      const state = store.getState().boards
+      expect(state.items).toHaveLength(1)
+      expect(state.selectedBoardId).toBe('new-board')
+    })
+
+    it('rejects when add fails', async () => {
+      ;(api.boards.add as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to add board.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(
+        addBoard({
+          boardId: 'x',
+          boardName: 'X',
+          apiKey: 'k',
+          apiToken: 't',
+          projectCode: 'XX',
+          nextTicketNumber: 1,
+          storyPointsConfig: [],
+          myMemberId: null,
+          doneListNames: ['Done']
+        })
+      )
+      expect(result.type).toBe('boards/addBoard/rejected')
+    })
+  })
+
+  describe('deleteBoard', () => {
+    it('removes board on success', async () => {
+      ;(api.boards.delete as jest.Mock).mockResolvedValueOnce({ success: true })
+      const store = configureStore({
+        reducer: { boards: reducer },
+        preloadedState: {
+          boards: {
+            ...initialState(),
+            items: [makeBoardConfig({ boardId: 'b1' })],
+            selectedBoardId: 'b1'
+          }
+        }
+      })
+      await store.dispatch(deleteBoard('b1'))
+      expect(store.getState().boards.items).toHaveLength(0)
+    })
+
+    it('rejects when delete fails', async () => {
+      ;(api.boards.delete as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to delete board.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(deleteBoard('b1'))
+      expect(result.type).toBe('boards/deleteBoard/rejected')
+    })
+  })
+
+  describe('updateBoard', () => {
+    it('replaces board on success', async () => {
+      const updated = makeBoardConfig({ boardId: 'b1', boardName: 'Updated' })
+      ;(api.boards.update as jest.Mock).mockResolvedValueOnce({ success: true, data: updated })
+      const store = configureStore({
+        reducer: { boards: reducer },
+        preloadedState: {
+          boards: {
+            ...initialState(),
+            items: [makeBoardConfig({ boardId: 'b1', boardName: 'Original' })]
+          }
+        }
+      })
+      await store.dispatch(updateBoard({ boardId: 'b1', updates: { boardName: 'Updated' } }))
+      expect(store.getState().boards.items[0].boardName).toBe('Updated')
+    })
+
+    it('rejects when update fails', async () => {
+      ;(api.boards.update as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to save settings.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(
+        updateBoard({ boardId: 'b1', updates: { boardName: 'X' } })
+      )
+      expect(result.type).toBe('boards/updateBoard/rejected')
+    })
+  })
+
+  describe('setEpicBoard', () => {
+    it('updates board with epicBoardId on success', async () => {
+      const updated = makeBoardConfig({ boardId: 'b1', epicBoardId: 'epic-1' })
+      ;(api.boards.setEpicBoard as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: updated
+      })
+      const store = configureStore({
+        reducer: { boards: reducer },
+        preloadedState: {
+          boards: {
+            ...initialState(),
+            items: [makeBoardConfig({ boardId: 'b1', epicBoardId: null })]
+          }
+        }
+      })
+      await store.dispatch(setEpicBoard({ storyBoardId: 'b1', epicBoardId: 'epic-1' }))
+      expect(store.getState().boards.items[0].epicBoardId).toBe('epic-1')
+    })
+
+    it('rejects when setEpicBoard fails', async () => {
+      ;(api.boards.setEpicBoard as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to update epic board.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(setEpicBoard({ storyBoardId: 'b1', epicBoardId: null }))
+      expect(result.type).toBe('boards/setEpicBoard/rejected')
+    })
+  })
+
+  describe('setMyMember', () => {
+    it('updates board with myMemberId on success', async () => {
+      const updated = makeBoardConfig({ boardId: 'b1', myMemberId: 'member-1' })
+      ;(api.boards.setMyMember as jest.Mock).mockResolvedValueOnce({ success: true, data: updated })
+      const store = configureStore({
+        reducer: { boards: reducer },
+        preloadedState: {
+          boards: {
+            ...initialState(),
+            items: [makeBoardConfig({ boardId: 'b1', myMemberId: null })]
+          }
+        }
+      })
+      await store.dispatch(setMyMember({ boardId: 'b1', myMemberId: 'member-1' }))
+      expect(store.getState().boards.items[0].myMemberId).toBe('member-1')
+    })
+
+    it('rejects when setMyMember fails', async () => {
+      ;(api.boards.setMyMember as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to update identity.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(setMyMember({ boardId: 'b1', myMemberId: null }))
+      expect(result.type).toBe('boards/setMyMember/rejected')
     })
   })
 })

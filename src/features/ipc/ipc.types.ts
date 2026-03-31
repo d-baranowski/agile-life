@@ -6,6 +6,7 @@ export const IPC_CHANNELS = {
   BOARDS_DELETE: 'boards:delete',
   BOARDS_FETCH_FROM_TRELLO: 'boards:fetchFromTrello',
   BOARDS_GET_SAVED_CREDENTIALS: 'boards:getSavedCredentials',
+  BOARDS_CREATE_TRELLO_BOARD: 'boards:createTrelloBoard',
 
   // Trello data
   TRELLO_GET_LISTS: 'trello:getLists',
