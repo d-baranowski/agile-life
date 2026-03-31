@@ -1,4 +1,19 @@
+jest.mock('../../api/useApi', () => ({
+  api: {
+    analytics: {
+      columnCounts: jest.fn(),
+      weeklyUserStats: jest.fn(),
+      labelUserStats: jest.fn(),
+      weeklyHistory: jest.fn(),
+      storyPoints7d: jest.fn(),
+      epicWeeklyHistory: jest.fn()
+    }
+  }
+}))
+
+import { configureStore } from '@reduxjs/toolkit'
 import reducer, {
+  fetchDashboardData,
   historyOffsetChanged,
   epicHistoryOffsetChanged,
   selectTotalCards,
@@ -7,6 +22,7 @@ import reducer, {
   selectHistoryChart,
   selectEpicChart
 } from '../dashboardSlice'
+import { api } from '../../api/useApi'
 
 const initialState = () => reducer(undefined, { type: '@@INIT' })
 
@@ -274,6 +290,96 @@ describe('dashboardSlice', () => {
         expect(result.maxOffset).toBe(1)
         expect(result.chartData.labels).toHaveLength(7)
       })
+    })
+  })
+})
+
+// ── Thunk dispatch tests ───────────────────────────────────────────────────────
+
+const makeStore = () => configureStore({ reducer: { dashboard: reducer } })
+
+describe('async thunks', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  describe('fetchDashboardData', () => {
+    it('sets all stats on success', async () => {
+      ;(api.analytics.columnCounts as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [{ listName: 'To Do', count: 3 }]
+      })
+      ;(api.analytics.weeklyUserStats as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      ;(api.analytics.labelUserStats as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      ;(api.analytics.weeklyHistory as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      ;(api.analytics.storyPoints7d as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      ;(api.analytics.epicWeeklyHistory as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      const store = makeStore()
+      await store.dispatch(fetchDashboardData({ boardId: 'b1', storyPointsConfig: [] }))
+      const state = store.getState().dashboard
+      expect(state.columns).toHaveLength(1)
+      expect(state.loading).toBe(false)
+      expect(state.error).toBeNull()
+    })
+
+    it('sets error when columnCounts fails', async () => {
+      ;(api.analytics.columnCounts as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to load column counts.'
+      })
+      ;(api.analytics.weeklyUserStats as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      ;(api.analytics.labelUserStats as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      ;(api.analytics.weeklyHistory as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      ;(api.analytics.storyPoints7d as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      ;(api.analytics.epicWeeklyHistory as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      const store = makeStore()
+      await store.dispatch(fetchDashboardData({ boardId: 'b1', storyPointsConfig: [] }))
+      const state = store.getState().dashboard
+      expect(state.error).toBe('Failed to load column counts.')
+    })
+
+    it('falls back to empty arrays when API calls return no data', async () => {
+      ;(api.analytics.columnCounts as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.analytics.weeklyUserStats as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.analytics.labelUserStats as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.analytics.weeklyHistory as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.analytics.storyPoints7d as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.analytics.epicWeeklyHistory as jest.Mock).mockResolvedValueOnce({ success: false })
+      const store = makeStore()
+      await store.dispatch(fetchDashboardData({ boardId: 'b1', storyPointsConfig: [] }))
+      const state = store.getState().dashboard
+      expect(state.columns).toEqual([])
+      expect(state.weeklyStats).toEqual([])
     })
   })
 })

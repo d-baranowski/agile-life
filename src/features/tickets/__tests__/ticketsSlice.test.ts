@@ -1,4 +1,18 @@
+jest.mock('../../api/useApi', () => ({
+  api: {
+    tickets: {
+      getConfig: jest.fn(),
+      updateConfig: jest.fn(),
+      previewUnnumbered: jest.fn()
+    }
+  }
+}))
+
+import { configureStore } from '@reduxjs/toolkit'
 import reducer, {
+  fetchTicketConfig,
+  saveTicketConfig,
+  previewUnnumbered,
   ticketsPageReset,
   projectCodeChanged,
   nextTicketNumberChanged,
@@ -11,6 +25,7 @@ import reducer, {
   applyFinished,
   errorDetailToggled
 } from '../ticketsSlice'
+import { api } from '../../api/useApi'
 
 const initialState = () => reducer(undefined, { type: '@@INIT' })
 
@@ -276,6 +291,122 @@ describe('ticketsSlice', () => {
         expect(state.previewError).toBe('Preview failed')
         expect(state.preview).toBeNull()
       })
+    })
+  })
+})
+
+// ── Thunk dispatch tests ───────────────────────────────────────────────────────
+
+const makeStore = () => configureStore({ reducer: { tickets: reducer } })
+
+const mockUnnumberedCard = {
+  cardId: 'c1',
+  cardName: 'Fix bug',
+  listName: 'To Do',
+  proposedName: 'PRJ-000042 Fix bug'
+}
+
+describe('async thunks', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  describe('fetchTicketConfig', () => {
+    it('sets config on success', async () => {
+      ;(api.tickets.getConfig as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: mockConfig
+      })
+      const store = makeStore()
+      await store.dispatch(fetchTicketConfig('board-1'))
+      const state = store.getState().tickets
+      expect(state.config).toEqual(mockConfig)
+      expect(state.projectCode).toBe('PRJ')
+      expect(state.nextTicketNumber).toBe(42)
+    })
+
+    it('rejects when getConfig fails', async () => {
+      ;(api.tickets.getConfig as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to load configuration.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(fetchTicketConfig('board-1'))
+      expect(result.type).toBe('tickets/fetchConfig/rejected')
+      expect(store.getState().tickets.configError).toBe('Failed to load configuration.')
+    })
+  })
+
+  describe('saveTicketConfig', () => {
+    it('saves and re-fetches config on success', async () => {
+      ;(api.tickets.updateConfig as jest.Mock).mockResolvedValueOnce({ success: true })
+      ;(api.tickets.getConfig as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: { ...mockConfig, projectCode: 'NEW' }
+      })
+      const store = makeStore()
+      await store.dispatch(
+        saveTicketConfig({ boardId: 'b1', projectCode: 'NEW', nextTicketNumber: 1 })
+      )
+      expect(store.getState().tickets.config?.projectCode).toBe('NEW')
+    })
+
+    it('rejects when updateConfig fails', async () => {
+      ;(api.tickets.updateConfig as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to save configuration.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(
+        saveTicketConfig({ boardId: 'b1', projectCode: 'PRJ', nextTicketNumber: 1 })
+      )
+      expect(result.type).toBe('tickets/saveConfig/rejected')
+    })
+
+    it('rejects when re-fetch after save fails', async () => {
+      ;(api.tickets.updateConfig as jest.Mock).mockResolvedValueOnce({ success: true })
+      ;(api.tickets.getConfig as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to reload configuration.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(
+        saveTicketConfig({ boardId: 'b1', projectCode: 'PRJ', nextTicketNumber: 1 })
+      )
+      expect(result.type).toBe('tickets/saveConfig/rejected')
+    })
+  })
+
+  describe('previewUnnumbered', () => {
+    it('sets preview cards on success', async () => {
+      ;(api.tickets.previewUnnumbered as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [mockUnnumberedCard]
+      })
+      const store = makeStore()
+      await store.dispatch(previewUnnumbered('board-1'))
+      const state = store.getState().tickets
+      expect(state.preview).toHaveLength(1)
+    })
+
+    it('falls back to empty array when no data is returned', async () => {
+      ;(api.tickets.previewUnnumbered as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: null
+      })
+      const store = makeStore()
+      await store.dispatch(previewUnnumbered('board-1'))
+      expect(store.getState().tickets.preview).toEqual([])
+    })
+
+    it('rejects when previewUnnumbered fails', async () => {
+      ;(api.tickets.previewUnnumbered as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to load preview.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(previewUnnumbered('board-1'))
+      expect(result.type).toBe('tickets/previewUnnumbered/rejected')
     })
   })
 })

@@ -20,7 +20,15 @@ jest.mock('../../api/useApi', () => ({
   }
 }))
 
+import { configureStore } from '@reduxjs/toolkit'
 import reducer, {
+  fetchBoardData,
+  fetchEpicCards,
+  fetchEpicStories,
+  fetchGamificationStats,
+  fetchGenerateTemplateGroups,
+  fetchGenerateTemplates,
+  generateCardsFromTemplate,
   columnsUpdated,
   cardRemovedFromColumn,
   cardsAddedToColumn,
@@ -81,6 +89,7 @@ import type {
   TrelloLabel,
   TrelloMember
 } from '../../../trello/trello.types'
+import { api } from '../../api/useApi'
 import type { ContextMenuState } from '../kanban.types'
 import type { EpicCardOption, EpicStory } from '../../../lib/board.types'
 import type { GamificationStats } from '../../analytics/analytics.types'
@@ -1103,6 +1112,201 @@ describe('kanbanSlice', () => {
         { listId: 'l-1', listName: 'Epics' },
         { listId: 'l-2', listName: 'Roadmap' }
       ])
+    })
+  })
+})
+
+// ── Thunk dispatch tests ───────────────────────────────────────────────────────
+
+const makeStore = () => configureStore({ reducer: { kanban: reducer } })
+
+describe('async thunks', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  describe('fetchBoardData', () => {
+    it('fulfilled sets columns, members, labels when all calls succeed', async () => {
+      const column = makeColumn({ id: 'c1' })
+      const member = makeMember({ id: 'm1' })
+      ;(api.trello.getBoardData as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [column]
+      })
+      ;(api.trello.getBoardMembers as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [member]
+      })
+      ;(api.trello.getBoardLabels as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      const store = makeStore()
+      await store.dispatch(fetchBoardData('board-1'))
+      const state = store.getState().kanban
+      expect(state.columns).toHaveLength(1)
+      expect(state.boardMembers).toHaveLength(1)
+      expect(state.loading).toBe(false)
+    })
+
+    it('stores error message when getBoardData fails', async () => {
+      ;(api.trello.getBoardData as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Network error'
+      })
+      ;(api.trello.getBoardMembers as jest.Mock).mockResolvedValueOnce({ success: true, data: [] })
+      ;(api.trello.getBoardLabels as jest.Mock).mockResolvedValueOnce({ success: true, data: [] })
+      const store = makeStore()
+      await store.dispatch(fetchBoardData('board-1'))
+      const state = store.getState().kanban
+      expect(state.error).toBe('Network error')
+    })
+
+    it('falls back to empty arrays when API calls return no data', async () => {
+      ;(api.trello.getBoardData as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.trello.getBoardMembers as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.trello.getBoardLabels as jest.Mock).mockResolvedValueOnce({ success: false })
+      const store = makeStore()
+      await store.dispatch(fetchBoardData('board-1'))
+      const state = store.getState().kanban
+      expect(state.columns).toEqual([])
+      expect(state.boardMembers).toEqual([])
+      expect(state.boardLabels).toEqual([])
+    })
+  })
+
+  describe('fetchEpicCards', () => {
+    it('fulfilled sets epicCardOptions', async () => {
+      const epicOption: EpicCardOption = {
+        id: 'e1',
+        name: 'Epic 1',
+        listId: 'l1',
+        listName: 'Epics'
+      }
+      ;(api.epics.getCards as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [epicOption]
+      })
+      const store = makeStore()
+      await store.dispatch(fetchEpicCards('board-1'))
+      expect(store.getState().kanban.epicCardOptions).toHaveLength(1)
+    })
+
+    it('falls back to empty array when getCards fails', async () => {
+      ;(api.epics.getCards as jest.Mock).mockResolvedValueOnce({ success: false })
+      const store = makeStore()
+      await store.dispatch(fetchEpicCards('board-1'))
+      expect(store.getState().kanban.epicCardOptions).toEqual([])
+    })
+  })
+
+  describe('fetchEpicStories', () => {
+    it('fulfilled sets epicStories', async () => {
+      const story: EpicStory = makeEpicStory({ id: 's-1' })
+      ;(api.epics.getStories as jest.Mock).mockResolvedValueOnce({ success: true, data: [story] })
+      const store = makeStore()
+      await store.dispatch(fetchEpicStories('epic-card-1'))
+      expect(store.getState().kanban.epicStories).toHaveLength(1)
+    })
+
+    it('falls back to empty array when getStories fails', async () => {
+      ;(api.epics.getStories as jest.Mock).mockResolvedValueOnce({ success: false })
+      const store = makeStore()
+      await store.dispatch(fetchEpicStories('epic-card-1'))
+      expect(store.getState().kanban.epicStories).toEqual([])
+    })
+  })
+
+  describe('fetchGamificationStats', () => {
+    it('fulfilled sets gamificationStats', async () => {
+      const stats: GamificationStats = makeGamificationStats()
+      ;(api.analytics.gamificationStats as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: stats
+      })
+      const store = makeStore()
+      await store.dispatch(
+        fetchGamificationStats({ boardId: 'b1', myMemberId: 'm1', storyPointsConfig: [] })
+      )
+      expect(store.getState().kanban.gamificationStats).toEqual(stats)
+    })
+
+    it('sets gamificationStats to null when call fails', async () => {
+      ;(api.analytics.gamificationStats as jest.Mock).mockResolvedValueOnce({ success: false })
+      const store = makeStore()
+      await store.dispatch(
+        fetchGamificationStats({ boardId: 'b1', myMemberId: 'm1', storyPointsConfig: [] })
+      )
+      expect(store.getState().kanban.gamificationStats).toBeNull()
+    })
+  })
+
+  describe('fetchGenerateTemplateGroups', () => {
+    it('fulfilled sets genGroups', async () => {
+      const group = makeTemplateGroup()
+      ;(api.templates.getGroups as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [group]
+      })
+      const store = makeStore()
+      await store.dispatch(fetchGenerateTemplateGroups('board-1'))
+      expect(store.getState().kanban.genGroups).toHaveLength(1)
+    })
+
+    it('rejected when getGroups fails', async () => {
+      ;(api.templates.getGroups as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Groups error'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(fetchGenerateTemplateGroups('board-1'))
+      expect(result.type).toBe('kanban/fetchGenerateTemplateGroups/rejected')
+    })
+  })
+
+  describe('fetchGenerateTemplates', () => {
+    it('fulfilled sets genTemplates for the group', async () => {
+      const template = makeTicketTemplate()
+      ;(api.templates.getTemplates as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [template]
+      })
+      const store = makeStore()
+      await store.dispatch(fetchGenerateTemplates({ boardId: 'b1', groupId: 1 }))
+      expect(store.getState().kanban.genTemplates).toHaveLength(1)
+    })
+
+    it('rejected when getTemplates fails', async () => {
+      ;(api.templates.getTemplates as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Templates error'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(fetchGenerateTemplates({ boardId: 'b1', groupId: 1 }))
+      expect(result.type).toBe('kanban/fetchGenerateTemplates/rejected')
+    })
+  })
+
+  describe('generateCardsFromTemplate', () => {
+    it('fulfilled sets genResult', async () => {
+      const genResult: GenerateCardsResult = { created: 3, errors: [] }
+      ;(api.templates.generateCards as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: genResult
+      })
+      const store = makeStore()
+      await store.dispatch(generateCardsFromTemplate({ boardId: 'b1', groupId: 1 }))
+      expect(store.getState().kanban.genResult).toEqual(genResult)
+    })
+
+    it('rejected when generateCards fails', async () => {
+      ;(api.templates.generateCards as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Generate failed.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(generateCardsFromTemplate({ boardId: 'b1', groupId: 1 }))
+      expect(result.type).toBe('kanban/generateCardsFromTemplate/rejected')
     })
   })
 })

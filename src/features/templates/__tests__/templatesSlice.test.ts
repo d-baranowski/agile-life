@@ -1,8 +1,36 @@
 jest.mock('../../api/useApi', () => ({
-  api: {}
+  api: {
+    templates: {
+      getGroups: jest.fn(),
+      getTemplates: jest.fn(),
+      createGroup: jest.fn(),
+      updateGroup: jest.fn(),
+      deleteGroup: jest.fn(),
+      deleteTemplate: jest.fn(),
+      updateTemplate: jest.fn(),
+      createTemplate: jest.fn(),
+      generateCards: jest.fn(),
+      getBoardLabels: jest.fn()
+    },
+    trello: {
+      getBoardData: jest.fn()
+    },
+    epics: {
+      getCards: jest.fn()
+    }
+  }
 }))
 
+import { configureStore } from '@reduxjs/toolkit'
 import reducer, {
+  fetchTemplatePageData,
+  fetchTemplates,
+  createTemplateGroup,
+  renameTemplateGroup,
+  deleteTemplateGroup,
+  deleteTemplate,
+  saveTemplate,
+  generateCards,
   templatesPageReset,
   groupSelected,
   groupEditStarted,
@@ -20,6 +48,7 @@ import reducer, {
   formLabelToggled,
   formEpicCardIdChanged
 } from '../templatesSlice'
+import { api } from '../../api/useApi'
 
 const initialState = () => reducer(undefined, { type: '@@INIT' })
 
@@ -376,6 +405,324 @@ describe('templatesSlice', () => {
         expect(state.formSaving).toBe(false)
         expect(state.formError).toBe('Save failed.')
       })
+    })
+  })
+})
+
+// ── Thunk dispatch tests ───────────────────────────────────────────────────────
+
+const makeStore = () => configureStore({ reducer: { templates: reducer } })
+
+describe('async thunks', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  describe('fetchTemplatePageData', () => {
+    it('sets groups, lists, boardLabels, epicCards on success', async () => {
+      ;(api.templates.getGroups as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [mockGroup]
+      })
+      ;(api.trello.getBoardData as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [{ id: 'l1', name: 'Backlog', cards: [] }]
+      })
+      ;(api.templates.getBoardLabels as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [{ id: 'lab-1', name: 'Bug', color: 'red', idBoard: 'b1' }]
+      })
+      const store = makeStore()
+      await store.dispatch(fetchTemplatePageData({ boardId: 'b1', epicBoardId: null }))
+      const state = store.getState().templates
+      expect(state.groups).toHaveLength(1)
+      expect(state.lists).toHaveLength(1)
+      expect(state.boardLabels).toHaveLength(1)
+      expect(state.epicCards).toEqual([])
+    })
+
+    it('fetches epicCards when epicBoardId is provided', async () => {
+      ;(api.templates.getGroups as jest.Mock).mockResolvedValueOnce({ success: true, data: [] })
+      ;(api.trello.getBoardData as jest.Mock).mockResolvedValueOnce({ success: true, data: [] })
+      ;(api.templates.getBoardLabels as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: []
+      })
+      ;(api.epics.getCards as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [{ id: 'e1', name: 'Epic', listId: 'l1', listName: 'Epics' }]
+      })
+      const store = makeStore()
+      await store.dispatch(fetchTemplatePageData({ boardId: 'b1', epicBoardId: 'epic-board' }))
+      expect(store.getState().templates.epicCards).toHaveLength(1)
+    })
+
+    it('uses empty arrays when API calls fail', async () => {
+      ;(api.templates.getGroups as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.trello.getBoardData as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.templates.getBoardLabels as jest.Mock).mockResolvedValueOnce({ success: false })
+      const store = makeStore()
+      await store.dispatch(fetchTemplatePageData({ boardId: 'b1', epicBoardId: null }))
+      const state = store.getState().templates
+      expect(state.groups).toEqual([])
+      expect(state.lists).toEqual([])
+    })
+  })
+
+  describe('fetchTemplates', () => {
+    it('sets templates on success', async () => {
+      ;(api.templates.getTemplates as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [mockTemplate]
+      })
+      const store = makeStore()
+      await store.dispatch(fetchTemplates({ boardId: 'b1', groupId: 10 }))
+      expect(store.getState().templates.templates).toHaveLength(1)
+    })
+
+    it('rejects when getTemplates fails', async () => {
+      ;(api.templates.getTemplates as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to load templates.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(fetchTemplates({ boardId: 'b1', groupId: 10 }))
+      expect(result.type).toBe('templates/fetchTemplates/rejected')
+    })
+  })
+
+  describe('createTemplateGroup', () => {
+    it('adds group on success', async () => {
+      ;(api.templates.createGroup as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: mockGroup
+      })
+      const store = makeStore()
+      await store.dispatch(createTemplateGroup({ boardId: 'b1', name: 'Sprint Group' }))
+      expect(store.getState().templates.groups).toHaveLength(1)
+      expect(store.getState().templates.selectedGroupId).toBe(10)
+    })
+
+    it('rejects when createGroup fails', async () => {
+      ;(api.templates.createGroup as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to create group.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(
+        createTemplateGroup({ boardId: 'b1', name: 'Sprint Group' })
+      )
+      expect(result.type).toBe('templates/createGroup/rejected')
+    })
+  })
+
+  describe('renameTemplateGroup', () => {
+    it('renames group on success', async () => {
+      ;(api.templates.updateGroup as jest.Mock).mockResolvedValueOnce({ success: true })
+      const store = configureStore({
+        reducer: { templates: reducer },
+        preloadedState: {
+          templates: {
+            ...initialState(),
+            groups: [{ ...mockGroup }]
+          }
+        }
+      })
+      await store.dispatch(renameTemplateGroup({ boardId: 'b1', groupId: 10, name: 'Renamed' }))
+      expect(store.getState().templates.groups[0].name).toBe('Renamed')
+    })
+
+    it('rejects when updateGroup fails', async () => {
+      ;(api.templates.updateGroup as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to rename group.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(
+        renameTemplateGroup({ boardId: 'b1', groupId: 10, name: 'Renamed' })
+      )
+      expect(result.type).toBe('templates/renameGroup/rejected')
+    })
+  })
+
+  describe('deleteTemplateGroup', () => {
+    it('removes group on success', async () => {
+      ;(api.templates.deleteGroup as jest.Mock).mockResolvedValueOnce({ success: true })
+      const store = configureStore({
+        reducer: { templates: reducer },
+        preloadedState: { templates: { ...initialState(), groups: [{ ...mockGroup }] } }
+      })
+      await store.dispatch(deleteTemplateGroup({ boardId: 'b1', groupId: 10 }))
+      expect(store.getState().templates.groups).toHaveLength(0)
+    })
+
+    it('rejects when deleteGroup fails', async () => {
+      ;(api.templates.deleteGroup as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to delete group.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(deleteTemplateGroup({ boardId: 'b1', groupId: 10 }))
+      expect(result.type).toBe('templates/deleteGroup/rejected')
+    })
+  })
+
+  describe('deleteTemplate', () => {
+    it('removes template on success', async () => {
+      ;(api.templates.deleteTemplate as jest.Mock).mockResolvedValueOnce({ success: true })
+      const store = configureStore({
+        reducer: { templates: reducer },
+        preloadedState: {
+          templates: { ...initialState(), templates: [mockTemplate, { ...mockTemplate, id: 2 }] }
+        }
+      })
+      await store.dispatch(deleteTemplate({ boardId: 'b1', templateId: 1 }))
+      expect(store.getState().templates.templates).toHaveLength(1)
+    })
+
+    it('rejects when deleteTemplate fails', async () => {
+      ;(api.templates.deleteTemplate as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to delete template.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(deleteTemplate({ boardId: 'b1', templateId: 1 }))
+      expect(result.type).toBe('templates/deleteTemplate/rejected')
+    })
+  })
+
+  describe('saveTemplate (create)', () => {
+    it('creates template and re-fetches on success', async () => {
+      ;(api.templates.createTemplate as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: mockTemplate
+      })
+      ;(api.templates.getTemplates as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [mockTemplate]
+      })
+      const store = makeStore()
+      await store.dispatch(
+        saveTemplate({
+          boardId: 'b1',
+          input: {
+            name: 'T',
+            titleTemplate: '',
+            descTemplate: '',
+            listId: 'l1',
+            labelIds: [],
+            epicCardId: null,
+            position: 0,
+            groupId: 10
+          },
+          existingId: null,
+          groupId: 10
+        })
+      )
+      expect(store.getState().templates.showTemplateForm).toBe(false)
+    })
+
+    it('rejects when createTemplate fails', async () => {
+      ;(api.templates.createTemplate as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to create template.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(
+        saveTemplate({
+          boardId: 'b1',
+          input: {
+            name: 'T',
+            titleTemplate: '',
+            descTemplate: '',
+            listId: 'l1',
+            labelIds: [],
+            epicCardId: null,
+            position: 0,
+            groupId: 10
+          },
+          existingId: null,
+          groupId: 10
+        })
+      )
+      expect(result.type).toBe('templates/saveTemplate/rejected')
+    })
+  })
+
+  describe('saveTemplate (update)', () => {
+    it('updates template and re-fetches on success', async () => {
+      ;(api.templates.updateTemplate as jest.Mock).mockResolvedValueOnce({ success: true })
+      ;(api.templates.getTemplates as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [mockTemplate]
+      })
+      const store = makeStore()
+      await store.dispatch(
+        saveTemplate({
+          boardId: 'b1',
+          input: {
+            name: 'T',
+            titleTemplate: '',
+            descTemplate: '',
+            listId: 'l1',
+            labelIds: [],
+            epicCardId: null,
+            position: 0,
+            groupId: 10
+          },
+          existingId: 1,
+          groupId: 10
+        })
+      )
+      expect(store.getState().templates.showTemplateForm).toBe(false)
+    })
+
+    it('rejects when updateTemplate fails', async () => {
+      ;(api.templates.updateTemplate as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to update template.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(
+        saveTemplate({
+          boardId: 'b1',
+          input: {
+            name: 'T',
+            titleTemplate: '',
+            descTemplate: '',
+            listId: 'l1',
+            labelIds: [],
+            epicCardId: null,
+            position: 0,
+            groupId: 10
+          },
+          existingId: 1,
+          groupId: 10
+        })
+      )
+      expect(result.type).toBe('templates/saveTemplate/rejected')
+    })
+  })
+
+  describe('generateCards', () => {
+    it('sets generateResult on success', async () => {
+      ;(api.templates.generateCards as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: { created: 5, errors: [] }
+      })
+      const store = makeStore()
+      await store.dispatch(generateCards({ boardId: 'b1', groupId: 10 }))
+      expect(store.getState().templates.generateResult).toEqual({ created: 5, errors: [] })
+    })
+
+    it('rejects when generateCards fails', async () => {
+      ;(api.templates.generateCards as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Failed to generate cards.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(generateCards({ boardId: 'b1', groupId: 10 }))
+      expect(result.type).toBe('templates/generateCards/rejected')
     })
   })
 })
