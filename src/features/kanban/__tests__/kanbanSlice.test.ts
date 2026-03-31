@@ -22,6 +22,8 @@ jest.mock('../../api/useApi', () => ({
 
 import reducer, {
   columnsUpdated,
+  columnAdded,
+  columnRemoved,
   cardRemovedFromColumn,
   cardsAddedToColumn,
   cardMembersUpdated,
@@ -257,6 +259,32 @@ describe('kanbanSlice', () => {
         const cols = [makeColumn({ id: 'a' }), makeColumn({ id: 'b' })]
         const state = reducer(initialState(), columnsUpdated(cols))
         expect(state.columns).toEqual(cols)
+      })
+
+      it('columnAdded appends a new column', () => {
+        const state0 = {
+          ...initialState(),
+          columns: [makeColumn({ id: 'col-1' })]
+        }
+        const newCol = makeColumn({ id: 'col-2', name: 'New Column' })
+        const state = reducer(state0, columnAdded(newCol))
+        expect(state.columns.map((c) => c.id)).toEqual(['col-1', 'col-2'])
+      })
+
+      it('columnRemoved removes the column and deselects its cards', () => {
+        const cardA = makeCard({ id: 'c-a' })
+        const cardB = makeCard({ id: 'c-b' })
+        const state0 = {
+          ...initialState(),
+          columns: [
+            makeColumn({ id: 'col-1', cards: [cardA] }),
+            makeColumn({ id: 'col-2', cards: [cardB] })
+          ],
+          selectedCardIds: ['c-a', 'c-b', 'c-other']
+        }
+        const state = reducer(state0, columnRemoved('col-1'))
+        expect(state.columns.map((c) => c.id)).toEqual(['col-2'])
+        expect(state.selectedCardIds).toEqual(['c-b', 'c-other'])
       })
 
       it('cardRemovedFromColumn removes card from all columns and selection', () => {

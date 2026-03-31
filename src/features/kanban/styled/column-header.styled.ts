@@ -24,6 +24,31 @@ export const ColumnSelectAllBtn = styled.button`
   }
 `
 
+export const ColumnRemoveBtn = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  margin-left: 4px;
+  transition:
+    opacity var(--transition),
+    background var(--transition),
+    color var(--transition);
+
+  &:hover {
+    background: rgba(233, 69, 96, 0.15);
+    color: #e94560;
+  }
+`
+
 export const ColumnHeaderWrap = styled.div`
   display: flex;
   align-items: center;
@@ -33,7 +58,7 @@ export const ColumnHeaderWrap = styled.div`
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 
-  &:hover ${ColumnSelectAllBtn} {
+  &:hover ${ColumnSelectAllBtn}, &:hover ${ColumnRemoveBtn} {
     opacity: 1;
   }
 `

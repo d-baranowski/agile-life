@@ -98,7 +98,7 @@ export const Board = styled.div`
   }
 `
 
-export const Column = styled.div`
+export const Column = styled.div<{ $isDragging?: boolean }>`
   flex-shrink: 0;
   width: 260px;
   display: flex;
@@ -107,6 +107,12 @@ export const Column = styled.div`
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  ${({ $isDragging }) =>
+    $isDragging &&
+    `
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    opacity: 0.95;
+  `}
 `
 
 export const CardList = styled.div<{ $isDragOver?: boolean }>`

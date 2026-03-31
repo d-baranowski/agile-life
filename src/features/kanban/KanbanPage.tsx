@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react'
-import { DragDropContext } from 'react-beautiful-dnd'
+import { DragDropContext, Draggable } from 'react-beautiful-dnd'
 import type { BoardConfig } from '../../lib/board.types'
 import { api } from '../api/useApi'
 import Toast from '../toast/Toast'
@@ -15,6 +15,7 @@ import AddCardModalComponent from './components/add-card/AddCardModal'
 import BulkLabelModalComponent from './components/bulk-label/BulkLabelModal'
 import BulkArchiveModalComponent from './components/bulk-archive/BulkArchiveModal'
 import BulkMemberModalComponent from './components/BulkMemberModal'
+import AddColumnInput from './components/AddColumnInput'
 import { EpicFilterSelect } from './components/EpicFilterSelect'
 import { useAddCardQueue } from './hooks/useAddCardQueue'
 import { useBulkLabelQueue } from './hooks/useBulkLabelQueue'
@@ -24,6 +25,7 @@ import { useGenerateTemplate } from './hooks/useGenerateTemplate'
 import { useBulkActions } from './hooks/useBulkActions'
 import { useDragDrop } from './hooks/useDragDrop'
 import { useFilteredColumns } from './hooks/useFilteredColumns'
+import { useColumnManagement } from './hooks/useColumnManagement'
 import KanbanMeatballMenu from './components/meatball-menu/KanbanMeatballMenu'
 import KanbanColumnHeader from './components/KanbanColumnHeader'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
@@ -128,6 +130,8 @@ export default function KanbanPage(props: Props): JSX.Element {
 
   const gen = useGenerateTemplate(board.boardId)
 
+  const colMgmt = useColumnManagement(board.boardId)
+
   // ── Effects ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -166,7 +170,8 @@ export default function KanbanPage(props: Props): JSX.Element {
     board.boardId,
     board.doneListNames,
     board.storyPointsConfig,
-    lastPointerPos
+    lastPointerPos,
+    colMgmt.handleReorderColumn
   )
 
   const handleOpenLogs = useCallback(() => api.logs.openFolder(), [])
@@ -354,55 +359,71 @@ export default function KanbanPage(props: Props): JSX.Element {
       {gamificationStats && <GamificationBar stats={gamificationStats} />}
 
       <DragDropContext onDragEnd={handleDragEnd}>
-        <Board>
-          {filteredColumns.map((column) => (
-            <Column key={column.id}>
-              <KanbanColumnHeader
-                columnId={column.id}
-                columnName={column.name}
-                cardCount={column.cards.length}
-                onSelectAll={handleSelectAllInColumn}
-              />
-
-              <StrictModeDroppable droppableId={column.id}>
-                {(provided, snapshot) => (
-                  <CardList
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    $isDragOver={snapshot.isDraggingOver}
-                  >
-                    {column.cards.map((card, index) => (
-                      <DraggableCard
-                        key={card.id}
-                        card={card}
-                        index={index}
-                        isStoryBoard={isStoryBoard}
-                        isEpicBoard={isEpicBoard}
-                        epicCardOptions={epicMgmt.epicCardOptions}
-                        epicDropdownCardId={epicMgmt.epicDropdownCardId}
-                        isDuplicate={duplicateNames.has(card.name.trim().toLowerCase())}
-                        isSelected={bulk.selectedCardIds.has(card.id)}
-                        onToggleSelect={bulk.handleToggleSelectCard}
-                        onOpenEpicStories={epicMgmt.handleOpenEpicStories}
-                        onSetCardEpic={epicMgmt.handleSetCardEpic}
-                        onToggleEpicDropdown={epicMgmt.handleToggleEpicDropdown}
-                        onContextMenu={(e) => {
-                          e.preventDefault()
-                          dispatch(contextMenuOpened({ x: e.clientX, y: e.clientY, card }))
-                        }}
+        <StrictModeDroppable droppableId="board" direction="horizontal" type="COLUMN">
+          {(boardProvided) => (
+            <Board ref={boardProvided.innerRef} {...boardProvided.droppableProps}>
+              {filteredColumns.map((column, columnIndex) => (
+                <Draggable key={column.id} draggableId={`col-${column.id}`} index={columnIndex}>
+                  {(colProvided, colSnapshot) => (
+                    <Column
+                      ref={colProvided.innerRef}
+                      {...colProvided.draggableProps}
+                      $isDragging={colSnapshot.isDragging}
+                    >
+                      <KanbanColumnHeader
+                        columnId={column.id}
+                        columnName={column.name}
+                        cardCount={column.cards.length}
+                        onSelectAll={handleSelectAllInColumn}
+                        onRemove={colMgmt.handleRemoveColumn}
+                        dragHandleProps={colProvided.dragHandleProps}
                       />
-                    ))}
-                    {provided.placeholder}
-                  </CardList>
-                )}
-              </StrictModeDroppable>
 
-              <AddCardBtn onClick={() => addCard.handleOpenAddCard(column.id, column.name)}>
-                + Add a card
-              </AddCardBtn>
-            </Column>
-          ))}
-        </Board>
+                      <StrictModeDroppable droppableId={column.id} type="CARD">
+                        {(provided, snapshot) => (
+                          <CardList
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            $isDragOver={snapshot.isDraggingOver}
+                          >
+                            {column.cards.map((card, index) => (
+                              <DraggableCard
+                                key={card.id}
+                                card={card}
+                                index={index}
+                                isStoryBoard={isStoryBoard}
+                                isEpicBoard={isEpicBoard}
+                                epicCardOptions={epicMgmt.epicCardOptions}
+                                epicDropdownCardId={epicMgmt.epicDropdownCardId}
+                                isDuplicate={duplicateNames.has(card.name.trim().toLowerCase())}
+                                isSelected={bulk.selectedCardIds.has(card.id)}
+                                onToggleSelect={bulk.handleToggleSelectCard}
+                                onOpenEpicStories={epicMgmt.handleOpenEpicStories}
+                                onSetCardEpic={epicMgmt.handleSetCardEpic}
+                                onToggleEpicDropdown={epicMgmt.handleToggleEpicDropdown}
+                                onContextMenu={(e) => {
+                                  e.preventDefault()
+                                  dispatch(contextMenuOpened({ x: e.clientX, y: e.clientY, card }))
+                                }}
+                              />
+                            ))}
+                            {provided.placeholder}
+                          </CardList>
+                        )}
+                      </StrictModeDroppable>
+
+                      <AddCardBtn onClick={() => addCard.handleOpenAddCard(column.id, column.name)}>
+                        + Add a card
+                      </AddCardBtn>
+                    </Column>
+                  )}
+                </Draggable>
+              ))}
+              {boardProvided.placeholder}
+              <AddColumnInput onAdd={colMgmt.handleAddColumn} />
+            </Board>
+          )}
+        </StrictModeDroppable>
       </DragDropContext>
 
       {selectedCardCount > 0 && (

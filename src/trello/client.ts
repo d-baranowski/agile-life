@@ -216,6 +216,36 @@ export class TrelloClient {
     await this.http.delete(`/cards/${cardId}/idLabels/${labelId}`)
   }
 
+  // ─── List Mutation ───────────────────────────────────────────────────────────
+
+  /**
+   * Creates a new list on the given board via the Trello API.
+   */
+  async createList(boardId: string, name: string): Promise<TrelloList> {
+    const { data } = await this.http.post<TrelloList>('/lists', {
+      idBoard: boardId,
+      name,
+      pos: 'bottom'
+    })
+    return data
+  }
+
+  /**
+   * Archives (closes) a list on Trello.
+   */
+  async archiveList(listId: string): Promise<TrelloList> {
+    const { data } = await this.http.put<TrelloList>(`/lists/${listId}/closed`, { value: true })
+    return data
+  }
+
+  /**
+   * Updates the position of a list on Trello.
+   */
+  async reorderList(listId: string, pos: number): Promise<TrelloList> {
+    const { data } = await this.http.put<TrelloList>(`/lists/${listId}`, { pos })
+    return data
+  }
+
   // ─── Credentials Validation ──────────────────────────────────────────────────
 
   async validateCredentials(): Promise<{ valid: boolean; memberName?: string }> {

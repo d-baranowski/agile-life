@@ -14,7 +14,8 @@ export function useDragDrop(
   boardId: string,
   doneListNames: string[],
   storyPointsConfig: StoryPointRule[],
-  lastPointerPos: React.RefObject<{ x: number; y: number }>
+  lastPointerPos: React.RefObject<{ x: number; y: number }>,
+  onReorderColumn: (fromIndex: number, toIndex: number) => Promise<void>
 ) {
   const dispatch = useAppDispatch()
   const columns = useAppSelector((s) => s.kanban.columns)
@@ -23,11 +24,18 @@ export function useDragDrop(
 
   return useCallback(
     async (result: DropResult) => {
-      const { destination, source, draggableId } = result
+      const { destination, source, draggableId, type } = result
       if (!destination) return
       if (destination.droppableId === source.droppableId && destination.index === source.index)
         return
 
+      // ── Column reorder ────────────────────────────────────────────────────
+      if (type === 'COLUMN') {
+        await onReorderColumn(source.index, destination.index)
+        return
+      }
+
+      // ── Card move ─────────────────────────────────────────────────────────
       const fromColId = source.droppableId
       const toColId = destination.droppableId
 
@@ -129,6 +137,15 @@ export function useDragDrop(
         )
       }
     },
-    [boardId, doneListNames, storyPointsConfig, columns, dispatch, lastPointerPos, myMemberId]
+    [
+      boardId,
+      doneListNames,
+      storyPointsConfig,
+      columns,
+      dispatch,
+      lastPointerPos,
+      myMemberId,
+      onReorderColumn
+    ]
   )
 }

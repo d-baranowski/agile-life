@@ -1,9 +1,11 @@
+import type { DraggableProvidedDragHandleProps } from 'react-beautiful-dnd'
 import {
   ColumnHeaderWrap,
   ColumnNameText,
   ColumnHeaderActions,
   ColumnSelectAllBtn,
-  ColumnCountBadge
+  ColumnCountBadge,
+  ColumnRemoveBtn
 } from '../styled/column-header.styled'
 
 interface Props {
@@ -11,13 +13,15 @@ interface Props {
   columnName: string
   cardCount: number
   onSelectAll: (columnId: string) => void
+  onRemove: (columnId: string) => void
+  dragHandleProps?: DraggableProvidedDragHandleProps | null
 }
 
 export default function KanbanColumnHeader(props: Props): JSX.Element {
-  const { columnId, columnName, cardCount, onSelectAll } = props
+  const { columnId, columnName, cardCount, onSelectAll, onRemove, dragHandleProps } = props
 
   return (
-    <ColumnHeaderWrap>
+    <ColumnHeaderWrap {...dragHandleProps}>
       <ColumnNameText>{columnName}</ColumnNameText>
       <ColumnHeaderActions>
         {cardCount > 0 && (
@@ -30,6 +34,13 @@ export default function KanbanColumnHeader(props: Props): JSX.Element {
           </ColumnSelectAllBtn>
         )}
         <ColumnCountBadge>{cardCount}</ColumnCountBadge>
+        <ColumnRemoveBtn
+          onClick={() => onRemove(columnId)}
+          title={`Archive column "${columnName}"`}
+          aria-label={`Archive column ${columnName}`}
+        >
+          ✕
+        </ColumnRemoveBtn>
       </ColumnHeaderActions>
     </ColumnHeaderWrap>
   )

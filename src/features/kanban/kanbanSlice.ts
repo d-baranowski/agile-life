@@ -231,6 +231,15 @@ const kanbanSlice = createSlice({
     columnsUpdated(state, action: PayloadAction<KanbanColumn[]>) {
       state.columns = action.payload
     },
+    columnAdded(state, action: PayloadAction<KanbanColumn>) {
+      state.columns.push(action.payload)
+    },
+    columnRemoved(state, action: PayloadAction<string>) {
+      const removedCol = state.columns.find((c) => c.id === action.payload)
+      const removedCardIds = new Set(removedCol?.cards.map((card) => card.id) ?? [])
+      state.columns = state.columns.filter((c) => c.id !== action.payload)
+      state.selectedCardIds = state.selectedCardIds.filter((id) => !removedCardIds.has(id))
+    },
     cardRemovedFromColumn(state, action: PayloadAction<string>) {
       const cardId = action.payload
       for (const col of state.columns) {
@@ -607,6 +616,8 @@ const kanbanSlice = createSlice({
 
 export const {
   columnsUpdated,
+  columnAdded,
+  columnRemoved,
   cardRemovedFromColumn,
   cardsAddedToColumn,
   cardMembersUpdated,

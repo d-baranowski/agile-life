@@ -324,6 +324,48 @@ describe('TrelloClient', () => {
     })
   })
 
+  // ─── List Mutation ────────────────────────────────────────────────────────────
+
+  describe('createList', () => {
+    it('creates a list at the bottom of a board', async () => {
+      const list = { id: 'l1', name: 'New Column', pos: 65536 }
+      mockHttp.post.mockResolvedValue({ data: list })
+
+      const result = await client.createList('b1', 'New Column')
+
+      expect(mockHttp.post).toHaveBeenCalledWith('/lists', {
+        idBoard: 'b1',
+        name: 'New Column',
+        pos: 'bottom'
+      })
+      expect(result).toEqual(list)
+    })
+  })
+
+  describe('archiveList', () => {
+    it('closes (archives) a list', async () => {
+      const list = { id: 'l1', name: 'Done', closed: true }
+      mockHttp.put.mockResolvedValue({ data: list })
+
+      const result = await client.archiveList('l1')
+
+      expect(mockHttp.put).toHaveBeenCalledWith('/lists/l1/closed', { value: true })
+      expect(result).toEqual(list)
+    })
+  })
+
+  describe('reorderList', () => {
+    it('updates the position of a list', async () => {
+      const list = { id: 'l1', name: 'In Progress', pos: 32768 }
+      mockHttp.put.mockResolvedValue({ data: list })
+
+      const result = await client.reorderList('l1', 32768)
+
+      expect(mockHttp.put).toHaveBeenCalledWith('/lists/l1', { pos: 32768 })
+      expect(result).toEqual(list)
+    })
+  })
+
   // ─── Credentials ─────────────────────────────────────────────────────────────
 
   describe('validateCredentials', () => {
