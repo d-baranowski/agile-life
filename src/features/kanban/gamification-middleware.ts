@@ -35,7 +35,7 @@ export const gamificationMiddleware: Middleware = (storeAPI) => (next) => (actio
 
     const result = next(action)
 
-    if (prevStats && !wasBeating && nowBeating) {
+    if (prevStats !== null && !wasBeating && nowBeating) {
       storeAPI.dispatch(levelUpAchieved())
     }
 
