@@ -1,3 +1,5 @@
+import { useRef, useState, useEffect } from 'react'
+import type { TrelloMember } from '../../../trello/trello.types'
 import { useAppDispatch, useAppSelector } from '../../../store/hooks'
 import {
   searchQueryChanged,
@@ -15,19 +17,32 @@ import {
   Spacer,
   SelectionCount,
   BulkBtn,
-  ExportBtn
+  ExportBtn,
+  MemberWrapper,
+  MemberDropdown,
+  MemberDropdownLabel,
+  MemberDropdownDivider,
+  MemberDropdownItem
 } from '../styled/grid-toolbar.styled'
 
 interface Props {
   isStoryBoard: boolean
+  boardMembers: TrelloMember[]
   onExport: () => void
   onOpenBulkArchive: () => void
   onOpenBulkLabel: () => void
-  onOpenBulkMember: () => void
+  onOpenBulkMemberModal: (memberId: string, memberName: string, assign: boolean) => void
 }
 
 export default function GridToolbar(props: Props): JSX.Element {
-  const { isStoryBoard, onExport, onOpenBulkArchive, onOpenBulkLabel, onOpenBulkMember } = props
+  const {
+    isStoryBoard,
+    boardMembers,
+    onExport,
+    onOpenBulkArchive,
+    onOpenBulkLabel,
+    onOpenBulkMemberModal
+  } = props
   const dispatch = useAppDispatch()
 
   const searchQuery = useAppSelector((s) => s.kanban.searchQuery)
@@ -39,7 +54,21 @@ export default function GridToolbar(props: Props): JSX.Element {
   const epicCardOptions = useAppSelector((s) => s.kanban.epicCardOptions)
   const selectedCardIds = useAppSelector((s) => s.kanban.selectedCardIds)
 
+  const [memberDropdownOpen, setMemberDropdownOpen] = useState(false)
+  const memberWrapperRef = useRef<HTMLDivElement>(null)
+
   const selectedCount = selectedCardIds.length
+
+  useEffect(() => {
+    if (!memberDropdownOpen) return
+    const handleClick = (e: MouseEvent): void => {
+      if (memberWrapperRef.current && !memberWrapperRef.current.contains(e.target as Node)) {
+        setMemberDropdownOpen(false)
+      }
+    }
+    window.addEventListener('mousedown', handleClick)
+    return () => window.removeEventListener('mousedown', handleClick)
+  }, [memberDropdownOpen])
 
   return (
     <Toolbar>
@@ -78,7 +107,40 @@ export default function GridToolbar(props: Props): JSX.Element {
           <SelectionCount>{selectedCount} selected</SelectionCount>
           <BulkBtn onClick={onOpenBulkArchive}>🗄 Archive</BulkBtn>
           <BulkBtn onClick={onOpenBulkLabel}>🏷 Label</BulkBtn>
-          <BulkBtn onClick={onOpenBulkMember}>👤 Member</BulkBtn>
+          {boardMembers.length > 0 && (
+            <MemberWrapper ref={memberWrapperRef}>
+              <BulkBtn onClick={() => setMemberDropdownOpen((o) => !o)}>👤 Member</BulkBtn>
+              {memberDropdownOpen && (
+                <MemberDropdown>
+                  <MemberDropdownLabel>Assign to:</MemberDropdownLabel>
+                  {boardMembers.map((m) => (
+                    <MemberDropdownItem
+                      key={m.id}
+                      onClick={() => {
+                        setMemberDropdownOpen(false)
+                        onOpenBulkMemberModal(m.id, m.fullName, true)
+                      }}
+                    >
+                      {m.fullName}
+                    </MemberDropdownItem>
+                  ))}
+                  <MemberDropdownDivider />
+                  <MemberDropdownLabel>Remove from:</MemberDropdownLabel>
+                  {boardMembers.map((m) => (
+                    <MemberDropdownItem
+                      key={`remove-${m.id}`}
+                      onClick={() => {
+                        setMemberDropdownOpen(false)
+                        onOpenBulkMemberModal(m.id, m.fullName, false)
+                      }}
+                    >
+                      {m.fullName}
+                    </MemberDropdownItem>
+                  ))}
+                </MemberDropdown>
+              )}
+            </MemberWrapper>
+          )}
         </>
       )}
 

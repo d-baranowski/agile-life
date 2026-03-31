@@ -1,11 +1,11 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useMemo } from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community'
-import type { ColDef, SelectionChangedEvent } from 'ag-grid-community'
+import type { ColDef, SelectionChangedEvent, CellValueChangedEvent } from 'ag-grid-community'
 import type { BoardConfig } from '../../lib/board.types'
 import type { GridRow } from './grid.types'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
-import { cardToggleSelected } from '../kanban/kanbanSlice'
+import { cardToggleSelected, columnsUpdated, kanbanToastShown } from '../kanban/kanbanSlice'
 import { useBulkActions } from '../kanban/hooks/useBulkActions'
 import { useBulkLabelQueue } from '../kanban/hooks/useBulkLabelQueue'
 import { useGridRows } from './hooks/useGridRows'
@@ -18,6 +18,8 @@ import LabelsCellRenderer from './components/cell-renderers/LabelsCellRenderer'
 import MembersCellRenderer from './components/cell-renderers/MembersCellRenderer'
 import { PageWrapper, GridWrapper } from './styled/grid-page.styled'
 import { formatAge } from '../../lib/format-age'
+import { moveCard } from '../kanban/move-card'
+import { api } from '../api/useApi'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -41,6 +43,7 @@ export default function GridPage(props: Props): JSX.Element {
   const dispatch = useAppDispatch()
   const columns = useAppSelector((s) => s.kanban.columns)
   const boardLabels = useAppSelector((s) => s.kanban.boardLabels)
+  const boardMembers = useAppSelector((s) => s.kanban.boardMembers)
   const selectedCardIds = useAppSelector((s) => s.kanban.selectedCardIds)
 
   const storyPointsConfig = board.storyPointsConfig ?? []
@@ -52,6 +55,8 @@ export default function GridPage(props: Props): JSX.Element {
   const bulkLabel = useBulkLabelQueue(board.boardId)
 
   const gridRef = useRef<AgGridReact<GridRow>>(null)
+
+  const columnNames = useMemo(() => columns.map((c) => c.name), [columns])
 
   const handleSelectionChanged = useCallback(
     (event: SelectionChangedEvent<GridRow>) => {
@@ -75,6 +80,50 @@ export default function GridPage(props: Props): JSX.Element {
     exportToExcel(rows, board.boardName)
   }, [exportToExcel, rows, board.boardName])
 
+  const handleColumnChange = useCallback(
+    async (event: CellValueChangedEvent<GridRow>) => {
+      const newColName: string = event.newValue
+      const oldColName: string = event.oldValue
+      if (newColName === oldColName) return
+
+      const cardId = event.data.id
+      const fromCol = columns.find((c) => c.name === oldColName)
+      const toCol = columns.find((c) => c.name === newColName)
+      if (!fromCol || !toCol) return
+
+      const fromIndex = fromCol.cards.findIndex((c) => c.id === cardId)
+      if (fromIndex === -1) return
+
+      // Place the card at the end of the destination column
+      const destCards = toCol.cards
+      const newPos = destCards.length > 0 ? destCards[destCards.length - 1].pos + 65536 : 65536
+
+      const prevColumns = columns
+      const movedColumns = moveCard(columns, fromCol.id, toCol.id, fromIndex, destCards.length)
+      dispatch(
+        columnsUpdated(
+          movedColumns.map((c) =>
+            c.id === toCol.id
+              ? {
+                  ...c,
+                  cards: c.cards.map((card, i) =>
+                    i === destCards.length ? { ...card, pos: newPos } : card
+                  )
+                }
+              : c
+          )
+        )
+      )
+
+      const syncResult = await api.trello.moveCard(board.boardId, cardId, toCol.id, newPos)
+      if (!syncResult.success) {
+        dispatch(columnsUpdated(prevColumns))
+        dispatch(kanbanToastShown(syncResult.error ?? 'Failed to move card. Please try again.'))
+      }
+    },
+    [board.boardId, columns, dispatch]
+  )
+
   const colDefs: ColDef<GridRow>[] = [
     {
       field: 'name',
@@ -87,7 +136,11 @@ export default function GridPage(props: Props): JSX.Element {
       field: 'columnName',
       headerName: 'Column',
       flex: 1,
-      minWidth: 120
+      minWidth: 120,
+      editable: true,
+      cellEditor: 'agSelectCellEditor',
+      cellEditorParams: { values: columnNames },
+      cellStyle: { cursor: 'pointer' }
     },
     {
       field: 'members',
@@ -139,10 +192,11 @@ export default function GridPage(props: Props): JSX.Element {
     <PageWrapper>
       <GridToolbar
         isStoryBoard={isStoryBoard}
+        boardMembers={boardMembers}
         onExport={handleExport}
         onOpenBulkArchive={bulk.handleOpenBulkArchive}
         onOpenBulkLabel={bulkLabel.handleOpenBulkLabelFromBar}
-        onOpenBulkMember={bulk.handleOpenBulkMemberModal}
+        onOpenBulkMemberModal={bulk.handleOpenBulkMemberModal}
       />
 
       <GridWrapper>
@@ -153,9 +207,10 @@ export default function GridPage(props: Props): JSX.Element {
           columnDefs={colDefs}
           rowSelection={{ mode: 'multiRow', checkboxes: true, headerCheckbox: true }}
           onSelectionChanged={handleSelectionChanged}
+          onCellValueChanged={handleColumnChange}
           rowHeight={40}
           getRowId={(p) => p.data.id}
-          suppressCellFocus
+          suppressCellFocus={false}
         />
       </GridWrapper>
 
