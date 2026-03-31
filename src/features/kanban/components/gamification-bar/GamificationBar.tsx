@@ -1,6 +1,10 @@
+import { useEffect, useRef } from 'react'
+import { useAppDispatch, useAppSelector } from '../../../../store/hooks'
 import styled from 'styled-components'
 import type { GamificationStats } from '../../../analytics/analytics.types'
 import { gamificationBarWidth } from './gamification-bar-width'
+import { triggerLevelUpEffect } from '../../confetti/confetti'
+import { levelUpConsumed } from '../../kanbanSlice'
 
 const Bar = styled.div`
   flex-shrink: 0;
@@ -76,7 +80,24 @@ interface Props {
 
 export default function GamificationBar(props: Props): JSX.Element {
   const { stats } = props
+  const dispatch = useAppDispatch()
+  const levelUpTriggered = useAppSelector((s) => s.kanban.levelUpTriggered)
   const beating = stats.currentWeekPoints > stats.prevWeekPoints && stats.currentWeekPoints > 0
+  const currentFillRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!levelUpTriggered) return
+    let origin: { x: number; y: number } | undefined
+    if (currentFillRef.current) {
+      const rect = currentFillRef.current.getBoundingClientRect()
+      origin = {
+        x: rect.right / window.innerWidth,
+        y: rect.top / window.innerHeight
+      }
+    }
+    triggerLevelUpEffect(origin)
+    dispatch(levelUpConsumed())
+  }, [levelUpTriggered, dispatch])
 
   return (
     <Bar>
@@ -101,6 +122,7 @@ export default function GamificationBar(props: Props): JSX.Element {
         data-tooltip={`${beating ? '🔥 This week' : 'This week'}: ${stats.currentWeekPoints} SP`}
       >
         <FillCurrent
+          ref={currentFillRef}
           $beat={beating}
           style={{ width: gamificationBarWidth(stats.currentWeekPoints, stats.yearlyHighScore) }}
         />

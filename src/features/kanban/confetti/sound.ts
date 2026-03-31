@@ -119,3 +119,56 @@ export function playCoinSound(): void {
     // Audio context not available in this environment — silently ignore
   }
 }
+
+/**
+ * Plays an 8-bit JRPG level-up fanfare when the user beats their previous week's score.
+ *
+ * Five ascending square-wave tones in a pentatonic pattern inspired by classic
+ * old-school RPG level-up jingles (e.g. Final Fantasy, Dragon Quest):
+ *   E5 → G5 → B5 → E6 → G6 (longer final note)
+ */
+export function playLevelUpSound(): void {
+  if (!isSoundEnabled()) return
+
+  const ctx = getAudioContext()
+  if (!ctx) return
+
+  try {
+    if (ctx.state === 'suspended') {
+      ctx.resume()
+    }
+
+    const volume = getSoundVolume()
+    const masterGain = ctx.createGain()
+    masterGain.gain.setValueAtTime(0.3 * volume, ctx.currentTime)
+    masterGain.connect(ctx.destination)
+
+    const scheduleTone = (frequency: number, startOffset: number, duration: number): void => {
+      const osc = ctx.createOscillator()
+      const envGain = ctx.createGain()
+
+      osc.type = 'square'
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime + startOffset)
+
+      envGain.gain.setValueAtTime(0.8, ctx.currentTime + startOffset)
+      envGain.gain.linearRampToValueAtTime(0, ctx.currentTime + startOffset + duration)
+
+      osc.connect(envGain)
+      envGain.connect(masterGain)
+
+      osc.start(ctx.currentTime + startOffset)
+      osc.stop(ctx.currentTime + startOffset + duration)
+    }
+
+    // Ascending pentatonic fanfare: E5 → G5 → B5 → E6 → G6
+    scheduleTone(659.25, 0.0, 0.07) // E5
+    scheduleTone(783.99, 0.07, 0.07) // G5
+    scheduleTone(987.77, 0.14, 0.07) // B5
+    scheduleTone(1318.51, 0.21, 0.09) // E6
+    scheduleTone(1567.98, 0.3, 0.25) // G6 (longer final note)
+
+    setTimeout(() => masterGain.disconnect(), 700)
+  } catch {
+    // Audio context not available in this environment — silently ignore
+  }
+}
