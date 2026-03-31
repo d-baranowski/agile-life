@@ -1,6 +1,8 @@
+import { useEffect, useRef } from 'react'
 import styled from 'styled-components'
 import type { GamificationStats } from '../../../analytics/analytics.types'
 import { gamificationBarWidth } from './gamification-bar-width'
+import { triggerLevelUpEffect } from '../../confetti/confetti'
 
 const Bar = styled.div`
   flex-shrink: 0;
@@ -77,6 +79,24 @@ interface Props {
 export default function GamificationBar(props: Props): JSX.Element {
   const { stats } = props
   const beating = stats.currentWeekPoints > stats.prevWeekPoints && stats.currentWeekPoints > 0
+  const prevBeatingRef = useRef<boolean>(beating)
+  const currentFillRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (beating && !prevBeatingRef.current) {
+      // Transition: user just beat last week's score
+      let origin: { x: number; y: number } | undefined
+      if (currentFillRef.current) {
+        const rect = currentFillRef.current.getBoundingClientRect()
+        origin = {
+          x: rect.right / window.innerWidth,
+          y: rect.top / window.innerHeight
+        }
+      }
+      triggerLevelUpEffect(origin)
+    }
+    prevBeatingRef.current = beating
+  }, [beating])
 
   return (
     <Bar>
@@ -101,6 +121,7 @@ export default function GamificationBar(props: Props): JSX.Element {
         data-tooltip={`${beating ? '🔥 This week' : 'This week'}: ${stats.currentWeekPoints} SP`}
       >
         <FillCurrent
+          ref={currentFillRef}
           $beat={beating}
           style={{ width: gamificationBarWidth(stats.currentWeekPoints, stats.yearlyHighScore) }}
         />
