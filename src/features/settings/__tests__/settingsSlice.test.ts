@@ -1,8 +1,30 @@
 jest.mock('../../api/useApi', () => ({
-  api: {}
+  api: {
+    settings: {
+      getDbPath: jest.fn(),
+      setDbPath: jest.fn()
+    },
+    logs: {
+      getPath: jest.fn(),
+      setPath: jest.fn()
+    },
+    trello: {
+      getBoardMembers: jest.fn(),
+      previewArchiveDoneCards: jest.fn(),
+      archiveDoneCards: jest.fn(),
+      getDoneColumnDebug: jest.fn()
+    }
+  }
 }))
 
+import { configureStore } from '@reduxjs/toolkit'
 import reducer, {
+  fetchSettingsData,
+  chooseDbPath,
+  chooseLogPath,
+  previewArchiveDoneCards,
+  archiveDoneCards,
+  fetchDoneColumnDebug,
   settingsInitialised,
   boardNameChanged,
   doneListNamesChanged,
@@ -25,6 +47,7 @@ import reducer, {
   storyPointsSavingFinished,
   storyPointsSuccessDismissed
 } from '../settingsSlice'
+import { api } from '../../api/useApi'
 
 const initialState = () => reducer(undefined, { type: '@@INIT' })
 
@@ -441,6 +464,182 @@ describe('settingsSlice', () => {
         expect(state.debugLoading).toBe(false)
         expect(state.debugError).toBe('Debug failed.')
       })
+    })
+  })
+})
+
+// ── Thunk dispatch tests ───────────────────────────────────────────────────────
+
+const makeStore = () => configureStore({ reducer: { settings: reducer } })
+
+describe('async thunks', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  describe('fetchSettingsData', () => {
+    it('sets dbPathInfo, logPathInfo, boardMembers when all calls succeed', async () => {
+      const dbPathInfo = { currentPath: '/db', defaultPath: '/db', isCustom: false }
+      const logPathInfo = { currentPath: '/log', defaultPath: '/log', isCustom: false }
+      const member = { id: 'm1', fullName: 'Alice', username: 'alice' }
+      ;(api.settings.getDbPath as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: dbPathInfo
+      })
+      ;(api.logs.getPath as jest.Mock).mockResolvedValueOnce({ success: true, data: logPathInfo })
+      ;(api.trello.getBoardMembers as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: [member]
+      })
+      const store = makeStore()
+      await store.dispatch(fetchSettingsData('board-1'))
+      const state = store.getState().settings
+      expect(state.dbPathInfo).toEqual(dbPathInfo)
+      expect(state.logPathInfo).toEqual(logPathInfo)
+      expect(state.boardMembers).toHaveLength(1)
+    })
+
+    it('uses null when API calls fail', async () => {
+      ;(api.settings.getDbPath as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.logs.getPath as jest.Mock).mockResolvedValueOnce({ success: false })
+      ;(api.trello.getBoardMembers as jest.Mock).mockResolvedValueOnce({ success: false })
+      const store = makeStore()
+      await store.dispatch(fetchSettingsData('board-1'))
+      const state = store.getState().settings
+      expect(state.dbPathInfo).toBeNull()
+      expect(state.logPathInfo).toBeNull()
+      expect(state.boardMembers).toEqual([])
+    })
+  })
+
+  describe('chooseDbPath', () => {
+    it('sets dbPathInfo on success', async () => {
+      const pathInfo = { currentPath: '/custom', defaultPath: '/default', isCustom: true }
+      ;(api.settings.setDbPath as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: pathInfo
+      })
+      const store = makeStore()
+      await store.dispatch(chooseDbPath(false))
+      expect(store.getState().settings.dbPathInfo).toEqual(pathInfo)
+      expect(store.getState().settings.dbPathChanged).toBe(true)
+    })
+
+    it('throws when setDbPath fails', async () => {
+      ;(api.settings.setDbPath as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Disk full'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(chooseDbPath(false))
+      expect(result.type).toBe('settings/chooseDbPath/rejected')
+      expect(store.getState().settings.dbPathError).toBe('Disk full')
+    })
+  })
+
+  describe('chooseLogPath', () => {
+    it('sets logPathInfo on success', async () => {
+      const pathInfo = { currentPath: '/log', defaultPath: '/log', isCustom: false }
+      ;(api.logs.setPath as jest.Mock).mockResolvedValueOnce({ success: true, data: pathInfo })
+      const store = makeStore()
+      await store.dispatch(chooseLogPath(false))
+      expect(store.getState().settings.logPathInfo).toEqual(pathInfo)
+    })
+
+    it('throws when setPath fails', async () => {
+      ;(api.logs.setPath as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Log error'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(chooseLogPath(false))
+      expect(result.type).toBe('settings/chooseLogPath/rejected')
+      expect(store.getState().settings.logPathError).toBe('Log error')
+    })
+  })
+
+  describe('previewArchiveDoneCards', () => {
+    it('sets previewCards on success', async () => {
+      const cards = [
+        { id: '1', name: 'Card', listId: 'l1', listName: 'Done', enteredDoneAt: '2024-01-01' }
+      ]
+      ;(api.trello.previewArchiveDoneCards as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: cards
+      })
+      const store = makeStore()
+      await store.dispatch(previewArchiveDoneCards({ boardId: 'b1', weeks: 4 }))
+      expect(store.getState().settings.previewCards).toHaveLength(1)
+    })
+
+    it('throws when preview fails', async () => {
+      ;(api.trello.previewArchiveDoneCards as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Preview failed.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(previewArchiveDoneCards({ boardId: 'b1', weeks: 4 }))
+      expect(result.type).toBe('settings/previewArchiveDoneCards/rejected')
+      expect(store.getState().settings.previewError).toBe('Preview failed.')
+    })
+  })
+
+  describe('archiveDoneCards', () => {
+    it('sets archiveResult on success', async () => {
+      const archiveResult = { archivedCount: 5, skippedCount: 1, syncedAt: '2024-01-15' }
+      ;(api.trello.archiveDoneCards as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: archiveResult
+      })
+      const store = makeStore()
+      await store.dispatch(archiveDoneCards({ boardId: 'b1', weeks: 4 }))
+      expect(store.getState().settings.archiveResult).toEqual(archiveResult)
+    })
+
+    it('throws when archive fails', async () => {
+      ;(api.trello.archiveDoneCards as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Archive failed.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(archiveDoneCards({ boardId: 'b1', weeks: 4 }))
+      expect(result.type).toBe('settings/archiveDoneCards/rejected')
+      expect(store.getState().settings.archiveError).toBe('Archive failed.')
+    })
+  })
+
+  describe('fetchDoneColumnDebug', () => {
+    it('sets debugCards on success', async () => {
+      const cards = [
+        {
+          id: '1',
+          name: 'Card',
+          listId: 'l1',
+          listName: 'Done',
+          enteredDoneAt: '2024-01-01',
+          dateLastActivity: '2024-01-01',
+          cardSyncedAt: '2024-01-01',
+          hasActionEntry: 1 as const
+        }
+      ]
+      ;(api.trello.getDoneColumnDebug as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        data: cards
+      })
+      const store = makeStore()
+      await store.dispatch(fetchDoneColumnDebug('board-1'))
+      expect(store.getState().settings.debugCards).toHaveLength(1)
+    })
+
+    it('throws when debug fetch fails', async () => {
+      ;(api.trello.getDoneColumnDebug as jest.Mock).mockResolvedValueOnce({
+        success: false,
+        error: 'Debug failed.'
+      })
+      const store = makeStore()
+      const result = await store.dispatch(fetchDoneColumnDebug('board-1'))
+      expect(result.type).toBe('settings/fetchDoneColumnDebug/rejected')
+      expect(store.getState().settings.debugError).toBe('Debug failed.')
     })
   })
 })
