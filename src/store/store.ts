@@ -6,6 +6,7 @@ import dashboardReducer from '../features/dashboard/dashboardSlice'
 import settingsReducer from '../features/settings/settingsSlice'
 import templatesReducer from '../features/templates/templatesSlice'
 import ticketsReducer from '../features/tickets/ticketsSlice'
+import { gamificationSoundMiddleware } from '../features/kanban/gamification-sound.middleware'
 
 export const store = configureStore({
   reducer: {
@@ -16,7 +17,8 @@ export const store = configureStore({
     settings: settingsReducer,
     templates: templatesReducer,
     tickets: ticketsReducer
-  }
+  },
+  middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(gamificationSoundMiddleware)
 })
 
 export type RootState = ReturnType<typeof store.getState>
