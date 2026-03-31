@@ -545,6 +545,9 @@ const kanbanSlice = createSlice({
         state.loading = true
         state.error = null
         state.selectedCardIds = []
+        // Reset gamification so the middleware has no stale cross-board baseline
+        state.gamificationStats = null
+        state.levelUpTriggered = false
       })
       .addCase(fetchBoardData.fulfilled, (state, action) => {
         state.columns = action.payload.columns
