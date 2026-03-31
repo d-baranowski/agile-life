@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit'
 import type { PayloadAction } from '@reduxjs/toolkit'
 
-type Tab = 'kanban' | 'dashboard' | 'templates' | 'settings'
+type Tab = 'kanban' | 'grid' | 'dashboard' | 'templates' | 'settings'
 
 interface UiState {
   activeTab: Tab
