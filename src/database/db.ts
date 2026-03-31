@@ -561,6 +561,25 @@ export function upsertActions(boardId: string, actions: TrelloAction[]): void {
   })(actions)
 }
 
+interface ActionInsertRow {
+  id: string
+  boardId: string
+  cardId: string | null
+  actionType: string
+  actionDate: string
+  memberId: string | null
+  memberName: string | null
+  listBeforeId: string | null
+  listBeforeName: string | null
+  listAfterId: string | null
+  listAfterName: string | null
+}
+
+/** Insert a single action row (used for local optimistic move tracking). */
+export function insertActionRow(row: ActionInsertRow): void {
+  getDb().prepare(sqlActionsUpsert).run(row)
+}
+
 /**
  * Returns the ISO-8601 date of the most recently stored action for this board,
  * or null if no actions have been synced yet.  Used as the `since` parameter
@@ -568,7 +587,9 @@ export function upsertActions(boardId: string, actions: TrelloAction[]): void {
  */
 export function getLatestActionDate(boardId: string): string | null {
   const row = getDb()
-    .prepare('SELECT MAX(action_date) AS latest FROM trello_actions WHERE board_id = ?')
+    .prepare(
+      "SELECT MAX(action_date) AS latest FROM trello_actions WHERE board_id = ? AND id NOT LIKE 'local-%'"
+    )
     .get(boardId) as { latest: string | null }
   return row?.latest ?? null
 }

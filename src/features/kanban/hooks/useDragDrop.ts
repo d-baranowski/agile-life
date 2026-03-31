@@ -7,7 +7,8 @@ import { reorderCards } from '../reorder-cards'
 import { moveCard } from '../move-card'
 import { triggerDoneEffect } from '../confetti/confetti'
 import { useAppDispatch, useAppSelector } from '../../../store/hooks'
-import { columnsUpdated, kanbanToastShown } from '../kanbanSlice'
+import { columnsUpdated, kanbanToastShown, fetchGamificationStats } from '../kanbanSlice'
+import { selectSelectedBoard } from '../../board-switcher/boardsSlice'
 
 export function useDragDrop(
   boardId: string,
@@ -17,6 +18,8 @@ export function useDragDrop(
 ) {
   const dispatch = useAppDispatch()
   const columns = useAppSelector((s) => s.kanban.columns)
+  const selectedBoard = useAppSelector(selectSelectedBoard)
+  const myMemberId = selectedBoard?.myMemberId ?? null
 
   return useCallback(
     async (result: DropResult) => {
@@ -106,8 +109,26 @@ export function useDragDrop(
       if (!syncResult.success) {
         dispatch(columnsUpdated(prevColumns))
         dispatch(kanbanToastShown(syncResult.error ?? 'Failed to move card. Please try again.'))
+        return
+      }
+
+      // If the move changes whether the card is in a done column, refresh score.
+      // This is intentionally best-effort; gamification is only available when
+      // myMemberId is configured for this board.
+      const fromColName = fromCol?.name ?? ''
+      const fromWasDone = doneListNames.some(
+        (name) => name.trim().toLowerCase() === fromColName.trim().toLowerCase()
+      )
+      if (myMemberId && fromWasDone !== isDoneMove) {
+        dispatch(
+          fetchGamificationStats({
+            boardId,
+            myMemberId,
+            storyPointsConfig
+          })
+        )
       }
     },
-    [boardId, doneListNames, storyPointsConfig, columns, dispatch, lastPointerPos]
+    [boardId, doneListNames, storyPointsConfig, columns, dispatch, lastPointerPos, myMemberId]
   )
 }
