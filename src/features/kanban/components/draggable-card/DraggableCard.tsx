@@ -4,7 +4,7 @@ import type { KanbanCard } from '../../../../trello/trello.types'
 import type { EpicCardOption } from '../../../../lib/board.types'
 import { fuzzyMatch } from '../../../../lib/fuzzy-match'
 import { labelColor, labelTextColor } from '../../../../lib/label-colors'
-import { formatAge } from '../../../lib/format-age'
+import { formatAge } from '../../../../lib/format-age'
 import {
   CardWrapper,
   Checkbox,
