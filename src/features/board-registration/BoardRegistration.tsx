@@ -27,6 +27,7 @@ import {
   StepNumber,
   Steps
 } from './registration-layout.styled'
+import { CreateBoardForm, CreateBoardToggle } from './registration-create-board.styled'
 
 type StepType = 'credentials' | 'select-board' | 'configure'
 
@@ -80,6 +81,9 @@ export default function BoardRegistration(): JSX.Element {
   const [doneListNames, setDoneListNames] = useState('Done')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showCreateBoard, setShowCreateBoard] = useState(false)
+  const [newBoardName, setNewBoardName] = useState('')
+  const [newBoardDesc, setNewBoardDesc] = useState('')
   const normalizedApiKey = normalizeApiKey(apiKey)
   const normalizedApiToken = normalizeApiToken(apiToken)
   const authorizeUrl = normalizedApiKey ? getTrelloAuthorizeUrl(normalizedApiKey) : ''
@@ -138,6 +142,40 @@ export default function BoardRegistration(): JSX.Element {
       setError('Please select a board.')
       return
     }
+    setError(null)
+    setStep('configure')
+  }
+
+  // ── Step 2 (alt): Create a new Trello board ────────────────────────────────
+  const handleCreateBoard = async () => {
+    const trimmedName = newBoardName.trim()
+    if (!trimmedName) {
+      setError('Enter a name for the new board.')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    const result = await api.boards.createTrelloBoard(
+      normalizedApiKey,
+      normalizedApiToken,
+      trimmedName,
+      newBoardDesc.trim() || undefined
+    )
+    setLoading(false)
+
+    if (!result.success || !result.data) {
+      setError(result.error ?? 'Failed to create board.')
+      return
+    }
+
+    const created = result.data
+    setBoards((prev) => [...prev, created])
+    setSelectedBoardId(created.id)
+    setNewBoardName('')
+    setNewBoardDesc('')
+    setShowCreateBoard(false)
     setError(null)
     setStep('configure')
   }
@@ -306,7 +344,7 @@ export default function BoardRegistration(): JSX.Element {
           <Form>
             <Hint>
               {boards.length} board{boards.length !== 1 ? 's' : ''} found. Select the one you want
-              to register.
+              to register, or create a new board.
             </Hint>
             <BoardList>
               {boards.map((board) => (
@@ -320,6 +358,51 @@ export default function BoardRegistration(): JSX.Element {
                 </BoardOption>
               ))}
             </BoardList>
+
+            {showCreateBoard ? (
+              <CreateBoardForm>
+                <Label>
+                  Board Name
+                  <input
+                    type="text"
+                    placeholder="My new board"
+                    value={newBoardName}
+                    onChange={(e) => setNewBoardName(e.target.value)}
+                    autoFocus
+                  />
+                </Label>
+                <Label>
+                  Description <Optional>(optional)</Optional>
+                  <input
+                    type="text"
+                    placeholder="What is this board for?"
+                    value={newBoardDesc}
+                    onChange={(e) => setNewBoardDesc(e.target.value)}
+                  />
+                </Label>
+                <Actions>
+                  <button
+                    className="btn-ghost"
+                    onClick={() => {
+                      setShowCreateBoard(false)
+                      setNewBoardName('')
+                      setNewBoardDesc('')
+                    }}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                  <button className="btn-primary" onClick={handleCreateBoard} disabled={loading}>
+                    {loading ? 'Creating…' : '＋ Create board'}
+                  </button>
+                </Actions>
+              </CreateBoardForm>
+            ) : (
+              <CreateBoardToggle onClick={() => setShowCreateBoard(true)}>
+                ＋ Create a new Trello board
+              </CreateBoardToggle>
+            )}
+
             <Actions>
               <button className="btn-ghost" onClick={() => setStep('credentials')}>
                 ← Back

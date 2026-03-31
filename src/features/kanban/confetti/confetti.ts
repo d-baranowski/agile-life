@@ -1,4 +1,5 @@
 import confetti from 'canvas-confetti'
+import { playLevelUpSound } from './sound'
 
 /**
  * Fires a confetti burst to celebrate completing a task.
@@ -30,4 +31,24 @@ export function triggerDoneEffect(points: number, origin?: { x: number; y: numbe
     drift: 0.5,
     flat: true
   })
+}
+
+/**
+ * Fires a standard confetti burst to celebrate beating last week's score.
+ * Uses classic square/circle shapes (not text, not flat) so it looks like
+ * a traditional confetti celebration.
+ * @param origin  Fractional viewport position {x, y} where the burst starts.
+ *                Defaults to the top-centre of the screen when omitted.
+ */
+export function triggerLevelUpEffect(origin?: { x: number; y: number }): void {
+  confetti({
+    particleCount: 120,
+    spread: 70,
+    origin: origin ?? { x: 0.5, y: 0.1 },
+    startVelocity: 40,
+    gravity: 1.2,
+    ticks: 250,
+    colors: ['#FFD700', '#4caf50', '#2196f3', '#ff5722', '#9c27b0', '#ff9800', '#e91e63']
+  })
+  playLevelUpSound()
 }

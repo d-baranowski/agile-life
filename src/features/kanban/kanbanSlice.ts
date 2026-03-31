@@ -142,6 +142,7 @@ interface KanbanState {
 
   // Gamification
   gamificationStats: GamificationStats | null
+  levelUpTriggered: boolean
 
   // Add card modal
   addCardModal: AddCardModal | null
@@ -203,6 +204,7 @@ const initialState: KanbanState = {
   epicStoriesLoading: false,
 
   gamificationStats: null,
+  levelUpTriggered: false,
 
   addCardModal: null,
   bulkLabelModal: null,
@@ -527,6 +529,14 @@ const kanbanSlice = createSlice({
       if (state.bulkMemberModal && !state.bulkMemberModal.running) {
         state.bulkMemberModal = null
       }
+    },
+
+    // ── Gamification level-up ──
+    levelUpAchieved(state) {
+      state.levelUpTriggered = true
+    },
+    levelUpConsumed(state) {
+      state.levelUpTriggered = false
     }
   },
   extraReducers: (builder) => {
@@ -656,7 +666,9 @@ export const {
   bulkMemberDropdownClosed,
   genModalOpened,
   genModalClosed,
-  escapePressed
+  escapePressed,
+  levelUpAchieved,
+  levelUpConsumed
 } = kanbanSlice.actions
 
 export default kanbanSlice.reducer
