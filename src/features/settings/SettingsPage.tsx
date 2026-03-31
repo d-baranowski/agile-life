@@ -1,191 +1,174 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import type { BoardConfig } from '../../lib/board.types'
-import type { TrelloMember } from '../../trello/trello.types'
-import type { DbPathInfo, LogPathInfo } from './settings.types'
-import { api } from '../api/useApi'
 import {
   isSoundEnabled,
-  setSoundEnabled,
+  setSoundEnabled as persistSoundEnabled,
   getSoundVolume,
-  setSoundVolume
+  setSoundVolume as persistSoundVolume
 } from '../kanban/confetti/sound'
+import { api } from '../api/useApi'
 import ArchiveDoneCards from './ArchiveDoneCards'
 import StoryPointsEditor from './StoryPointsEditor'
 import { Container, Title, CardTitle, ErrorBanner, SuccessBanner } from './settings-layout.styled'
 import { Form, Label, Hint, Actions } from './settings-form.styled'
 import { DangerCard, DangerTitle, ConfirmDelete } from './settings-danger.styled'
 import { InfoTable } from './settings-table.styled'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import {
+  fetchSettingsData,
+  chooseDbPath,
+  chooseLogPath,
+  settingsInitialised,
+  boardNameChanged,
+  doneListNamesChanged,
+  savingStarted,
+  savingFinished,
+  deletingStarted,
+  deletingFinished,
+  confirmDeleteToggled,
+  epicBoardSavingStarted,
+  epicBoardSavingFinished,
+  myMemberSavingStarted,
+  myMemberSavingFinished,
+  soundEnabledChanged,
+  soundVolumeChanged
+} from './settingsSlice'
+import { updateBoard, deleteBoard, setEpicBoard, setMyMember } from '../board-switcher/boardsSlice'
 
 interface Props {
   board: BoardConfig
   allBoards: BoardConfig[]
-  onBoardUpdated: (board: BoardConfig) => void
-  onBoardDeleted: (boardId: string) => void
 }
 
 export default function SettingsPage(props: Props): JSX.Element {
-  const { board, allBoards, onBoardUpdated, onBoardDeleted } = props
-  const [boardName, setBoardName] = useState(board.boardName)
-  const [doneListNames, setDoneListNames] = useState(board.doneListNames.join(', '))
-  const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const { board, allBoards } = props
+  const dispatch = useAppDispatch()
 
-  const [dbPathInfo, setDbPathInfo] = useState<DbPathInfo | null>(null)
-  const [dbPathChanging, setDbPathChanging] = useState(false)
-  const [dbPathError, setDbPathError] = useState<string | null>(null)
-  const [dbPathChanged, setDbPathChanged] = useState(false)
+  // ── Redux state ──────────────────────────────────────────────────────────
+  const boardName = useAppSelector((s) => s.settings.boardName)
+  const doneListNames = useAppSelector((s) => s.settings.doneListNames)
+  const saving = useAppSelector((s) => s.settings.saving)
+  const deleting = useAppSelector((s) => s.settings.deleting)
+  const confirmDelete = useAppSelector((s) => s.settings.confirmDelete)
+  const error = useAppSelector((s) => s.settings.error)
+  const success = useAppSelector((s) => s.settings.success)
 
-  const [logPathInfo, setLogPathInfo] = useState<LogPathInfo | null>(null)
-  const [logPathChanging, setLogPathChanging] = useState(false)
-  const [logPathError, setLogPathError] = useState<string | null>(null)
+  const dbPathInfo = useAppSelector((s) => s.settings.dbPathInfo)
+  const dbPathChanging = useAppSelector((s) => s.settings.dbPathChanging)
+  const dbPathError = useAppSelector((s) => s.settings.dbPathError)
+  const dbPathChanged = useAppSelector((s) => s.settings.dbPathChanged)
 
+  const logPathInfo = useAppSelector((s) => s.settings.logPathInfo)
+  const logPathChanging = useAppSelector((s) => s.settings.logPathChanging)
+  const logPathError = useAppSelector((s) => s.settings.logPathError)
+
+  const epicBoardSaving = useAppSelector((s) => s.settings.epicBoardSaving)
+  const epicBoardError = useAppSelector((s) => s.settings.epicBoardError)
+
+  const boardMembers = useAppSelector((s) => s.settings.boardMembers)
+  const myMemberSaving = useAppSelector((s) => s.settings.myMemberSaving)
+  const myMemberError = useAppSelector((s) => s.settings.myMemberError)
+
+  const soundEnabled = useAppSelector((s) => s.settings.soundEnabled)
+  const soundVolume = useAppSelector((s) => s.settings.soundVolume)
+
+  // ── Initialise form values on mount / board change ───────────────────────
   useEffect(() => {
-    api.settings.getDbPath().then((result) => {
-      if (result.success && result.data) setDbPathInfo(result.data)
-    })
-    api.logs.getPath().then((result) => {
-      if (result.success && result.data) setLogPathInfo(result.data)
-    })
-    api.trello.getBoardMembers(board.boardId).then((result) => {
-      if (result.success && result.data) setBoardMembers(result.data)
-    })
-  }, [])
+    dispatch(
+      settingsInitialised({
+        boardName: board.boardName,
+        doneListNames: board.doneListNames.join(', '),
+        soundEnabled: isSoundEnabled(),
+        soundVolume: getSoundVolume(),
+        storyPointsRules: board.storyPointsConfig
+      })
+    )
+    dispatch(fetchSettingsData(board.boardId))
+  }, [dispatch, board.boardId])
 
-  const [epicBoardSaving, setEpicBoardSaving] = useState(false)
-  const [epicBoardError, setEpicBoardError] = useState<string | null>(null)
-
-  const [boardMembers, setBoardMembers] = useState<TrelloMember[]>([])
-  const [myMemberSaving, setMyMemberSaving] = useState(false)
-  const [myMemberError, setMyMemberError] = useState<string | null>(null)
-
-  // Sound preference (stored in localStorage)
-  const [soundEnabled, setSoundEnabledState] = useState(isSoundEnabled)
-  const [soundVolume, setSoundVolumeState] = useState(getSoundVolume)
+  // ── Handlers ─────────────────────────────────────────────────────────────
 
   function handleToggleSound(enabled: boolean): void {
-    setSoundEnabled(enabled)
-    setSoundEnabledState(enabled)
+    persistSoundEnabled(enabled)
+    dispatch(soundEnabledChanged(enabled))
   }
 
   function handleVolumeChange(volume: number): void {
-    setSoundVolume(volume)
-    setSoundVolumeState(volume)
+    persistSoundVolume(volume)
+    dispatch(soundVolumeChanged(volume))
   }
 
   const doneListLabel = (board.doneListNames ?? ['Done']).join(', ')
 
   const handleSetEpicBoard = async (epicBoardId: string | null): Promise<void> => {
-    setEpicBoardSaving(true)
-    setEpicBoardError(null)
-    const result = await api.boards.setEpicBoard(board.boardId, epicBoardId)
-    setEpicBoardSaving(false)
-    if (result.success && result.data) {
-      onBoardUpdated(result.data)
-    } else {
-      setEpicBoardError(result.error ?? 'Failed to update epic board.')
+    dispatch(epicBoardSavingStarted())
+    try {
+      await dispatch(setEpicBoard({ storyBoardId: board.boardId, epicBoardId })).unwrap()
+      dispatch(epicBoardSavingFinished(null))
+    } catch (err) {
+      dispatch(epicBoardSavingFinished((err as Error).message))
     }
   }
 
   const handleSetMyMember = async (myMemberId: string | null): Promise<void> => {
-    setMyMemberSaving(true)
-    setMyMemberError(null)
-    const result = await api.boards.setMyMember(board.boardId, myMemberId)
-    setMyMemberSaving(false)
-    if (result.success && result.data) {
-      onBoardUpdated(result.data)
-    } else {
-      setMyMemberError(result.error ?? 'Failed to update identity.')
+    dispatch(myMemberSavingStarted())
+    try {
+      await dispatch(setMyMember({ boardId: board.boardId, myMemberId })).unwrap()
+      dispatch(myMemberSavingFinished(null))
+    } catch (err) {
+      dispatch(myMemberSavingFinished((err as Error).message))
     }
   }
 
   const handleSave = async () => {
-    setSaving(true)
-    setError(null)
-    setSuccess(null)
+    dispatch(savingStarted())
 
     const parsedDoneNames = doneListNames
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
 
-    const result = await api.boards.update(board.boardId, {
-      boardName: boardName.trim(),
-      doneListNames: parsedDoneNames.length > 0 ? parsedDoneNames : ['Done']
-    })
-
-    setSaving(false)
-
-    if (result.success && result.data) {
-      onBoardUpdated(result.data)
-      setSuccess('Settings saved.')
-      setTimeout(() => setSuccess(null), 3000)
-    } else {
-      setError(result.error ?? 'Failed to save settings.')
+    try {
+      await dispatch(
+        updateBoard({
+          boardId: board.boardId,
+          updates: {
+            boardName: boardName.trim(),
+            doneListNames: parsedDoneNames.length > 0 ? parsedDoneNames : ['Done']
+          }
+        })
+      ).unwrap()
+      dispatch(savingFinished({ success: 'Settings saved.' }))
+      setTimeout(() => dispatch(savingFinished({ success: undefined })), 3000)
+    } catch (err) {
+      dispatch(savingFinished({ error: (err as Error).message }))
     }
   }
 
   const handleDelete = async () => {
-    setDeleting(true)
-    const result = await api.boards.delete(board.boardId)
-    if (result.success) {
-      onBoardDeleted(board.boardId)
-    } else {
-      setError(result.error ?? 'Failed to delete board.')
-      setDeleting(false)
+    dispatch(deletingStarted())
+    try {
+      await dispatch(deleteBoard(board.boardId)).unwrap()
+    } catch (err) {
+      dispatch(savingFinished({ error: (err as Error).message }))
+      dispatch(deletingFinished())
     }
   }
 
   const handleChooseDbPath = async () => {
-    setDbPathChanging(true)
-    setDbPathError(null)
-    const result = await api.settings.setDbPath(false)
-    setDbPathChanging(false)
-    if (result.success && result.data) {
-      setDbPathInfo(result.data)
-      if (result.data.isCustom) setDbPathChanged(true)
-    } else {
-      setDbPathError(result.error ?? 'Failed to change database location.')
-    }
+    await dispatch(chooseDbPath(false))
   }
 
   const handleResetDbPath = async () => {
-    setDbPathChanging(true)
-    setDbPathError(null)
-    const result = await api.settings.setDbPath(true)
-    setDbPathChanging(false)
-    if (result.success && result.data) {
-      setDbPathInfo(result.data)
-      setDbPathChanged(true)
-    } else {
-      setDbPathError(result.error ?? 'Failed to reset database location.')
-    }
+    await dispatch(chooseDbPath(true))
   }
 
   const handleChooseLogPath = async () => {
-    setLogPathChanging(true)
-    setLogPathError(null)
-    const result = await api.logs.setPath(false)
-    setLogPathChanging(false)
-    if (result.success && result.data) {
-      setLogPathInfo(result.data)
-    } else {
-      setLogPathError(result.error ?? 'Failed to change log location.')
-    }
+    await dispatch(chooseLogPath(false))
   }
 
   const handleResetLogPath = async () => {
-    setLogPathChanging(true)
-    setLogPathError(null)
-    const result = await api.logs.setPath(true)
-    setLogPathChanging(false)
-    if (result.success && result.data) {
-      setLogPathInfo(result.data)
-    } else {
-      setLogPathError(result.error ?? 'Failed to reset log location.')
-    }
+    await dispatch(chooseLogPath(true))
   }
 
   const handleOpenLogFolder = async () => {
@@ -205,14 +188,18 @@ export default function SettingsPage(props: Props): JSX.Element {
         <Form>
           <Label>
             Board Display Name
-            <input type="text" value={boardName} onChange={(e) => setBoardName(e.target.value)} />
+            <input
+              type="text"
+              value={boardName}
+              onChange={(e) => dispatch(boardNameChanged(e.target.value))}
+            />
           </Label>
           <Label>
             &quot;Done&quot; List Names <Hint>(comma-separated)</Hint>
             <input
               type="text"
               value={doneListNames}
-              onChange={(e) => setDoneListNames(e.target.value)}
+              onChange={(e) => dispatch(doneListNamesChanged(e.target.value))}
               placeholder="Done, Shipped, Closed"
             />
           </Label>
@@ -306,7 +293,7 @@ export default function SettingsPage(props: Props): JSX.Element {
         )}
       </div>
 
-      <StoryPointsEditor board={board} onBoardUpdated={onBoardUpdated} />
+      <StoryPointsEditor />
 
       {/* ── Board Info ── */}
       <div className="card">
@@ -478,7 +465,7 @@ export default function SettingsPage(props: Props): JSX.Element {
             <Actions>
               <button
                 className="btn-ghost"
-                onClick={() => setConfirmDelete(false)}
+                onClick={() => dispatch(confirmDeleteToggled(false))}
                 disabled={deleting}
               >
                 Cancel
@@ -489,7 +476,7 @@ export default function SettingsPage(props: Props): JSX.Element {
             </Actions>
           </ConfirmDelete>
         ) : (
-          <button className="btn-danger" onClick={() => setConfirmDelete(true)}>
+          <button className="btn-danger" onClick={() => dispatch(confirmDeleteToggled(true))}>
             Remove Board
           </button>
         )}

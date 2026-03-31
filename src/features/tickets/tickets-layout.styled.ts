@@ -8,15 +8,6 @@ export const Container = styled.div`
   gap: 20px;
 `
 
-export const Loading = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--color-text-muted);
-  padding: 40px 0;
-  justify-content: center;
-`
-
 export const Title = styled.h1`
   font-size: 22px;
 `

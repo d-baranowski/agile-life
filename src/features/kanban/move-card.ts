@@ -1,4 +1,4 @@
-import type { KanbanColumn } from '../trello/trello.types'
+import type { KanbanColumn } from '../../trello/trello.types'
 
 /** Move a card from one column to another. */
 export function moveCard(

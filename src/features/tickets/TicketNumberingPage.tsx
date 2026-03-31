@@ -2,11 +2,9 @@
  * Ticket Numbering page — assigns JIRA-style prefixes (e.g. AGI-000001) to
  * every open Trello card that does not already have one.
  */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { BoardConfig } from '../../lib/board.types'
-import type { TicketNumberingConfig, UnnumberedCard } from '../../lib/ticket.types'
 import { api } from '../api/useApi'
-import type { CardStatus } from './tickets.types'
 import {
   Container,
   Title,
@@ -41,16 +39,26 @@ import {
   ErrorDetail
 } from './tickets-table.styled'
 import { ProgressSummary, SummarySpinner, Spinner } from './tickets-progress.styled'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import {
+  fetchTicketConfig,
+  saveTicketConfig,
+  previewUnnumbered,
+  ticketsPageReset,
+  projectCodeChanged,
+  nextTicketNumberChanged,
+  configErrorSet,
+  cardRemovedFromPreview,
+  applyStarted,
+  cardStatusUpdated,
+  cardRemovedFromQueue,
+  applyCancelled,
+  applyFinished,
+  errorDetailToggled
+} from './ticketsSlice'
 
 interface Props {
   board: BoardConfig
-}
-
-interface CardState {
-  card: UnnumberedCard
-  status: CardStatus
-  error?: string
-  showError: boolean
 }
 
 function sleep(ms: number): Promise<void> {
@@ -59,84 +67,46 @@ function sleep(ms: number): Promise<void> {
 
 export default function TicketNumberingPage(props: Props): JSX.Element {
   const { board } = props
-  const [config, setConfig] = useState<TicketNumberingConfig | null>(null)
-  const [projectCode, setProjectCode] = useState('')
-  const [nextTicketNumber, setNextTicketNumber] = useState(1)
-  const [configError, setConfigError] = useState<string | null>(null)
-  const [savingConfig, setSavingConfig] = useState(false)
+  const dispatch = useAppDispatch()
 
-  const [preview, setPreview] = useState<UnnumberedCard[] | null>(null)
-  const [loadingPreview, setLoadingPreview] = useState(false)
-  const [previewError, setPreviewError] = useState<string | null>(null)
+  const config = useAppSelector((s) => s.tickets.config)
+  const projectCode = useAppSelector((s) => s.tickets.projectCode)
+  const nextTicketNumber = useAppSelector((s) => s.tickets.nextTicketNumber)
+  const configError = useAppSelector((s) => s.tickets.configError)
+  const savingConfig = useAppSelector((s) => s.tickets.savingConfig)
 
-  // Per-card apply state — populated once the user clicks Apply
-  const [cardStates, setCardStates] = useState<CardState[] | null>(null)
-  const [applying, setApplying] = useState(false)
+  const preview = useAppSelector((s) => s.tickets.preview)
+  const loadingPreview = useAppSelector((s) => s.tickets.loadingPreview)
+  const previewError = useAppSelector((s) => s.tickets.previewError)
+
+  const cardStates = useAppSelector((s) => s.tickets.cardStates)
+  const applying = useAppSelector((s) => s.tickets.applying)
 
   // Refs used to signal the running apply loop without re-renders
   const cancelledRef = useRef(false)
   const skipSetRef = useRef<Set<string>>(new Set())
 
-  const loadConfig = useCallback(async () => {
-    const result = await api.tickets.getConfig(board.boardId)
-    if (result.success && result.data) {
-      setConfig(result.data)
-      setProjectCode(result.data.projectCode)
-      setNextTicketNumber(result.data.nextTicketNumber)
-      setConfigError(null)
-    } else if (!result.success) {
-      setConfigError(result.error ?? 'Failed to load configuration.')
-    }
-  }, [board.boardId])
-
   useEffect(() => {
-    setConfig(null)
-    setPreview(null)
-    setCardStates(null)
-    setConfigError(null)
-    setPreviewError(null)
-    loadConfig()
-  }, [loadConfig])
+    dispatch(ticketsPageReset())
+    dispatch(fetchTicketConfig(board.boardId))
+  }, [dispatch, board.boardId])
 
-  const handleSaveConfig = async () => {
+  const handleSaveConfig = () => {
     const code = projectCode.trim().toUpperCase()
     if (!/^[A-Z]{3}$/.test(code)) {
-      setConfigError('Project code must be exactly 3 uppercase letters (e.g. AGI).')
+      dispatch(configErrorSet('Project code must be exactly 3 uppercase letters (e.g. AGI).'))
       return
     }
-    setSavingConfig(true)
-    setConfigError(null)
-    const result = await api.tickets.updateConfig(board.boardId, {
-      projectCode: code,
-      nextTicketNumber
-    })
-    setSavingConfig(false)
-    if (!result.success) {
-      setConfigError(result.error ?? 'Failed to save configuration.')
-    } else {
-      await loadConfig()
-      setPreview(null)
-      setCardStates(null)
-    }
+    dispatch(saveTicketConfig({ boardId: board.boardId, projectCode: code, nextTicketNumber }))
   }
 
-  const handlePreview = async () => {
-    setLoadingPreview(true)
-    setPreviewError(null)
-    setCardStates(null)
-    const result = await api.tickets.previewUnnumbered(board.boardId)
-    setLoadingPreview(false)
-    if (result.success && result.data) {
-      setPreview(result.data)
-    } else {
-      setPreviewError(result.error ?? 'Failed to load preview.')
-      setPreview(null)
-    }
+  const handlePreview = () => {
+    dispatch(previewUnnumbered(board.boardId))
   }
 
   /** Remove a card from the preview list before Apply has been clicked. */
   const removeFromPreview = (cardId: string) => {
-    setPreview((prev) => prev?.filter((c) => c.cardId !== cardId) ?? null)
+    dispatch(cardRemovedFromPreview(cardId))
   }
 
   /**
@@ -146,7 +116,7 @@ export default function TicketNumberingPage(props: Props): JSX.Element {
    */
   const removeFromQueue = (cardId: string) => {
     skipSetRef.current.add(cardId)
-    setCardStates((prev) => prev?.filter((cs) => cs.card.cardId !== cardId) ?? null)
+    dispatch(cardRemovedFromQueue(cardId))
   }
 
   /** Signal the running apply loop to stop after the current card finishes. */
@@ -160,23 +130,16 @@ export default function TicketNumberingPage(props: Props): JSX.Element {
     cancelledRef.current = false
     skipSetRef.current = new Set()
 
-    // Initialise every card as "queued"
-    const initial: CardState[] = preview.map((card) => ({
-      card,
-      status: 'queued',
-      showError: false
-    }))
-    setCardStates(initial)
-    setPreview(null)
-    setApplying(true)
+    // Snapshot the preview cards before dispatching applyStarted (which clears preview)
+    const cardsToProcess = [...preview]
+
+    dispatch(applyStarted())
 
     // Only delay between actual API calls — skipped/removed cards don't count.
     let needsDelay = false
 
-    for (let i = 0; i < initial.length; i++) {
-      // `initial` is never mutated; `cardStates` is written-only inside the loop,
-      // so iterating `initial` by index is always safe even when rows are removed.
-      const { cardId, proposedName } = initial[i].card
+    for (let i = 0; i < cardsToProcess.length; i++) {
+      const { cardId, proposedName } = cardsToProcess[i]
 
       // Stop if the user pressed Cancel
       if (cancelledRef.current) break
@@ -185,56 +148,29 @@ export default function TicketNumberingPage(props: Props): JSX.Element {
       if (skipSetRef.current.has(cardId)) continue
 
       // Space out actual Trello API calls to stay within the ~10 req/s rate limit.
-      // The flag is raised after the first real call so the very first call is never
-      // delayed, and skipped cards don't accumulate unnecessary waits.
       if (needsDelay) await sleep(200)
       needsDelay = true
 
-      // Mark as in-progress (keyed by cardId, not index, so removals don't skew it)
-      setCardStates((prev) =>
-        prev
-          ? prev.map((cs) => (cs.card.cardId === cardId ? { ...cs, status: 'in-progress' } : cs))
-          : prev
-      )
+      // Mark as in-progress
+      dispatch(cardStatusUpdated({ cardId, status: 'in-progress' }))
 
       const result = await api.tickets.applySingleCard(board.boardId, cardId, proposedName)
 
       if (result.success) {
-        setCardStates((prev) =>
-          prev
-            ? prev.map((cs) => (cs.card.cardId === cardId ? { ...cs, status: 'success' } : cs))
-            : prev
-        )
+        dispatch(cardStatusUpdated({ cardId, status: 'success' }))
       } else {
-        setCardStates((prev) =>
-          prev
-            ? prev.map((cs) =>
-                cs.card.cardId === cardId ? { ...cs, status: 'error', error: result.error } : cs
-              )
-            : prev
-        )
+        dispatch(cardStatusUpdated({ cardId, status: 'error', error: result.error }))
       }
     }
 
     // Mark any cards still queued as cancelled (only reachable when cancelled)
     if (cancelledRef.current) {
-      setCardStates((prev) =>
-        prev
-          ? prev.map((cs) => (cs.status === 'queued' ? { ...cs, status: 'cancelled' } : cs))
-          : prev
-      )
+      dispatch(applyCancelled())
+    } else {
+      dispatch(applyFinished())
     }
 
-    setApplying(false)
-    await loadConfig()
-  }
-
-  const toggleErrorDetail = (cardId: string) => {
-    setCardStates((prev) =>
-      prev
-        ? prev.map((cs) => (cs.card.cardId === cardId ? { ...cs, showError: !cs.showError } : cs))
-        : prev
-    )
+    dispatch(fetchTicketConfig(board.boardId))
   }
 
   // Derived counts for the summary line shown after/during apply
@@ -274,7 +210,7 @@ export default function TicketNumberingPage(props: Props): JSX.Element {
               value={projectCode}
               maxLength={3}
               placeholder="AGI"
-              onChange={(e) => setProjectCode(e.target.value.toUpperCase())}
+              onChange={(e) => dispatch(projectCodeChanged(e.target.value.toUpperCase()))}
             />
           </Label>
 
@@ -286,7 +222,7 @@ export default function TicketNumberingPage(props: Props): JSX.Element {
               type="number"
               min={config?.nextTicketNumber ?? 1}
               value={nextTicketNumber}
-              onChange={(e) => setNextTicketNumber(Number(e.target.value))}
+              onChange={(e) => dispatch(nextTicketNumberChanged(Number(e.target.value)))}
             />
           </Label>
         </ConfigGrid>
@@ -421,7 +357,7 @@ export default function TicketNumberingPage(props: Props): JSX.Element {
                       {cs.status === 'error' && (
                         <BadgeError>
                           ❌ Failed
-                          <ErrorToggle onClick={() => toggleErrorDetail(cs.card.cardId)}>
+                          <ErrorToggle onClick={() => dispatch(errorDetailToggled(cs.card.cardId))}>
                             {cs.showError ? 'Hide' : 'Details'}
                           </ErrorToggle>
                         </BadgeError>

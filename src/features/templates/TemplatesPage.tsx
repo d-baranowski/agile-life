@@ -4,16 +4,8 @@
  * Left panel: template groups for the current board.
  * Right panel: templates in the selected group + "Generate cards" button.
  */
-import { useState, useEffect, useCallback } from 'react'
-import type { BoardConfig, EpicCardOption } from '../../lib/board.types'
-import type { KanbanColumn, TrelloLabel } from '../../trello/trello.types'
-import type {
-  TemplateGroup,
-  TicketTemplate,
-  TicketTemplateInput,
-  GenerateCardsResult
-} from './template.types'
-import { api } from '../api/useApi'
+import { useEffect } from 'react'
+import type { BoardConfig } from '../../lib/board.types'
 import TemplateForm from './TemplateForm'
 import {
   Page,
@@ -46,6 +38,25 @@ import {
   TemplateListLabel
 } from './styled/templates-cards.styled'
 import { ResultBanner, ResultErrors } from './styled/templates-form.styled'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import {
+  fetchTemplatePageData,
+  fetchTemplates,
+  createTemplateGroup,
+  renameTemplateGroup,
+  deleteTemplateGroup,
+  deleteTemplate,
+  generateCards,
+  templatesPageReset,
+  groupSelected,
+  groupEditStarted,
+  groupEditCancelled,
+  editingGroupNameChanged,
+  newGroupNameChanged,
+  newGroupInputToggled,
+  newGroupInputClosed,
+  templateFormOpened
+} from './templatesSlice'
 
 interface Props {
   board: BoardConfig
@@ -55,172 +66,65 @@ interface Props {
 
 export default function TemplatesPage(props: Props): JSX.Element {
   const { board } = props
-  const [groups, setGroups] = useState<TemplateGroup[]>([])
-  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
-  const [templates, setTemplates] = useState<TicketTemplate[]>([])
-  const [lists, setLists] = useState<KanbanColumn[]>([])
-  const [boardLabels, setBoardLabels] = useState<TrelloLabel[]>([])
-  const [epicCards, setEpicCards] = useState<EpicCardOption[]>([])
+  const dispatch = useAppDispatch()
 
-  // Group editing
-  const [editingGroupId, setEditingGroupId] = useState<number | null>(null)
-  const [editingGroupName, setEditingGroupName] = useState('')
-  const [newGroupName, setNewGroupName] = useState('')
-  const [showNewGroupInput, setShowNewGroupInput] = useState(false)
-
-  // Template form
-  const [showTemplateForm, setShowTemplateForm] = useState(false)
-  const [editingTemplate, setEditingTemplate] = useState<TicketTemplate | null>(null)
-  const [formSaving, setFormSaving] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-
-  // Generate
-  const [generating, setGenerating] = useState(false)
-  const [generateResult, setGenerateResult] = useState<GenerateCardsResult | null>(null)
-  const [generateError, setGenerateError] = useState<string | null>(null)
-
-  const loadGroups = useCallback(async () => {
-    const result = await api.templates.getGroups(board.boardId)
-    if (result.success && result.data) {
-      setGroups(result.data)
-    }
-  }, [board.boardId])
-
-  const loadLists = useCallback(async () => {
-    const result = await api.trello.getBoardData(board.boardId)
-    if (result.success && result.data) {
-      setLists(result.data)
-    }
-  }, [board.boardId])
-
-  const loadBoardLabels = useCallback(async () => {
-    const result = await api.templates.getBoardLabels(board.boardId)
-    if (result.success && result.data) {
-      setBoardLabels(result.data)
-    }
-  }, [board.boardId])
-
-  const loadEpicCards = useCallback(async () => {
-    if (!board.epicBoardId) return
-    const result = await api.epics.getCards(board.boardId)
-    if (result.success && result.data) {
-      setEpicCards(result.data)
-    }
-  }, [board.boardId, board.epicBoardId])
-
-  const loadTemplates = useCallback(async () => {
-    if (selectedGroupId === null) {
-      setTemplates([])
-      return
-    }
-    const result = await api.templates.getTemplates(board.boardId, selectedGroupId)
-    if (result.success && result.data) {
-      setTemplates(result.data)
-    }
-  }, [board.boardId, selectedGroupId])
+  const groups = useAppSelector((s) => s.templates.groups)
+  const selectedGroupId = useAppSelector((s) => s.templates.selectedGroupId)
+  const templates = useAppSelector((s) => s.templates.templates)
+  const editingGroupId = useAppSelector((s) => s.templates.editingGroupId)
+  const editingGroupName = useAppSelector((s) => s.templates.editingGroupName)
+  const newGroupName = useAppSelector((s) => s.templates.newGroupName)
+  const showNewGroupInput = useAppSelector((s) => s.templates.showNewGroupInput)
+  const showTemplateForm = useAppSelector((s) => s.templates.showTemplateForm)
+  const generating = useAppSelector((s) => s.templates.generating)
+  const generateResult = useAppSelector((s) => s.templates.generateResult)
+  const generateError = useAppSelector((s) => s.templates.generateError)
 
   useEffect(() => {
-    setGroups([])
-    setSelectedGroupId(null)
-    setTemplates([])
-    setGenerateResult(null)
-    setGenerateError(null)
-    loadGroups()
-    loadLists()
-    loadBoardLabels()
-    loadEpicCards()
-  }, [loadGroups, loadLists, loadBoardLabels, loadEpicCards])
+    dispatch(templatesPageReset())
+    dispatch(fetchTemplatePageData({ boardId: board.boardId, epicBoardId: board.epicBoardId }))
+  }, [dispatch, board.boardId, board.epicBoardId])
 
   useEffect(() => {
-    loadTemplates()
-    setGenerateResult(null)
-    setGenerateError(null)
-  }, [loadTemplates])
+    if (selectedGroupId !== null) {
+      dispatch(fetchTemplates({ boardId: board.boardId, groupId: selectedGroupId }))
+    }
+  }, [dispatch, board.boardId, selectedGroupId])
 
   // ── Group CRUD ────────────────────────────────────────────────────────────
 
-  const handleCreateGroup = async () => {
+  const handleCreateGroup = () => {
     const name = newGroupName.trim()
     if (!name) return
-    const result = await api.templates.createGroup(board.boardId, { name })
-    if (result.success && result.data) {
-      setGroups((prev) => [...prev, result.data!])
-      setSelectedGroupId(result.data.id)
-      setNewGroupName('')
-      setShowNewGroupInput(false)
-    }
+    dispatch(createTemplateGroup({ boardId: board.boardId, name }))
   }
 
-  const handleRenameGroup = async (id: number) => {
+  const handleRenameGroup = (id: number) => {
     const name = editingGroupName.trim()
     if (!name) {
-      setEditingGroupId(null)
+      dispatch(groupEditCancelled())
       return
     }
-    const result = await api.templates.updateGroup(board.boardId, id, { name })
-    if (result.success) {
-      setGroups((prev) => prev.map((g) => (g.id === id ? { ...g, name } : g)))
-    }
-    setEditingGroupId(null)
+    dispatch(renameTemplateGroup({ boardId: board.boardId, groupId: id, name }))
   }
 
-  const handleDeleteGroup = async (id: number) => {
+  const handleDeleteGroup = (id: number) => {
     if (!confirm('Delete this group and all its templates?')) return
-    const result = await api.templates.deleteGroup(board.boardId, id)
-    if (result.success) {
-      setGroups((prev) => prev.filter((g) => g.id !== id))
-      if (selectedGroupId === id) setSelectedGroupId(null)
-    }
+    dispatch(deleteTemplateGroup({ boardId: board.boardId, groupId: id }))
   }
 
   // ── Template CRUD ─────────────────────────────────────────────────────────
 
-  const handleSaveTemplate = async (input: TicketTemplateInput) => {
-    setFormSaving(true)
-    setFormError(null)
-    if (editingTemplate) {
-      const result = await api.templates.updateTemplate(board.boardId, editingTemplate.id, input)
-      if (result.success) {
-        setShowTemplateForm(false)
-        setEditingTemplate(null)
-        await loadTemplates()
-      } else {
-        setFormError(result.error ?? 'Failed to update template.')
-      }
-    } else {
-      const result = await api.templates.createTemplate(board.boardId, input)
-      if (result.success) {
-        setShowTemplateForm(false)
-        await loadTemplates()
-      } else {
-        setFormError(result.error ?? 'Failed to create template.')
-      }
-    }
-    setFormSaving(false)
-  }
-
-  const handleDeleteTemplate = async (id: number) => {
+  const handleDeleteTemplate = (id: number) => {
     if (!confirm('Delete this template?')) return
-    const result = await api.templates.deleteTemplate(board.boardId, id)
-    if (result.success) {
-      setTemplates((prev) => prev.filter((t) => t.id !== id))
-    }
+    dispatch(deleteTemplate({ boardId: board.boardId, templateId: id }))
   }
 
   // ── Generate ──────────────────────────────────────────────────────────────
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (selectedGroupId === null) return
-    setGenerating(true)
-    setGenerateResult(null)
-    setGenerateError(null)
-    const result = await api.templates.generateCards(board.boardId, selectedGroupId)
-    if (result.success && result.data) {
-      setGenerateResult(result.data)
-    } else {
-      setGenerateError(result.error ?? 'Failed to generate cards.')
-    }
-    setGenerating(false)
+    dispatch(generateCards({ boardId: board.boardId, groupId: selectedGroupId }))
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -233,7 +137,7 @@ export default function TemplatesPage(props: Props): JSX.Element {
       <Sidebar>
         <SidebarHeader>
           <span>Template Groups</span>
-          <IconBtn title="New group" onClick={() => setShowNewGroupInput((v) => !v)}>
+          <IconBtn title="New group" onClick={() => dispatch(newGroupInputToggled())}>
             +
           </IconBtn>
         </SidebarHeader>
@@ -243,10 +147,10 @@ export default function TemplatesPage(props: Props): JSX.Element {
             <GroupEditInput
               placeholder="Group name"
               value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
+              onChange={(e) => dispatch(newGroupNameChanged(e.target.value))}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleCreateGroup()
-                if (e.key === 'Escape') setShowNewGroupInput(false)
+                if (e.key === 'Escape') dispatch(newGroupInputClosed())
               }}
               autoFocus
             />
@@ -268,16 +172,16 @@ export default function TemplatesPage(props: Props): JSX.Element {
               $active={selectedGroupId === g.id}
               data-active={selectedGroupId === g.id}
               onClick={() => {
-                if (editingGroupId !== g.id) setSelectedGroupId(g.id)
+                if (editingGroupId !== g.id) dispatch(groupSelected(g.id))
               }}
             >
               {editingGroupId === g.id ? (
                 <GroupEditInput
                   value={editingGroupName}
-                  onChange={(e) => setEditingGroupName(e.target.value)}
+                  onChange={(e) => dispatch(editingGroupNameChanged(e.target.value))}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleRenameGroup(g.id)
-                    if (e.key === 'Escape') setEditingGroupId(null)
+                    if (e.key === 'Escape') dispatch(groupEditCancelled())
                   }}
                   onBlur={() => handleRenameGroup(g.id)}
                   autoFocus
@@ -291,8 +195,7 @@ export default function TemplatesPage(props: Props): JSX.Element {
                   title="Rename"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setEditingGroupId(g.id)
-                    setEditingGroupName(g.name)
+                    dispatch(groupEditStarted({ id: g.id, name: g.name }))
                   }}
                 >
                   ✎
@@ -324,11 +227,7 @@ export default function TemplatesPage(props: Props): JSX.Element {
               <MainActions>
                 <button
                   className="btn-secondary"
-                  onClick={() => {
-                    setEditingTemplate(null)
-                    setFormError(null)
-                    setShowTemplateForm(true)
-                  }}
+                  onClick={() => dispatch(templateFormOpened(null))}
                 >
                   + Add template
                 </button>
@@ -378,14 +277,7 @@ export default function TemplatesPage(props: Props): JSX.Element {
                     <TemplateCardHeader>
                       <TemplateName>{t.name}</TemplateName>
                       <GroupActions $alwaysVisible>
-                        <IconBtn
-                          title="Edit"
-                          onClick={() => {
-                            setEditingTemplate(t)
-                            setFormError(null)
-                            setShowTemplateForm(true)
-                          }}
-                        >
+                        <IconBtn title="Edit" onClick={() => dispatch(templateFormOpened(t))}>
                           ✎
                         </IconBtn>
                         <IconBtn $danger title="Delete" onClick={() => handleDeleteTemplate(t.id)}>
@@ -406,22 +298,7 @@ export default function TemplatesPage(props: Props): JSX.Element {
       </MainPanel>
 
       {/* ── Template form modal ── */}
-      {showTemplateForm && (
-        <TemplateForm
-          initial={editingTemplate ?? undefined}
-          groupId={selectedGroupId!}
-          lists={lists}
-          boardLabels={boardLabels}
-          epicCards={epicCards}
-          onSave={handleSaveTemplate}
-          onCancel={() => {
-            setShowTemplateForm(false)
-            setEditingTemplate(null)
-          }}
-          saving={formSaving}
-          error={formError}
-        />
-      )}
+      {showTemplateForm && <TemplateForm boardId={board.boardId} />}
     </Page>
   )
 }

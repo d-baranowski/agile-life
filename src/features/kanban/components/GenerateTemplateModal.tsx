@@ -4,7 +4,7 @@ import type {
   GenerateCardsResult
 } from '../../templates/template.types'
 import styled from 'styled-components'
-import { resolvePlaceholders } from '../../../lib/placeholders'
+import { resolvePlaceholders } from '../placeholders'
 
 const Overlay = styled.div`
   position: fixed;

@@ -12,61 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Formatting check ────────────────────────────────────────────────────────
-  format:
-    name: Prettier
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v5
-        with:
-          version: '10.11.0'
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24.14.0'
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-
-      - name: Check formatting
-        run: pnpm run format:check
-
-  # ── Lint ────────────────────────────────────────────────────────────────────
-  lint:
-    name: ESLint
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v5
-        with:
-          version: '10.11.0'
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24.14.0'
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-
-      - name: Lint
-        run: pnpm run lint
-
-  # ── Unit tests ──────────────────────────────────────────────────────────────
-  test:
-    name: Unit Tests
+  # ── Code quality + tests (single VM) ────────────────────────────────────────
+  quality:
+    name: Quality
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -88,7 +36,25 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
-      - name: Run tests with coverage
+      - name: Prettier
+        run: pnpm run format:check
+
+      - name: ESLint
+        run: pnpm run lint
+
+      - name: TypeScript
+        run: pnpm run typecheck
+
+      - name: knip (unused exports)
+        run: pnpm run knip
+
+      - name: Dependency cruiser (architecture)
+        run: pnpm run depcruise
+
+      - name: lib/ gravity (colocation)
+        run: pnpm run lib-gravity
+
+      - name: Unit tests
         run: pnpm run test:coverage --ci --forceExit
 
       - name: Upload coverage to Codecov
@@ -98,32 +64,6 @@ jobs:
           fail_ci_if_error: false
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-  # ── Type checking ───────────────────────────────────────────────────────────
-  typecheck:
-    name: TypeScript
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: '10.11.0'
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24.14.0'
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-
-      - name: Type check
-        run: pnpm run typecheck
 
   # ── Security audit ──────────────────────────────────────────────────────────
   audit:

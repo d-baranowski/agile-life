@@ -1,42 +1,42 @@
-import { useState } from 'react'
-import type { BoardConfig, StoryPointRule } from '../../lib/board.types'
-import { api } from '../api/useApi'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import { selectSelectedBoard, updateBoard } from '../board-switcher/boardsSlice'
+import {
+  storyPointsRulesChanged,
+  storyPointsSavingStarted,
+  storyPointsSavingFinished,
+  storyPointsSuccessDismissed
+} from './settingsSlice'
 import { CardTitle, ErrorBanner, SuccessBanner } from './settings-layout.styled'
 import { Hint } from './settings-form.styled'
 import { SpTable, SpInput, SpPointsInput, SpActions } from './settings-table.styled'
 
-interface Props {
-  board: BoardConfig
-  onBoardUpdated: (board: BoardConfig) => void
-}
-
-export default function StoryPointsEditor(props: Props): JSX.Element {
-  const { board, onBoardUpdated } = props
-  const [storyPoints, setStoryPoints] = useState<StoryPointRule[]>(board.storyPointsConfig)
-  const [spSaving, setSpSaving] = useState(false)
-  const [spError, setSpError] = useState<string | null>(null)
-  const [spSuccess, setSpSuccess] = useState<string | null>(null)
+export default function StoryPointsEditor(): JSX.Element {
+  const dispatch = useAppDispatch()
+  const board = useAppSelector(selectSelectedBoard)!
+  const storyPoints = useAppSelector((s) => s.settings.storyPointsRules)
+  const spSaving = useAppSelector((s) => s.settings.storyPointsSaving)
+  const spError = useAppSelector((s) => s.settings.storyPointsError)
+  const spSuccess = useAppSelector((s) => s.settings.storyPointsSuccess)
 
   const handleSaveStoryPoints = async () => {
-    setSpSaving(true)
-    setSpError(null)
-    setSpSuccess(null)
+    dispatch(storyPointsSavingStarted())
 
     const validRules = storyPoints
       .filter((r) => r.labelName.trim() !== '')
       .map((r) => ({ labelName: r.labelName.trim(), points: r.points }))
 
-    const result = await api.boards.update(board.boardId, { storyPointsConfig: validRules })
-
-    setSpSaving(false)
-
-    if (result.success && result.data) {
-      onBoardUpdated(result.data)
-      setStoryPoints(result.data.storyPointsConfig)
-      setSpSuccess('Story point rules saved.')
-      setTimeout(() => setSpSuccess(null), 3000)
-    } else {
-      setSpError(result.error ?? 'Failed to save story point rules.')
+    try {
+      await dispatch(
+        updateBoard({ boardId: board.boardId, updates: { storyPointsConfig: validRules } })
+      ).unwrap()
+      dispatch(storyPointsSavingFinished({ success: 'Story point rules saved.' }))
+      setTimeout(() => dispatch(storyPointsSuccessDismissed()), 3000)
+    } catch (err) {
+      dispatch(
+        storyPointsSavingFinished({
+          error: err instanceof Error ? err.message : 'Failed to save story point rules.'
+        })
+      )
     }
   }
 
@@ -71,7 +71,7 @@ export default function StoryPointsEditor(props: Props): JSX.Element {
                   onChange={(e) => {
                     const next = [...storyPoints]
                     next[idx] = { ...next[idx], labelName: e.target.value }
-                    setStoryPoints(next)
+                    dispatch(storyPointsRulesChanged(next))
                   }}
                 />
               </td>
@@ -86,14 +86,16 @@ export default function StoryPointsEditor(props: Props): JSX.Element {
                       ...next[idx],
                       points: Math.max(0, parseInt(e.target.value, 10) || 0)
                     }
-                    setStoryPoints(next)
+                    dispatch(storyPointsRulesChanged(next))
                   }}
                 />
               </td>
               <td>
                 <button
                   className="btn-ghost"
-                  onClick={() => setStoryPoints(storyPoints.filter((_, i) => i !== idx))}
+                  onClick={() =>
+                    dispatch(storyPointsRulesChanged(storyPoints.filter((_, i) => i !== idx)))
+                  }
                   title="Remove rule"
                 >
                   ✕
@@ -107,7 +109,9 @@ export default function StoryPointsEditor(props: Props): JSX.Element {
       <SpActions>
         <button
           className="btn-ghost"
-          onClick={() => setStoryPoints([...storyPoints, { labelName: '', points: 1 }])}
+          onClick={() =>
+            dispatch(storyPointsRulesChanged([...storyPoints, { labelName: '', points: 1 }]))
+          }
         >
           + Add Rule
         </button>

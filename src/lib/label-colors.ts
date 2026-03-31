@@ -1,5 +1,5 @@
 /** Trello label colour name → hex colour map. */
-export const LABEL_COLORS: Record<string, string> = {
+const LABEL_COLORS: Record<string, string> = {
   green: '#61bd4f',
   yellow: '#f2d600',
   orange: '#ff9f1a',

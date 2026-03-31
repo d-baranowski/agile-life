@@ -1,15 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect } from 'react'
 import type { BoardConfig } from '../../lib/board.types'
-import type {
-  ColumnCount,
-  WeeklyUserStats,
-  LabelUserStats,
-  WeeklyHistory,
-  StoryPointsUserStats,
-  EpicWeeklyHistory
-} from '../analytics/analytics.types'
-import { api } from '../api/useApi'
 import { labelColor } from '../../lib/label-colors'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import {
+  fetchDashboardData,
+  historyOffsetChanged,
+  epicHistoryOffsetChanged,
+  selectTotalCards,
+  selectUserCompletions,
+  selectLabelGroups,
+  selectHistoryChart,
+  selectEpicChart
+} from './dashboardSlice'
 import {
   Container,
   Header,
@@ -92,223 +94,33 @@ interface Props {
   syncVersion: number
 }
 
-// Show at most 13 weeks per page on the trend chart
-const HISTORY_PAGE_SIZE = 13
-const USER_PALETTE = [
-  '#0079bf',
-  '#61bd4f',
-  '#eb5a46',
-  '#c377e0',
-  '#ff9f1a',
-  '#00c2e0',
-  '#51e898',
-  '#ff78cb',
-  '#344563',
-  '#f2d600'
-]
-
 export default function Dashboard(props: Props): JSX.Element {
   const { board, syncVersion } = props
-  const [columns, setColumns] = useState<ColumnCount[]>([])
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyUserStats[]>([])
-  const [labelStats, setLabelStats] = useState<LabelUserStats[]>([])
-  const [historyStats, setHistoryStats] = useState<WeeklyHistory[]>([])
-  const [storyPointStats, setStoryPointStats] = useState<StoryPointsUserStats[]>([])
-  const [epicHistoryStats, setEpicHistoryStats] = useState<EpicWeeklyHistory[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [historyOffset, setHistoryOffset] = useState(0)
-  const [epicHistoryOffset, setEpicHistoryOffset] = useState(0)
+  const dispatch = useAppDispatch()
 
-  const loadAll = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  // ── Redux state ──────────────────────────────────────────────────────────
+  const columns = useAppSelector((s) => s.dashboard.columns)
+  const storyPointStats = useAppSelector((s) => s.dashboard.storyPointStats)
+  const loading = useAppSelector((s) => s.dashboard.loading)
+  const error = useAppSelector((s) => s.dashboard.error)
+  const historyOffset = useAppSelector((s) => s.dashboard.historyOffset)
+  const epicHistoryOffset = useAppSelector((s) => s.dashboard.epicHistoryOffset)
 
-    const [colResult, weeklyResult, labelResult, historyResult, spResult, epicResult] =
-      await Promise.all([
-        api.analytics.columnCounts(board.boardId),
-        api.analytics.weeklyUserStats(board.boardId),
-        api.analytics.labelUserStats(board.boardId),
-        api.analytics.weeklyHistory(board.boardId, board.storyPointsConfig),
-        api.analytics.storyPoints7d(board.boardId, board.storyPointsConfig),
-        api.analytics.epicWeeklyHistory(board.boardId, board.storyPointsConfig)
-      ])
-
-    if (colResult.success && colResult.data) setColumns(colResult.data)
-    else if (!colResult.success) setError(colResult.error ?? 'Failed to load column counts.')
-    if (weeklyResult.success) setWeeklyStats(weeklyResult.data ?? [])
-    else setError((prev) => prev ?? weeklyResult.error ?? 'Failed to load weekly stats.')
-    if (labelResult.success) setLabelStats(labelResult.data ?? [])
-    else setError((prev) => prev ?? labelResult.error ?? 'Failed to load label stats.')
-    if (historyResult.success) setHistoryStats(historyResult.data ?? [])
-    if (spResult.success) setStoryPointStats(spResult.data ?? [])
-    if (epicResult.success) setEpicHistoryStats(epicResult.data ?? [])
-
-    setLoading(false)
-  }, [board.boardId, board.storyPointsConfig])
+  // ── Memoized selectors ───────────────────────────────────────────────────
+  const totalCards = useAppSelector(selectTotalCards)
+  const { sortedUsers, maxUserCount, totalCompleted } = useAppSelector(selectUserCompletions)
+  const labelGroups = useAppSelector(selectLabelGroups)
+  const history = useAppSelector(selectHistoryChart)
+  const epic = useAppSelector(selectEpicChart)
 
   useEffect(() => {
-    loadAll()
-  }, [loadAll, syncVersion])
-
-  // Reset page when history data changes
-  useEffect(() => {
-    setHistoryOffset(0)
-  }, [historyStats])
-
-  // Reset page when epic history data changes
-  useEffect(() => {
-    setEpicHistoryOffset(0)
-  }, [epicHistoryStats])
-
-  // ── Derived data ─────────────────────────────────────────────────────────────
-
-  const totalCards = columns.reduce((sum, c) => sum + c.cardCount, 0)
-
-  const userTotals = weeklyStats.reduce<Record<string, { userName: string; count: number }>>(
-    (acc, row) => {
-      const key = row.userId ?? 'unassigned'
-      if (!acc[key]) acc[key] = { userName: row.userName, count: 0 }
-      acc[key].count += row.closedCount
-      return acc
-    },
-    {}
-  )
-  const sortedUsers = Object.entries(userTotals).sort((a, b) => b[1].count - a[1].count)
-  const maxUserCount = sortedUsers[0]?.[1].count ?? 1
-  const totalCompleted = sortedUsers.reduce((s, [, u]) => s + u.count, 0)
-
-  const labelGroups = labelStats.reduce<
-    Record<
-      string,
-      { color: string; users: { userId: string | null; userName: string; count: number }[] }
-    >
-  >((acc, row) => {
-    if (!acc[row.labelName]) acc[row.labelName] = { color: row.labelColor, users: [] }
-    acc[row.labelName].users.push({
-      userId: row.userId,
-      userName: row.userName,
-      count: row.closedCount
-    })
-    return acc
-  }, {})
-
-  // ── 12-month history chart with paging ────────────────────────────────────────
-
-  const allHistoryWeeks = [...new Set(historyStats.map((r) => r.week))].sort()
-  const historyUserMap = new Map<string, { userName: string; idx: number }>()
-  historyStats.forEach((r) => {
-    const key = r.userId ?? 'unassigned'
-    if (!historyUserMap.has(key))
-      historyUserMap.set(key, { userName: r.userName, idx: historyUserMap.size })
-  })
-
-  // Compute paged window (most recent page first)
-  const totalWeeks = allHistoryWeeks.length
-  const maxOffset = Math.max(0, Math.ceil(totalWeeks / HISTORY_PAGE_SIZE) - 1)
-  const clampedOffset = Math.min(historyOffset, maxOffset)
-  const pageEndIdx = totalWeeks - clampedOffset * HISTORY_PAGE_SIZE
-  const pageStartIdx = Math.max(0, pageEndIdx - HISTORY_PAGE_SIZE)
-  const pageWeeks = allHistoryWeeks.slice(pageStartIdx, pageEndIdx)
-
-  const historyLookup = new Map<string, Map<string, number>>()
-  historyStats.forEach((r) => {
-    const key = r.userId ?? 'unassigned'
-    if (!historyLookup.has(r.week)) historyLookup.set(r.week, new Map())
-    historyLookup.get(r.week)?.set(key, r.closedCount)
-  })
-
-  const historyChartData = {
-    labels: pageWeeks,
-    datasets: [...historyUserMap.entries()].map(([userId, { userName, idx }]) => {
-      const color = USER_PALETTE[idx % USER_PALETTE.length]
-      return {
-        label: userName,
-        data: pageWeeks.map((w) => historyLookup.get(w)?.get(userId) ?? 0),
-        borderColor: color,
-        backgroundColor: color + '33',
-        fill: false,
-        tension: 0.3,
-        pointRadius: 2
-      }
-    })
-  }
-
-  const historyChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'bottom' as const },
-      tooltip: { mode: 'index' as const, intersect: false }
-    },
-    scales: {
-      x: { ticks: { maxTicksLimit: HISTORY_PAGE_SIZE } },
-      y: { beginAtZero: true, ticks: { precision: 0 } }
-    }
-  }
-
-  const pageRangeLabel =
-    pageWeeks.length > 0
-      ? pageWeeks[0] === pageWeeks[pageWeeks.length - 1]
-        ? pageWeeks[0]
-        : `${pageWeeks[0]} – ${pageWeeks[pageWeeks.length - 1]}`
-      : ''
-
-  // ── Epic chart derived data ───────────────────────────────────────────────
-
-  const allEpicWeeks = [...new Set(epicHistoryStats.map((r) => r.week))].sort()
-  const epicMap = new Map<string, { epicCardName: string; idx: number }>()
-  epicHistoryStats.forEach((r) => {
-    if (!epicMap.has(r.epicCardId))
-      epicMap.set(r.epicCardId, { epicCardName: r.epicCardName, idx: epicMap.size })
-  })
-
-  const totalEpicWeeks = allEpicWeeks.length
-  const maxEpicOffset = Math.max(0, Math.ceil(totalEpicWeeks / HISTORY_PAGE_SIZE) - 1)
-  const clampedEpicOffset = Math.min(epicHistoryOffset, maxEpicOffset)
-  const epicPageEndIdx = totalEpicWeeks - clampedEpicOffset * HISTORY_PAGE_SIZE
-  const epicPageStartIdx = Math.max(0, epicPageEndIdx - HISTORY_PAGE_SIZE)
-  const epicPageWeeks = allEpicWeeks.slice(epicPageStartIdx, epicPageEndIdx)
-
-  const epicLookup = new Map<string, Map<string, number>>()
-  epicHistoryStats.forEach((r) => {
-    if (!epicLookup.has(r.week)) epicLookup.set(r.week, new Map())
-    epicLookup.get(r.week)?.set(r.epicCardId, r.storyPoints)
-  })
-
-  const epicChartData = {
-    labels: epicPageWeeks,
-    datasets: [...epicMap.entries()].map(([epicCardId, { epicCardName, idx }]) => {
-      const color = USER_PALETTE[idx % USER_PALETTE.length]
-      return {
-        label: epicCardName,
-        data: epicPageWeeks.map((w) => epicLookup.get(w)?.get(epicCardId) ?? 0),
-        backgroundColor: color + 'bb',
-        borderColor: color,
-        borderWidth: 1
-      }
-    })
-  }
-
-  const epicChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'bottom' as const },
-      tooltip: { mode: 'index' as const, intersect: false }
-    },
-    scales: {
-      x: { stacked: false, ticks: { maxTicksLimit: HISTORY_PAGE_SIZE } },
-      y: { beginAtZero: true, ticks: { precision: 0 } }
-    }
-  }
-
-  const epicPageRangeLabel =
-    epicPageWeeks.length > 0
-      ? epicPageWeeks[0] === epicPageWeeks[epicPageWeeks.length - 1]
-        ? epicPageWeeks[0]
-        : `${epicPageWeeks[0]} – ${epicPageWeeks[epicPageWeeks.length - 1]}`
-      : ''
+    dispatch(
+      fetchDashboardData({
+        boardId: board.boardId,
+        storyPointsConfig: board.storyPointsConfig
+      })
+    )
+  }, [dispatch, board.boardId, board.storyPointsConfig, syncVersion])
 
   return (
     <Container>
@@ -440,19 +252,21 @@ export default function Dashboard(props: Props): JSX.Element {
           <section>
             <ChartHeader>
               <SectionTitle>Story Point Trend — Past 12 Months</SectionTitle>
-              {allHistoryWeeks.length > 0 && (
+              {history.allWeeks.length > 0 && (
                 <ChartNav>
                   <ChartNavBtn
-                    onClick={() => setHistoryOffset((o) => Math.min(o + 1, maxOffset))}
-                    disabled={clampedOffset >= maxOffset}
+                    onClick={() =>
+                      dispatch(historyOffsetChanged(Math.min(historyOffset + 1, history.maxOffset)))
+                    }
+                    disabled={history.clampedOffset >= history.maxOffset}
                     title="View older weeks"
                   >
                     ◀
                   </ChartNavBtn>
-                  <ChartNavLabel>{pageRangeLabel}</ChartNavLabel>
+                  <ChartNavLabel>{history.pageRangeLabel}</ChartNavLabel>
                   <ChartNavBtn
-                    onClick={() => setHistoryOffset((o) => Math.max(o - 1, 0))}
-                    disabled={clampedOffset === 0}
+                    onClick={() => dispatch(historyOffsetChanged(Math.max(historyOffset - 1, 0)))}
+                    disabled={history.clampedOffset === 0}
                     title="View newer weeks"
                   >
                     ▶
@@ -460,7 +274,7 @@ export default function Dashboard(props: Props): JSX.Element {
                 </ChartNav>
               )}
             </ChartHeader>
-            {allHistoryWeeks.length === 0 ? (
+            {history.allWeeks.length === 0 ? (
               <p className="text-muted">
                 {columns.length > 0 ? (
                   <>
@@ -476,7 +290,7 @@ export default function Dashboard(props: Props): JSX.Element {
               </p>
             ) : (
               <ChartWrapper>
-                <Line data={historyChartData} options={historyChartOptions} />
+                <Line data={history.chartData} options={history.chartOptions} />
               </ChartWrapper>
             )}
           </section>
@@ -486,19 +300,25 @@ export default function Dashboard(props: Props): JSX.Element {
             <section>
               <ChartHeader>
                 <SectionTitle>Story Points by Epic — Past 12 Months</SectionTitle>
-                {allEpicWeeks.length > 0 && (
+                {epic.allWeeks.length > 0 && (
                   <ChartNav>
                     <ChartNavBtn
-                      onClick={() => setEpicHistoryOffset((o) => Math.min(o + 1, maxEpicOffset))}
-                      disabled={clampedEpicOffset >= maxEpicOffset}
+                      onClick={() =>
+                        dispatch(
+                          epicHistoryOffsetChanged(Math.min(epicHistoryOffset + 1, epic.maxOffset))
+                        )
+                      }
+                      disabled={epic.clampedOffset >= epic.maxOffset}
                       title="View older weeks"
                     >
                       ◀
                     </ChartNavBtn>
-                    <ChartNavLabel>{epicPageRangeLabel}</ChartNavLabel>
+                    <ChartNavLabel>{epic.pageRangeLabel}</ChartNavLabel>
                     <ChartNavBtn
-                      onClick={() => setEpicHistoryOffset((o) => Math.max(o - 1, 0))}
-                      disabled={clampedEpicOffset === 0}
+                      onClick={() =>
+                        dispatch(epicHistoryOffsetChanged(Math.max(epicHistoryOffset - 1, 0)))
+                      }
+                      disabled={epic.clampedOffset === 0}
                       title="View newer weeks"
                     >
                       ▶
@@ -506,13 +326,13 @@ export default function Dashboard(props: Props): JSX.Element {
                   </ChartNav>
                 )}
               </ChartHeader>
-              {allEpicWeeks.length === 0 ? (
+              {epic.allWeeks.length === 0 ? (
                 <p className="text-muted">
                   No epic data yet. Click ↻ Fetch from Trello to import your board data.
                 </p>
               ) : (
                 <ChartWrapper>
-                  <Bar data={epicChartData} options={epicChartOptions} />
+                  <Bar data={epic.chartData} options={epic.chartOptions} />
                 </ChartWrapper>
               )}
             </section>

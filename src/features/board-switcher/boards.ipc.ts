@@ -12,7 +12,12 @@ import type {
   EpicStory,
   SavedCredentials
 } from '../../lib/board.types'
-import type { TrelloBoard, KanbanColumn, TrelloMember, TrelloLabel } from '../../trello/trello.types'
+import type {
+  TrelloBoard,
+  KanbanColumn,
+  TrelloMember,
+  TrelloLabel
+} from '../../trello/trello.types'
 import type { ColumnCount } from '../analytics/analytics.types'
 import {
   getAllBoards,
@@ -39,6 +44,7 @@ import {
   getCardLabelsJson,
   getBoardLabels,
   upsertActions,
+  insertActionRow,
   getLatestActionDate,
   upsertCardListEntry,
   setCardListEntryFallback,
@@ -387,11 +393,48 @@ export function registerBoardHandlers(): void {
           return { success: false, error: `Board not found: ${boardId}` }
         }
 
+        const fromRow = getDb()
+          .prepare('SELECT list_id FROM trello_cards WHERE id = ?')
+          .get(cardId) as { list_id: string } | undefined
+        const fromListId = fromRow?.list_id ?? null
+        const fromListNameRow = fromListId
+          ? (getDb().prepare('SELECT name FROM trello_lists WHERE id = ?').get(fromListId) as
+              | { name: string }
+              | undefined)
+          : undefined
+        const fromListName = fromListNameRow?.name ?? null
+
+        const toListNameRow = getDb()
+          .prepare('SELECT name FROM trello_lists WHERE id = ?')
+          .get(toListId) as { name: string } | undefined
+        const toListName = toListNameRow?.name ?? null
+
         log.info(`[boards] moveCard cardId=${cardId} → listId=${toListId} pos=${pos}`)
         const client = new TrelloClient(config.apiKey, config.apiToken)
         await client.moveCard(cardId, toListId, pos)
 
         moveCardToList(cardId, toListId, pos)
+
+        // Record a local move action so analytics that rely on "most recent list-change"
+        // reflect the user's move immediately, without waiting for the next full sync.
+        // Trello action IDs are immutable and globally unique, but we don't have the new
+        // action id until we sync; generate a local-only id to avoid collisions.
+        const nowIso = new Date().toISOString()
+        if (toListName) {
+          insertActionRow({
+            id: `local-move-${cardId}-${nowIso}`,
+            boardId,
+            cardId,
+            actionType: 'updateCard:idList',
+            actionDate: nowIso,
+            memberId: config.myMemberId,
+            memberName: null,
+            listBeforeId: fromListId,
+            listBeforeName: fromListName,
+            listAfterId: toListId,
+            listAfterName: toListName
+          })
+        }
 
         return { success: true }
       } catch (err) {

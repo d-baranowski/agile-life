@@ -11,7 +11,10 @@ module.exports = {
   },
   rules: {
     // Allow underscore-prefixed unused variables (common for _event, _e)
-    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
+    ],
     // TypeScript handles prop validation
     'react/prop-types': 'off',
     // Return types are enforced by tsconfig; not needed at ESLint level

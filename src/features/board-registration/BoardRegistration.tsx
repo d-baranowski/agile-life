@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import type { BoardConfig } from '../../lib/board.types'
 import type { TrelloBoard } from '../../trello/trello.types'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import { addBoard, fetchBoards, selectBoards } from '../board-switcher/boardsSlice'
+import { registrationClosed } from '../../store/uiSlice'
 import { api } from '../api/useApi'
 import { BoardDesc, BoardList, BoardName, BoardOption } from './registration-boards.styled'
 import {
@@ -25,11 +27,6 @@ import {
   StepNumber,
   Steps
 } from './registration-layout.styled'
-
-interface Props {
-  onBoardAdded: (board: BoardConfig) => void
-  onCancel?: () => void
-}
 
 type StepType = 'credentials' | 'select-board' | 'configure'
 
@@ -71,8 +68,9 @@ function getTrelloAuthorizeUrl(apiKey: string): string {
   return `https://trello.com/1/authorize?${params.toString()}`
 }
 
-export default function BoardRegistration(props: Props): JSX.Element {
-  const { onBoardAdded, onCancel } = props
+export default function BoardRegistration(): JSX.Element {
+  const dispatch = useAppDispatch()
+  const existingBoards = useAppSelector(selectBoards)
   const [step, setStep] = useState<StepType>('credentials')
   const [apiKey, setApiKey] = useState('')
   const [apiToken, setApiToken] = useState('')
@@ -165,30 +163,33 @@ export default function BoardRegistration(props: Props): JSX.Element {
     setLoading(true)
     setError(null)
 
-    const result = await api.boards.add({
-      boardId: chosenBoard.id,
-      boardName: chosenBoard.name,
-      apiKey: normalizedApiKey,
-      apiToken: normalizedApiToken,
-      projectCode: projectCode.toUpperCase(),
-      nextTicketNumber: 1,
-      doneListNames: parsedDoneNames.length > 0 ? parsedDoneNames : ['Done'],
-      storyPointsConfig: [
-        { labelName: 'Large', points: 5 },
-        { labelName: 'Medium', points: 3 },
-        { labelName: 'Small', points: 1 }
-      ],
-      myMemberId: null
-    })
-
-    setLoading(false)
-
-    if (!result.success || !result.data) {
-      setError(result.error ?? 'Failed to save board.')
-      return
+    try {
+      await dispatch(
+        addBoard({
+          boardId: chosenBoard.id,
+          boardName: chosenBoard.name,
+          apiKey: normalizedApiKey,
+          apiToken: normalizedApiToken,
+          projectCode: projectCode.toUpperCase(),
+          nextTicketNumber: 1,
+          doneListNames: parsedDoneNames.length > 0 ? parsedDoneNames : ['Done'],
+          storyPointsConfig: [
+            { labelName: 'Large', points: 5 },
+            { labelName: 'Medium', points: 3 },
+            { labelName: 'Small', points: 1 }
+          ],
+          myMemberId: null
+        })
+      ).unwrap()
+      // addBoard thunk sets selectedBoardId in the fulfilled reducer.
+      // Re-fetch boards to ensure full consistency, then close registration.
+      dispatch(fetchBoards())
+      dispatch(registrationClosed())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save board.')
+    } finally {
+      setLoading(false)
     }
-
-    onBoardAdded(result.data)
   }
 
   return (
@@ -197,8 +198,8 @@ export default function BoardRegistration(props: Props): JSX.Element {
         {/* ── Header ── */}
         <RegistrationHeader>
           <h2>Register a Trello Board</h2>
-          {onCancel && (
-            <button className="btn-ghost" onClick={onCancel}>
+          {existingBoards.length > 0 && (
+            <button className="btn-ghost" onClick={() => dispatch(registrationClosed())}>
               ✕ Cancel
             </button>
           )}

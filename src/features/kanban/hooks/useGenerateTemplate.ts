@@ -1,67 +1,49 @@
-import { useState, useCallback } from 'react'
-import type {
-  TemplateGroup,
-  TicketTemplate,
-  GenerateCardsResult
-} from '../../templates/template.types'
-import { api } from '../../api/useApi'
+import { useCallback } from 'react'
+import { useAppDispatch, useAppSelector } from '../../../store/hooks'
+import {
+  fetchBoardData,
+  fetchGenerateTemplateGroups,
+  fetchGenerateTemplates,
+  generateCardsFromTemplate,
+  genModalOpened,
+  genModalClosed
+} from '../kanbanSlice'
 
-export function useGenerateTemplate(boardId: string, loadBoardData: () => Promise<void>) {
-  const [showGenModal, setShowGenModal] = useState(false)
-  const [genGroups, setGenGroups] = useState<TemplateGroup[]>([])
-  const [genGroupId, setGenGroupId] = useState<number | null>(null)
-  const [genTemplates, setGenTemplates] = useState<TicketTemplate[]>([])
-  const [genLoading, setGenLoading] = useState(false)
-  const [genGenerating, setGenGenerating] = useState(false)
-  const [genResult, setGenResult] = useState<GenerateCardsResult | null>(null)
-  const [genError, setGenError] = useState<string | null>(null)
+export function useGenerateTemplate(boardId: string) {
+  const dispatch = useAppDispatch()
+  const showGenModal = useAppSelector((s) => s.kanban.showGenModal)
+  const genGroups = useAppSelector((s) => s.kanban.genGroups)
+  const genGroupId = useAppSelector((s) => s.kanban.genGroupId)
+  const genTemplates = useAppSelector((s) => s.kanban.genTemplates)
+  const genLoading = useAppSelector((s) => s.kanban.genLoading)
+  const genGenerating = useAppSelector((s) => s.kanban.genGenerating)
+  const genResult = useAppSelector((s) => s.kanban.genResult)
+  const genError = useAppSelector((s) => s.kanban.genError)
 
-  const handleOpenGenModal = useCallback(async () => {
-    setShowGenModal(true)
-    setGenGroupId(null)
-    setGenTemplates([])
-    setGenResult(null)
-    setGenError(null)
-    const result = await api.templates.getGroups(boardId)
-    if (result.success && result.data) {
-      setGenGroups(result.data)
-    } else {
-      setGenError(result.error ?? 'Failed to load template groups.')
-    }
-  }, [boardId])
+  const handleOpenGenModal = useCallback(() => {
+    dispatch(genModalOpened())
+    dispatch(fetchGenerateTemplateGroups(boardId))
+  }, [boardId, dispatch])
 
   const handleGenGroupChange = useCallback(
-    async (groupId: number) => {
-      setGenGroupId(groupId)
-      setGenResult(null)
-      setGenError(null)
-      setGenLoading(true)
-      const result = await api.templates.getTemplates(boardId, groupId)
-      setGenLoading(false)
-      if (result.success && result.data) setGenTemplates(result.data)
-      else setGenError(result.error ?? 'Failed to load templates.')
+    (groupId: number) => {
+      dispatch(fetchGenerateTemplates({ boardId, groupId }))
     },
-    [boardId]
+    [boardId, dispatch]
   )
 
-  const handleGenerateFromModal = useCallback(async () => {
+  const handleGenerateFromModal = useCallback(() => {
     if (genGroupId === null) return
-    setGenGenerating(true)
-    setGenResult(null)
-    setGenError(null)
-    const result = await api.templates.generateCards(boardId, genGroupId)
-    setGenGenerating(false)
-    if (result.success && result.data) {
-      setGenResult(result.data)
-      loadBoardData()
-    } else {
-      setGenError(result.error ?? 'Failed to generate cards.')
-    }
-  }, [boardId, genGroupId, loadBoardData])
+    dispatch(generateCardsFromTemplate({ boardId, groupId: genGroupId })).then((action) => {
+      if (generateCardsFromTemplate.fulfilled.match(action)) {
+        dispatch(fetchBoardData(boardId))
+      }
+    })
+  }, [boardId, genGroupId, dispatch])
 
   const handleCloseGenModal = useCallback(() => {
-    setShowGenModal(false)
-  }, [])
+    dispatch(genModalClosed())
+  }, [dispatch])
 
   return {
     showGenModal,

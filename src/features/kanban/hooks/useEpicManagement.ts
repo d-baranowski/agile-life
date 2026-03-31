@@ -1,76 +1,63 @@
-import { useState, useCallback, useEffect } from 'react'
-import type { KanbanColumn } from '../../../trello/trello.types'
-import type { EpicCardOption, EpicStory } from '../../../lib/board.types'
+import { useCallback, useEffect } from 'react'
+import { useAppDispatch, useAppSelector } from '../../../store/hooks'
+import {
+  fetchEpicCards,
+  fetchEpicStories,
+  epicDropdownToggled,
+  epicDropdownClosed,
+  epicStoriesOpened,
+  epicStoriesClosed,
+  cardEpicUpdated
+} from '../kanbanSlice'
 import { api } from '../../api/useApi'
 
-export function useEpicManagement(
-  boardId: string,
-  isStoryBoard: boolean,
-  setColumns: React.Dispatch<React.SetStateAction<KanbanColumn[]>>
-) {
-  // Epic card options (loaded when this is a story board)
-  const [epicCardOptions, setEpicCardOptions] = useState<EpicCardOption[]>([])
-
-  // Epic stories modal state (for double-click on epic board)
-  const [epicStoriesCard, setEpicStoriesCard] = useState<{
-    id: string
-    name: string
-  } | null>(null)
-  const [epicStories, setEpicStories] = useState<EpicStory[] | null>(null)
-  const [epicStoriesLoading, setEpicStoriesLoading] = useState(false)
-
-  // Epic assignment dropdown state
-  const [epicDropdownCardId, setEpicDropdownCardId] = useState<string | null>(null)
+export function useEpicManagement(boardId: string, isStoryBoard: boolean) {
+  const dispatch = useAppDispatch()
+  const epicCardOptions = useAppSelector((s) => s.kanban.epicCardOptions)
+  const epicStoriesCard = useAppSelector((s) => s.kanban.epicStoriesCard)
+  const epicStories = useAppSelector((s) => s.kanban.epicStories)
+  const epicStoriesLoading = useAppSelector((s) => s.kanban.epicStoriesLoading)
+  const epicDropdownCardId = useAppSelector((s) => s.kanban.epicDropdownCardId)
 
   // Load epic card options when this is a story board
   useEffect(() => {
     if (!isStoryBoard) return
-    api.epics.getCards(boardId).then((result) => {
-      if (result.success && result.data) setEpicCardOptions(result.data)
-    })
-  }, [boardId, isStoryBoard])
+    dispatch(fetchEpicCards(boardId))
+  }, [boardId, isStoryBoard, dispatch])
 
   // Open epic stories modal (double-click on epic board card)
-  const handleOpenEpicStories = useCallback(async (cardId: string, cardName: string) => {
-    setEpicStoriesCard({ id: cardId, name: cardName })
-    setEpicStories(null)
-    setEpicStoriesLoading(true)
-    const result = await api.epics.getStories(cardId)
-    setEpicStoriesLoading(false)
-    if (result.success && result.data) {
-      setEpicStories(result.data)
-    }
-  }, [])
+  const handleOpenEpicStories = useCallback(
+    (cardId: string, cardName: string) => {
+      dispatch(epicStoriesOpened({ id: cardId, name: cardName }))
+      dispatch(fetchEpicStories(cardId))
+    },
+    [dispatch]
+  )
 
   const handleCloseEpicStories = useCallback(() => {
-    setEpicStoriesCard(null)
-    setEpicStories(null)
-  }, [])
+    dispatch(epicStoriesClosed())
+  }, [dispatch])
 
   // Assign or clear an epic for a story card
   const handleSetCardEpic = useCallback(
     async (cardId: string, epicCardId: string | null) => {
-      setEpicDropdownCardId(null)
+      dispatch(epicDropdownClosed())
       await api.epics.setCardEpic(boardId, cardId, epicCardId)
       // Optimistically update local state
       const epicName = epicCardId
         ? (epicCardOptions.find((o) => o.id === epicCardId)?.name ?? null)
         : null
-      setColumns((prev) =>
-        prev.map((col) => ({
-          ...col,
-          cards: col.cards.map((c) =>
-            c.id === cardId ? { ...c, epicCardId: epicCardId, epicCardName: epicName } : c
-          )
-        }))
-      )
+      dispatch(cardEpicUpdated({ cardId, epicCardId, epicCardName: epicName }))
     },
-    [boardId, epicCardOptions, setColumns]
+    [boardId, epicCardOptions, dispatch]
   )
 
-  const handleToggleEpicDropdown = useCallback((cardId: string) => {
-    setEpicDropdownCardId((prev) => (prev === cardId ? null : cardId))
-  }, [])
+  const handleToggleEpicDropdown = useCallback(
+    (cardId: string) => {
+      dispatch(epicDropdownToggled(cardId))
+    },
+    [dispatch]
+  )
 
   return {
     epicCardOptions,
@@ -78,7 +65,6 @@ export function useEpicManagement(
     epicStories,
     epicStoriesLoading,
     epicDropdownCardId,
-    setEpicDropdownCardId,
     handleOpenEpicStories,
     handleCloseEpicStories,
     handleSetCardEpic,

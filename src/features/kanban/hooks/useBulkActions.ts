@@ -1,384 +1,340 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
-import type { KanbanColumn, KanbanCard, TrelloMember } from '../../../trello/trello.types'
-import type { EpicCardOption } from '../../../lib/board.types'
-import type {
-  QueueItemStatus,
-  BulkArchiveQueueItem,
-  BulkArchiveModal,
-  BulkMemberQueueItem,
-  BulkMemberModal
-} from '../kanban.types'
+import { useCallback, useRef, useEffect } from 'react'
+import type { KanbanCard } from '../../../trello/trello.types'
+import type { QueueItemStatus, BulkArchiveQueueItem, BulkMemberQueueItem } from '../kanban.types'
 import { api } from '../../api/useApi'
+import { useAppDispatch, useAppSelector } from '../../../store/hooks'
+import {
+  cardToggleSelected,
+  selectionCleared,
+  bulkCardEpicUpdated,
+  bulkEpicDropdownToggled,
+  bulkEpicDropdownClosed,
+  bulkEpicSearchChanged,
+  bulkMemberDropdownToggled,
+  bulkMemberDropdownClosed,
+  bulkArchiveModalOpened,
+  bulkArchiveModalClosed,
+  bulkArchiveModalUpdated,
+  bulkMemberModalOpened,
+  bulkMemberModalClosed,
+  bulkMemberModalUpdated,
+  cardRemovedFromColumn,
+  cardMembersUpdated,
+  cardsAddedToColumn,
+  kanbanToastShown,
+  fetchBoardData
+} from '../kanbanSlice'
 
 /** Delay between sequential Trello API requests to avoid 429 rate-limiting. */
 const BULK_DELAY_MS = 350
 
-export function useBulkActions(
-  boardId: string,
-  columns: KanbanColumn[],
-  epicCardOptions: EpicCardOption[],
-  _boardMembers: TrelloMember[],
-  setColumns: React.Dispatch<React.SetStateAction<KanbanColumn[]>>,
-  setToastMessage: (msg: string | null) => void,
-  loadBoardData: () => Promise<void>
-) {
-  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
-  const [bulkEpicDropdownOpen, setBulkEpicDropdownOpen] = useState(false)
-  const [bulkEpicSearch, setBulkEpicSearch] = useState('')
-  const bulkEpicDropdownRef = useRef<HTMLDivElement>(null)
-  const [bulkMemberDropdownOpen, setBulkMemberDropdownOpen] = useState(false)
-  const bulkMemberDropdownRef = useRef<HTMLDivElement>(null)
-  const [bulkArchiveModal, setBulkArchiveModal] = useState<BulkArchiveModal | null>(null)
-  const [bulkMemberModal, setBulkMemberModal] = useState<BulkMemberModal | null>(null)
+export function useBulkActions(boardId: string) {
+  const dispatch = useAppDispatch()
+  const columns = useAppSelector((s) => s.kanban.columns)
+  const selectedCardIds = useAppSelector((s) => s.kanban.selectedCardIds)
+  const epicCardOptions = useAppSelector((s) => s.kanban.epicCardOptions)
+  const bulkEpicDropdownOpen = useAppSelector((s) => s.kanban.bulkEpicDropdownOpen)
+  const bulkEpicSearch = useAppSelector((s) => s.kanban.bulkEpicSearch)
+  const bulkMemberDropdownOpen = useAppSelector((s) => s.kanban.bulkMemberDropdownOpen)
+  const bulkArchiveModal = useAppSelector((s) => s.kanban.bulkArchiveModal)
+  const bulkMemberModal = useAppSelector((s) => s.kanban.bulkMemberModal)
 
-  const handleToggleSelectCard = useCallback((cardId: string) => {
-    setSelectedCardIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(cardId)) next.delete(cardId)
-      else next.add(cardId)
-      return next
-    })
-  }, [])
+  const bulkEpicDropdownRef = useRef<HTMLDivElement>(null)
+  const bulkMemberDropdownRef = useRef<HTMLDivElement>(null)
+
+  const selectedCardIdSet = new Set(selectedCardIds)
+
+  const handleToggleSelectCard = useCallback(
+    (cardId: string) => {
+      dispatch(cardToggleSelected(cardId))
+    },
+    [dispatch]
+  )
 
   const handleBulkSetEpic = useCallback(
     async (epicCardId: string | null) => {
-      setBulkEpicDropdownOpen(false)
-      const cardIds = Array.from(selectedCardIds)
+      dispatch(bulkEpicDropdownClosed())
+      const cardIds = [...selectedCardIds]
       const epicName = epicCardId
         ? (epicCardOptions.find((o) => o.id === epicCardId)?.name ?? null)
         : null
-      setColumns((prev) =>
-        prev.map((col) => ({
-          ...col,
-          cards: col.cards.map((c) =>
-            selectedCardIds.has(c.id) ? { ...c, epicCardId, epicCardName: epicName } : c
-          )
-        }))
-      )
-      setSelectedCardIds(new Set())
+      dispatch(bulkCardEpicUpdated({ cardIds, epicCardId, epicCardName: epicName }))
+      dispatch(selectionCleared())
       const result = await api.epics.setBulkCardEpic(boardId, cardIds, epicCardId)
       if (!result.success) {
-        loadBoardData()
-        setToastMessage(result.error ?? 'Failed to update epic. Please try again.')
+        dispatch(fetchBoardData(boardId))
+        dispatch(kanbanToastShown(result.error ?? 'Failed to update epic. Please try again.'))
       }
     },
-    [boardId, selectedCardIds, epicCardOptions, loadBoardData, setColumns, setToastMessage]
+    [boardId, selectedCardIds, epicCardOptions, dispatch]
   )
 
   // ── Bulk archive modal handlers ──────────────────────────────────────────
 
   const handleOpenBulkArchive = useCallback(() => {
-    if (selectedCardIds.size === 0) return
-    setBulkArchiveModal({ queue: null, running: false })
-  }, [selectedCardIds])
+    dispatch(bulkArchiveModalOpened())
+  }, [dispatch])
 
   const handleStartBulkArchive = useCallback(async () => {
     const allCards = columns.flatMap((col) => col.cards)
     const cardMap = new Map(allCards.map((c) => [c.id, c]))
-    const initialQueue: BulkArchiveQueueItem[] = Array.from(selectedCardIds).map((cardId) => ({
+    const initialQueue: BulkArchiveQueueItem[] = selectedCardIds.map((cardId) => ({
       id: `archive-${cardId}`,
       cardId,
       cardName: cardMap.get(cardId)?.name ?? cardId,
       status: 'pending' as QueueItemStatus
     }))
-    setBulkArchiveModal({ queue: initialQueue, running: true })
+    dispatch(bulkArchiveModalUpdated({ queue: initialQueue, running: true }))
+
+    let currentQueue = [...initialQueue]
 
     for (let i = 0; i < initialQueue.length; i++) {
       const item = initialQueue[i]
 
-      setBulkArchiveModal((prev) => {
-        if (!prev?.queue) return prev
-        return {
-          ...prev,
-          queue: prev.queue.map((q) => (q.id === item.id ? { ...q, status: 'running' } : q))
-        }
-      })
+      currentQueue = currentQueue.map((q) =>
+        q.id === item.id ? { ...q, status: 'running' as QueueItemStatus } : q
+      )
+      dispatch(bulkArchiveModalUpdated({ queue: currentQueue, running: true }))
 
       const result = await api.trello.archiveCard(boardId, item.cardId)
       const success = result.success
 
       if (success) {
-        setColumns((prev) =>
-          prev.map((col) => ({
-            ...col,
-            cards: col.cards.filter((c) => c.id !== item.cardId)
-          }))
-        )
-        setSelectedCardIds((prev) => {
-          const next = new Set(prev)
-          next.delete(item.cardId)
-          return next
-        })
+        dispatch(cardRemovedFromColumn(item.cardId))
       }
 
-      setBulkArchiveModal((prev) => {
-        if (!prev?.queue) return prev
-        return {
-          ...prev,
-          queue: prev.queue.map((q) =>
-            q.id === item.id ? { ...q, status: success ? 'done' : 'failed' } : q
-          )
-        }
-      })
+      currentQueue = currentQueue.map((q) =>
+        q.id === item.id
+          ? {
+              ...q,
+              status: success ? ('done' as QueueItemStatus) : ('failed' as QueueItemStatus)
+            }
+          : q
+      )
+      dispatch(bulkArchiveModalUpdated({ queue: currentQueue, running: true }))
 
       if (i < initialQueue.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, BULK_DELAY_MS))
       }
     }
 
-    setBulkArchiveModal((prev) => (prev ? { ...prev, running: false } : null))
-  }, [boardId, columns, selectedCardIds, setColumns])
+    dispatch(bulkArchiveModalUpdated({ queue: currentQueue, running: false }))
+  }, [boardId, columns, selectedCardIds, dispatch])
 
   const handleRunBulkArchive = useCallback(async () => {
-    setBulkArchiveModal((prev) => (prev ? { ...prev, running: true } : null))
+    if (!bulkArchiveModal?.queue) return
 
-    const snapshot = bulkArchiveModal
-    if (!snapshot?.queue) return
-
-    const pendingItems = snapshot.queue.filter((q) => q.status === 'pending')
+    const pendingItems = bulkArchiveModal.queue.filter((q) => q.status === 'pending')
+    let currentQueue = [...bulkArchiveModal.queue]
+    dispatch(bulkArchiveModalUpdated({ queue: currentQueue, running: true }))
 
     for (let i = 0; i < pendingItems.length; i++) {
       const item = pendingItems[i]
 
-      setBulkArchiveModal((prev) => {
-        if (!prev?.queue) return prev
-        return {
-          ...prev,
-          queue: prev.queue.map((q) => (q.id === item.id ? { ...q, status: 'running' } : q))
-        }
-      })
+      currentQueue = currentQueue.map((q) =>
+        q.id === item.id ? { ...q, status: 'running' as QueueItemStatus } : q
+      )
+      dispatch(bulkArchiveModalUpdated({ queue: currentQueue, running: true }))
 
       const result = await api.trello.archiveCard(boardId, item.cardId)
       const success = result.success
 
       if (success) {
-        setColumns((prev) =>
-          prev.map((col) => ({
-            ...col,
-            cards: col.cards.filter((c) => c.id !== item.cardId)
-          }))
-        )
-        setSelectedCardIds((prev) => {
-          const next = new Set(prev)
-          next.delete(item.cardId)
-          return next
-        })
+        dispatch(cardRemovedFromColumn(item.cardId))
       }
 
-      setBulkArchiveModal((prev) => {
-        if (!prev?.queue) return prev
-        return {
-          ...prev,
-          queue: prev.queue.map((q) =>
-            q.id === item.id ? { ...q, status: success ? 'done' : 'failed' } : q
-          )
-        }
-      })
+      currentQueue = currentQueue.map((q) =>
+        q.id === item.id
+          ? {
+              ...q,
+              status: success ? ('done' as QueueItemStatus) : ('failed' as QueueItemStatus)
+            }
+          : q
+      )
+      dispatch(bulkArchiveModalUpdated({ queue: currentQueue, running: true }))
 
       if (i < pendingItems.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, BULK_DELAY_MS))
       }
     }
 
-    setBulkArchiveModal((prev) => (prev ? { ...prev, running: false } : null))
-  }, [boardId, bulkArchiveModal, setColumns])
+    dispatch(bulkArchiveModalUpdated({ queue: currentQueue, running: false }))
+  }, [boardId, bulkArchiveModal, dispatch])
 
   const handleCloseBulkArchive = useCallback(() => {
-    setBulkArchiveModal((prev) => (prev?.running ? prev : null))
-  }, [])
+    dispatch(bulkArchiveModalClosed())
+  }, [dispatch])
 
-  const handleBulkArchiveRetryItem = useCallback((itemId: string) => {
-    setBulkArchiveModal((prev) => {
-      if (!prev?.queue) return prev
-      return {
-        ...prev,
-        queue: prev.queue.map((q) =>
-          q.id === itemId ? { ...q, status: 'pending' as QueueItemStatus } : q
-        )
-      }
-    })
-  }, [])
+  const handleBulkArchiveRetryItem = useCallback(
+    (itemId: string) => {
+      if (!bulkArchiveModal?.queue) return
+      dispatch(
+        bulkArchiveModalUpdated({
+          ...bulkArchiveModal,
+          queue: bulkArchiveModal.queue.map((q) =>
+            q.id === itemId ? { ...q, status: 'pending' as QueueItemStatus } : q
+          )
+        })
+      )
+    },
+    [bulkArchiveModal, dispatch]
+  )
 
   const handleBulkArchiveRetryAllFailed = useCallback(() => {
-    setBulkArchiveModal((prev) => {
-      if (!prev?.queue) return prev
-      return {
-        ...prev,
-        queue: prev.queue.map((q) =>
+    if (!bulkArchiveModal?.queue) return
+    dispatch(
+      bulkArchiveModalUpdated({
+        ...bulkArchiveModal,
+        queue: bulkArchiveModal.queue.map((q) =>
           q.status === 'failed' ? { ...q, status: 'pending' as QueueItemStatus } : q
         )
-      }
-    })
-  }, [])
+      })
+    )
+  }, [bulkArchiveModal, dispatch])
 
   // ── Bulk member assignment modal handlers ─────────────────────────────────
 
   const handleOpenBulkMemberModal = useCallback(
     (memberId: string, memberName: string, assign: boolean) => {
-      if (selectedCardIds.size === 0) return
-      setBulkMemberDropdownOpen(false)
-      setBulkMemberModal({ memberId, memberName, assign, queue: null, running: false })
+      dispatch(bulkMemberModalOpened({ memberId, memberName, assign }))
     },
-    [selectedCardIds]
+    [dispatch]
   )
 
   const handleStartBulkMember = useCallback(async () => {
+    if (!bulkMemberModal) return
     const allCards = columns.flatMap((col) => col.cards)
     const cardMap = new Map(allCards.map((c) => [c.id, c]))
-    const initialQueue: BulkMemberQueueItem[] = Array.from(selectedCardIds).map((cardId) => ({
+    const initialQueue: BulkMemberQueueItem[] = selectedCardIds.map((cardId) => ({
       id: `member-${cardId}`,
       cardId,
       cardName: cardMap.get(cardId)?.name ?? cardId,
       status: 'pending' as QueueItemStatus
     }))
 
-    setBulkMemberModal((prev) => (prev ? { ...prev, queue: initialQueue, running: true } : null))
-
-    const memberId = bulkMemberModal?.memberId ?? ''
-    const assign = bulkMemberModal?.assign ?? true
+    const { memberId, assign } = bulkMemberModal
+    let currentQueue = [...initialQueue]
+    dispatch(bulkMemberModalUpdated({ ...bulkMemberModal, queue: currentQueue, running: true }))
 
     for (let i = 0; i < initialQueue.length; i++) {
       const item = initialQueue[i]
 
-      setBulkMemberModal((prev) => {
-        if (!prev?.queue) return prev
-        return {
-          ...prev,
-          queue: prev.queue.map((q) => (q.id === item.id ? { ...q, status: 'running' } : q))
-        }
-      })
+      currentQueue = currentQueue.map((q) =>
+        q.id === item.id ? { ...q, status: 'running' as QueueItemStatus } : q
+      )
+      dispatch(bulkMemberModalUpdated({ ...bulkMemberModal, queue: currentQueue, running: true }))
 
       const result = await api.trello.assignCardMember(boardId, item.cardId, memberId, assign)
       const success = result.success
 
       if (success && result.data) {
-        const updatedMembers = result.data
-        setColumns((prev) =>
-          prev.map((col) => ({
-            ...col,
-            cards: col.cards.map((c) =>
-              c.id === item.cardId ? { ...c, members: updatedMembers } : c
-            )
-          }))
-        )
+        dispatch(cardMembersUpdated({ cardId: item.cardId, members: result.data }))
       }
 
-      setBulkMemberModal((prev) => {
-        if (!prev?.queue) return prev
-        return {
-          ...prev,
-          queue: prev.queue.map((q) =>
-            q.id === item.id ? { ...q, status: success ? 'done' : 'failed' } : q
-          )
-        }
-      })
+      currentQueue = currentQueue.map((q) =>
+        q.id === item.id
+          ? {
+              ...q,
+              status: success ? ('done' as QueueItemStatus) : ('failed' as QueueItemStatus)
+            }
+          : q
+      )
+      dispatch(bulkMemberModalUpdated({ ...bulkMemberModal, queue: currentQueue, running: true }))
 
       if (i < initialQueue.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, BULK_DELAY_MS))
       }
     }
 
-    setBulkMemberModal((prev) => (prev ? { ...prev, running: false } : null))
-  }, [boardId, bulkMemberModal, columns, selectedCardIds, setColumns])
+    dispatch(bulkMemberModalUpdated({ ...bulkMemberModal, queue: currentQueue, running: false }))
+  }, [boardId, bulkMemberModal, columns, selectedCardIds, dispatch])
 
   const handleRunBulkMember = useCallback(async () => {
-    setBulkMemberModal((prev) => (prev ? { ...prev, running: true } : null))
+    if (!bulkMemberModal?.queue) return
 
-    const snapshot = bulkMemberModal
-    if (!snapshot?.queue) return
-
-    const pendingItems = snapshot.queue.filter((q) => q.status === 'pending')
+    const pendingItems = bulkMemberModal.queue.filter((q) => q.status === 'pending')
+    let currentQueue = [...bulkMemberModal.queue]
+    dispatch(bulkMemberModalUpdated({ ...bulkMemberModal, queue: currentQueue, running: true }))
 
     for (let i = 0; i < pendingItems.length; i++) {
       const item = pendingItems[i]
 
-      setBulkMemberModal((prev) => {
-        if (!prev?.queue) return prev
-        return {
-          ...prev,
-          queue: prev.queue.map((q) => (q.id === item.id ? { ...q, status: 'running' } : q))
-        }
-      })
+      currentQueue = currentQueue.map((q) =>
+        q.id === item.id ? { ...q, status: 'running' as QueueItemStatus } : q
+      )
+      dispatch(bulkMemberModalUpdated({ ...bulkMemberModal, queue: currentQueue, running: true }))
 
       const result = await api.trello.assignCardMember(
         boardId,
         item.cardId,
-        snapshot.memberId,
-        snapshot.assign
+        bulkMemberModal.memberId,
+        bulkMemberModal.assign
       )
       const success = result.success
 
       if (success && result.data) {
-        const updatedMembers = result.data
-        setColumns((prev) =>
-          prev.map((col) => ({
-            ...col,
-            cards: col.cards.map((c) =>
-              c.id === item.cardId ? { ...c, members: updatedMembers } : c
-            )
-          }))
-        )
+        dispatch(cardMembersUpdated({ cardId: item.cardId, members: result.data }))
       }
 
-      setBulkMemberModal((prev) => {
-        if (!prev?.queue) return prev
-        return {
-          ...prev,
-          queue: prev.queue.map((q) =>
-            q.id === item.id ? { ...q, status: success ? 'done' : 'failed' } : q
-          )
-        }
-      })
+      currentQueue = currentQueue.map((q) =>
+        q.id === item.id
+          ? {
+              ...q,
+              status: success ? ('done' as QueueItemStatus) : ('failed' as QueueItemStatus)
+            }
+          : q
+      )
+      dispatch(bulkMemberModalUpdated({ ...bulkMemberModal, queue: currentQueue, running: true }))
 
       if (i < pendingItems.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, BULK_DELAY_MS))
       }
     }
 
-    setBulkMemberModal((prev) => (prev ? { ...prev, running: false } : null))
-  }, [boardId, bulkMemberModal, setColumns])
+    dispatch(bulkMemberModalUpdated({ ...bulkMemberModal, queue: currentQueue, running: false }))
+  }, [boardId, bulkMemberModal, dispatch])
 
   const handleCloseBulkMember = useCallback(() => {
-    setBulkMemberModal((prev) => (prev?.running ? prev : null))
-  }, [])
+    dispatch(bulkMemberModalClosed())
+  }, [dispatch])
 
-  const handleBulkMemberRetryItem = useCallback((itemId: string) => {
-    setBulkMemberModal((prev) => {
-      if (!prev?.queue) return prev
-      return {
-        ...prev,
-        queue: prev.queue.map((q) =>
-          q.id === itemId ? { ...q, status: 'pending' as QueueItemStatus } : q
-        )
-      }
-    })
-  }, [])
+  const handleBulkMemberRetryItem = useCallback(
+    (itemId: string) => {
+      if (!bulkMemberModal?.queue) return
+      dispatch(
+        bulkMemberModalUpdated({
+          ...bulkMemberModal,
+          queue: bulkMemberModal.queue.map((q) =>
+            q.id === itemId ? { ...q, status: 'pending' as QueueItemStatus } : q
+          )
+        })
+      )
+    },
+    [bulkMemberModal, dispatch]
+  )
 
   const handleBulkMemberRetryAllFailed = useCallback(() => {
-    setBulkMemberModal((prev) => {
-      if (!prev?.queue) return prev
-      return {
-        ...prev,
-        queue: prev.queue.map((q) =>
+    if (!bulkMemberModal?.queue) return
+    dispatch(
+      bulkMemberModalUpdated({
+        ...bulkMemberModal,
+        queue: bulkMemberModal.queue.map((q) =>
           q.status === 'failed' ? { ...q, status: 'pending' as QueueItemStatus } : q
         )
-      }
-    })
-  }, [])
+      })
+    )
+  }, [bulkMemberModal, dispatch])
 
   // Close bulk epic dropdown on outside click
   useEffect(() => {
-    if (!bulkEpicDropdownOpen) {
-      setBulkEpicSearch('')
-      return
-    }
+    if (!bulkEpicDropdownOpen) return
     const handleClick = (e: MouseEvent) => {
       if (bulkEpicDropdownRef.current && !bulkEpicDropdownRef.current.contains(e.target as Node))
-        setBulkEpicDropdownOpen(false)
+        dispatch(bulkEpicDropdownClosed())
     }
     window.addEventListener('mousedown', handleClick)
     return () => window.removeEventListener('mousedown', handleClick)
-  }, [bulkEpicDropdownOpen])
+  }, [bulkEpicDropdownOpen, dispatch])
 
   // Close bulk member dropdown on outside click
   useEffect(() => {
@@ -388,32 +344,33 @@ export function useBulkActions(
         bulkMemberDropdownRef.current &&
         !bulkMemberDropdownRef.current.contains(e.target as Node)
       ) {
-        setBulkMemberDropdownOpen(false)
+        dispatch(bulkMemberDropdownClosed())
       }
     }
     window.addEventListener('mousedown', handleClick)
     return () => window.removeEventListener('mousedown', handleClick)
-  }, [bulkMemberDropdownOpen])
+  }, [bulkMemberDropdownOpen, dispatch])
 
   const onCardsCreated = useCallback(
     (listId: string, cards: KanbanCard[]) => {
-      setColumns((prev) =>
-        prev.map((col) => (col.id === listId ? { ...col, cards: [...col.cards, ...cards] } : col))
-      )
+      dispatch(cardsAddedToColumn({ listId, cards }))
     },
-    [setColumns]
+    [dispatch]
   )
 
   return {
-    selectedCardIds,
-    setSelectedCardIds,
+    selectedCardIds: selectedCardIdSet,
+    setSelectedCardIds: (ids: Set<string>) => {
+      if (ids.size === 0) dispatch(selectionCleared())
+      // For non-empty sets, the only usage is clearing, so this is fine
+    },
     bulkEpicDropdownOpen,
-    setBulkEpicDropdownOpen,
+    setBulkEpicDropdownOpen: () => dispatch(bulkEpicDropdownToggled()),
     bulkEpicSearch,
-    setBulkEpicSearch,
+    setBulkEpicSearch: (search: string) => dispatch(bulkEpicSearchChanged(search)),
     bulkEpicDropdownRef,
     bulkMemberDropdownOpen,
-    setBulkMemberDropdownOpen,
+    setBulkMemberDropdownOpen: () => dispatch(bulkMemberDropdownToggled()),
     bulkMemberDropdownRef,
     bulkArchiveModal,
     bulkMemberModal,

@@ -1,5 +1,23 @@
-import { useState, useEffect, useCallback } from 'react'
-import type { BoardConfig } from './lib/board.types'
+import { useEffect, useCallback } from 'react'
+import { useAppDispatch, useAppSelector } from './store/hooks'
+import {
+  fetchBoards,
+  syncBoard,
+  selectSelectedBoard,
+  selectSelectedBoardId,
+  selectBoardsLoading,
+  selectSyncing,
+  selectSyncVersion,
+  selectSyncError,
+  selectBoards,
+  syncErrorDismissed
+} from './features/board-switcher/boardsSlice'
+import {
+  tabChanged,
+  registrationOpened,
+  selectActiveTab,
+  selectShowRegistration
+} from './store/uiSlice'
 import { api } from './features/api/useApi'
 import BoardSwitcher from './features/board-switcher/BoardSwitcher'
 import BoardRegistration from './features/board-registration/BoardRegistration'
@@ -22,72 +40,25 @@ import {
 type Tab = 'kanban' | 'dashboard' | 'templates' | 'settings'
 
 export default function App(): JSX.Element {
-  const [boards, setBoards] = useState<BoardConfig[]>([])
-  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('kanban')
-  const [showRegistration, setShowRegistration] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
-  const [syncVersion, setSyncVersion] = useState(0)
-  const [syncError, setSyncError] = useState<string | null>(null)
+  const dispatch = useAppDispatch()
 
-  const loadBoards = useCallback(async () => {
-    const [boardsResult, lastSelectedResult] = await Promise.all([
-      api.boards.getAll(),
-      api.boards.getLastSelected()
-    ])
-    if (boardsResult.success && boardsResult.data) {
-      setBoards(boardsResult.data)
-      if (boardsResult.data.length > 0 && !selectedBoardId) {
-        const lastId = lastSelectedResult.success ? lastSelectedResult.data : null
-        const validLast =
-          lastId && boardsResult.data.some((b) => b.boardId === lastId) ? lastId : null
-        setSelectedBoardId(validLast ?? boardsResult.data[0].boardId)
-      }
-    }
-    setLoading(false)
-  }, [selectedBoardId])
+  const boards = useAppSelector(selectBoards)
+  const selectedBoardId = useAppSelector(selectSelectedBoardId)
+  const selectedBoard = useAppSelector(selectSelectedBoard)
+  const loading = useAppSelector(selectBoardsLoading)
+  const syncing = useAppSelector(selectSyncing)
+  const syncVersion = useAppSelector(selectSyncVersion)
+  const syncError = useAppSelector(selectSyncError)
+  const activeTab = useAppSelector(selectActiveTab)
+  const showRegistration = useAppSelector(selectShowRegistration)
 
   useEffect(() => {
-    loadBoards()
-  }, [loadBoards])
+    dispatch(fetchBoards())
+  }, [dispatch])
 
-  const selectedBoard = boards.find((b) => b.boardId === selectedBoardId) ?? null
-
-  const handleSelectBoard = useCallback((boardId: string) => {
-    setSelectedBoardId(boardId)
-    api.boards.setLastSelected(boardId)
-  }, [])
-
-  const handleBoardAdded = (board: BoardConfig) => {
-    setBoards((prev) => [...prev, board])
-    setSelectedBoardId(board.boardId)
-    api.boards.setLastSelected(board.boardId)
-    setShowRegistration(false)
-  }
-
-  const handleBoardDeleted = (boardId: string) => {
-    setBoards((prev) => prev.filter((b) => b.boardId !== boardId))
-    if (selectedBoardId === boardId) {
-      const next = boards.find((b) => b.boardId !== boardId)?.boardId ?? null
-      setSelectedBoardId(next)
-      if (next) api.boards.setLastSelected(next)
-    }
-  }
-
-  const handleSync = async () => {
+  const handleSync = () => {
     if (!selectedBoardId) return
-    setSyncing(true)
-    setSyncError(null)
-    const result = await api.trello.sync(selectedBoardId)
-    if (result.success) {
-      // Refresh board list so lastSyncedAt timestamp updates
-      await loadBoards()
-      setSyncVersion((v) => v + 1)
-    } else {
-      setSyncError(result.error ?? 'Sync failed. Please try again.')
-    }
-    setSyncing(false)
+    dispatch(syncBoard(selectedBoardId))
   }
 
   const handleOpenLogs = useCallback(() => {
@@ -109,12 +80,7 @@ export default function App(): JSX.Element {
       <Header>
         <HeaderLeft>
           <Logo>🚀 Agile Life</Logo>
-          <BoardSwitcher
-            boards={boards}
-            selectedBoardId={selectedBoardId}
-            onSelect={handleSelectBoard}
-            onAddNew={() => setShowRegistration(true)}
-          />
+          <BoardSwitcher />
           <SyncBtn
             className="btn-primary"
             onClick={handleSync}
@@ -133,7 +99,7 @@ export default function App(): JSX.Element {
         </HeaderLeft>
         <Nav>
           {(['kanban', 'dashboard', 'templates', 'settings'] as Tab[]).map((tab) => (
-            <NavBtn key={tab} $active={activeTab === tab} onClick={() => setActiveTab(tab)}>
+            <NavBtn key={tab} $active={activeTab === tab} onClick={() => dispatch(tabChanged(tab))}>
               {tab === 'kanban' && '📋 '}
               {tab === 'dashboard' && '📊 '}
               {tab === 'templates' && '🗂️ '}
@@ -147,15 +113,12 @@ export default function App(): JSX.Element {
       {/* ── Main Content ── */}
       <Main $kanban={activeTab === 'kanban'}>
         {showRegistration ? (
-          <BoardRegistration
-            onBoardAdded={handleBoardAdded}
-            onCancel={boards.length > 0 ? () => setShowRegistration(false) : undefined}
-          />
+          <BoardRegistration />
         ) : !selectedBoard ? (
           <EmptyState>
             <h2>No boards registered</h2>
             <p className="text-muted">Get started by registering a Trello board.</p>
-            <button className="btn-primary" onClick={() => setShowRegistration(true)}>
+            <button className="btn-primary" onClick={() => dispatch(registrationOpened())}>
               + Register a Board
             </button>
           </EmptyState>
@@ -168,23 +131,16 @@ export default function App(): JSX.Element {
               <Dashboard board={selectedBoard} syncVersion={syncVersion} />
             )}
             {activeTab === 'templates' && <TemplatesPage board={selectedBoard} />}
-            {activeTab === 'settings' && (
-              <SettingsPage
-                board={selectedBoard}
-                allBoards={boards}
-                onBoardUpdated={(updated) =>
-                  setBoards((prev) =>
-                    prev.map((b) => (b.boardId === updated.boardId ? updated : b))
-                  )
-                }
-                onBoardDeleted={handleBoardDeleted}
-              />
-            )}
+            {activeTab === 'settings' && <SettingsPage board={selectedBoard} allBoards={boards} />}
           </>
         )}
       </Main>
 
-      <Toast message={syncError} onDismiss={() => setSyncError(null)} onOpenLogs={handleOpenLogs} />
+      <Toast
+        message={syncError}
+        onDismiss={() => dispatch(syncErrorDismissed())}
+        onOpenLogs={handleOpenLogs}
+      />
     </AppContainer>
   )
 }

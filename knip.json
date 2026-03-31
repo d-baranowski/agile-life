@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/main/index.ts",
+    "src/preload/index.ts",
+    "src/renderer/main.tsx",
+    "electron.vite.config.ts"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": ["src/preload/index.d.ts"],
+  "ignoreDependencies": ["react-router-dom", "@typescript-eslint/eslint-plugin", "prebuild-install"]
+}

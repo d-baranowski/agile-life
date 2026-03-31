@@ -1,11 +1,11 @@
 import { ipcMain, shell, dialog } from 'electron'
 import path from 'path'
-import { IPC_CHANNELS } from '../../features/ipc/ipc.types'
-import type { IpcResult } from '../../features/ipc/ipc.types'
-import type { LogPathInfo } from '../../features/settings/settings.types'
-import { getLogFilePath, getDefaultLogFilePath, applyLogPath } from './logger'
+import { IPC_CHANNELS } from '../ipc/ipc.types'
+import type { IpcResult } from '../ipc/ipc.types'
+import type { LogPathInfo } from '../settings/settings.types'
+import { getLogFilePath, getDefaultLogFilePath, applyLogPath } from '../../lib/logs/logger'
 import { setLogPath } from '../../settings/appSettings'
-import log from './logger'
+import log from '../../lib/logs/logger'
 
 function buildLogPathInfo(): LogPathInfo {
   const currentPath = getLogFilePath()

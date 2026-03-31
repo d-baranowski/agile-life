@@ -1,8 +1,5 @@
-import { useState } from 'react'
-import type { ArchiveResult, DoneCardPreview, DoneCardDebugInfo } from '../../lib/board.types'
-import { api } from '../api/useApi'
-import { weeksAgo } from '../../lib/weeks-ago'
-import { fmtDate } from '../../lib/fmt-date'
+import { weeksAgo } from './weeks-ago'
+import { fmtDate } from './fmt-date'
 import { CardTitle, ErrorBanner, ArchiveSuccess, Centred } from './settings-layout.styled'
 import {
   Hint,
@@ -27,6 +24,15 @@ import {
   DebugAge,
   DebugBadge
 } from './settings-table.styled'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import {
+  previewArchiveDoneCards,
+  archiveDoneCards,
+  fetchDoneColumnDebug,
+  archiveWeeksChanged,
+  previewCardsDismissed,
+  debugToggled
+} from './settingsSlice'
 
 interface Props {
   boardId: string
@@ -36,64 +42,36 @@ interface Props {
 
 export default function ArchiveDoneCards(props: Props): JSX.Element {
   const { boardId, doneListLabel, doneListCount } = props
-  const [archiveWeeks, setArchiveWeeks] = useState(4)
-  const [previewing, setPreviewing] = useState(false)
-  const [previewCards, setPreviewCards] = useState<DoneCardPreview[] | null>(null)
-  const [previewError, setPreviewError] = useState<string | null>(null)
-  const [archiving, setArchiving] = useState(false)
-  const [archiveResult, setArchiveResult] = useState<ArchiveResult | null>(null)
-  const [archiveError, setArchiveError] = useState<string | null>(null)
+  const dispatch = useAppDispatch()
 
-  const [debugOpen, setDebugOpen] = useState(false)
-  const [debugLoading, setDebugLoading] = useState(false)
-  const [debugCards, setDebugCards] = useState<DoneCardDebugInfo[] | null>(null)
-  const [debugError, setDebugError] = useState<string | null>(null)
+  const archiveWeeks = useAppSelector((s) => s.settings.archiveWeeks)
+  const previewing = useAppSelector((s) => s.settings.previewing)
+  const previewCards = useAppSelector((s) => s.settings.previewCards)
+  const previewError = useAppSelector((s) => s.settings.previewError)
+  const archiving = useAppSelector((s) => s.settings.archiving)
+  const archiveResult = useAppSelector((s) => s.settings.archiveResult)
+  const archiveError = useAppSelector((s) => s.settings.archiveError)
+
+  const debugOpen = useAppSelector((s) => s.settings.debugOpen)
+  const debugLoading = useAppSelector((s) => s.settings.debugLoading)
+  const debugCards = useAppSelector((s) => s.settings.debugCards)
+  const debugError = useAppSelector((s) => s.settings.debugError)
 
   const handlePreview = async (): Promise<void> => {
-    setPreviewing(true)
-    setPreviewError(null)
-    setPreviewCards(null)
-    setArchiveResult(null)
-    setArchiveError(null)
-    const result = await api.trello.previewArchiveDoneCards(boardId, archiveWeeks)
-    if (result.success && result.data) {
-      setPreviewCards(result.data)
-    } else {
-      setPreviewError(result.error ?? 'Preview failed.')
-    }
-    setPreviewing(false)
+    await dispatch(previewArchiveDoneCards({ boardId, weeks: archiveWeeks }))
   }
 
   const handleArchive = async (): Promise<void> => {
-    setArchiving(true)
-    setArchiveError(null)
-    setArchiveResult(null)
-    const result = await api.trello.archiveDoneCards(boardId, archiveWeeks)
-    if (result.success && result.data) {
-      setArchiveResult(result.data)
-      setPreviewCards(null)
-      setDebugCards(null)
-    } else {
-      setArchiveError(result.error ?? 'Archive failed.')
-    }
-    setArchiving(false)
+    await dispatch(archiveDoneCards({ boardId, weeks: archiveWeeks }))
   }
 
   const handleDebugToggle = async (): Promise<void> => {
     if (debugOpen) {
-      setDebugOpen(false)
+      dispatch(debugToggled())
       return
     }
-    setDebugOpen(true)
-    setDebugLoading(true)
-    setDebugError(null)
-    const result = await api.trello.getDoneColumnDebug(boardId)
-    if (result.success && result.data) {
-      setDebugCards(result.data)
-    } else {
-      setDebugError(result.error ?? 'Failed to load debug data.')
-    }
-    setDebugLoading(false)
+    dispatch(debugToggled())
+    await dispatch(fetchDoneColumnDebug(boardId))
   }
 
   return (
@@ -116,7 +94,9 @@ export default function ArchiveDoneCards(props: Props): JSX.Element {
               min={1}
               max={52}
               value={archiveWeeks}
-              onChange={(e) => setArchiveWeeks(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              onChange={(e) =>
+                dispatch(archiveWeeksChanged(Math.max(1, parseInt(e.target.value, 10) || 1)))
+              }
             />
             week{archiveWeeks !== 1 ? 's' : ''}
           </WeeksLabel>
@@ -185,7 +165,7 @@ export default function ArchiveDoneCards(props: Props): JSX.Element {
                   </button>
                   <button
                     className="btn-secondary"
-                    onClick={() => setPreviewCards(null)}
+                    onClick={() => dispatch(previewCardsDismissed())}
                     disabled={archiving}
                   >
                     Cancel
