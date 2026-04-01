@@ -9,6 +9,7 @@ import {
   cardRemovedFromColumn,
   cardMembersUpdated,
   cardLabelsUpdated,
+  cardNameUpdated,
   kanbanToastShown
 } from '../kanbanSlice'
 import type { ContextMenuState } from '../kanban.types'
@@ -106,12 +107,29 @@ export function useCardActions(boardId: string) {
     [boardId, columns, dispatch]
   )
 
+  const handleRenameCard = useCallback(
+    async (cardId: string, name: string) => {
+      // Optimistically update the name in the UI
+      const prevColumns = columns
+      dispatch(cardNameUpdated({ cardId, name }))
+
+      const result = await api.trello.updateCardName(boardId, cardId, name)
+      if (!result.success) {
+        // Revert optimistic update on failure
+        dispatch(columnsUpdated(prevColumns))
+        dispatch(kanbanToastShown(result.error ?? 'Failed to rename card. Please try again.'))
+      }
+    },
+    [boardId, columns, dispatch]
+  )
+
   return {
     contextMenu,
     handleOpenContextMenu,
     handleCloseContextMenu,
     handleArchiveCard,
     handleToggleMember,
-    handleToggleLabel
+    handleToggleLabel,
+    handleRenameCard
   }
 }
