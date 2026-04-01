@@ -1,11 +1,17 @@
-import { useCallback, useRef, useMemo } from 'react'
+import { useCallback, useRef, useMemo, useEffect } from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community'
 import type { ColDef, SelectionChangedEvent, CellValueChangedEvent } from 'ag-grid-community'
 import type { BoardConfig } from '../../lib/board.types'
 import type { GridRow } from './grid.types'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
-import { cardToggleSelected, columnsUpdated, kanbanToastShown } from '../kanban/kanbanSlice'
+import {
+  cardToggleSelected,
+  columnsUpdated,
+  kanbanToastShown,
+  fetchEpicCards,
+  cardEpicUpdated
+} from '../kanban/kanbanSlice'
 import { useBulkActions } from '../kanban/hooks/useBulkActions'
 import { useBulkLabelQueue } from '../kanban/hooks/useBulkLabelQueue'
 import { useGridRows } from './hooks/useGridRows'
@@ -46,6 +52,8 @@ export default function GridPage(props: Props): JSX.Element {
   const boardMembers = useAppSelector((s) => s.kanban.boardMembers)
   const selectedCardIds = useAppSelector((s) => s.kanban.selectedCardIds)
 
+  const epicCardOptions = useAppSelector((s) => s.kanban.epicCardOptions)
+
   const storyPointsConfig = board.storyPointsConfig ?? []
   const isStoryBoard = !!board.epicBoardId
   const rows = useGridRows(storyPointsConfig)
@@ -57,6 +65,16 @@ export default function GridPage(props: Props): JSX.Element {
   const gridRef = useRef<AgGridReact<GridRow>>(null)
 
   const columnNames = useMemo(() => columns.map((c) => c.name), [columns])
+
+  const epicNames = useMemo(
+    () => ['— None', ...epicCardOptions.map((o) => o.name)],
+    [epicCardOptions]
+  )
+
+  useEffect(() => {
+    if (!isStoryBoard) return
+    dispatch(fetchEpicCards(board.boardId))
+  }, [board.boardId, isStoryBoard, dispatch])
 
   const handleSelectionChanged = useCallback(
     (event: SelectionChangedEvent<GridRow>) => {
@@ -124,6 +142,47 @@ export default function GridPage(props: Props): JSX.Element {
     [board.boardId, columns, dispatch]
   )
 
+  const handleEpicChange = useCallback(
+    async (event: CellValueChangedEvent<GridRow>) => {
+      const newEpicName: string = event.newValue
+      const oldEpicName: string | null = event.oldValue
+      if (newEpicName === oldEpicName) return
+
+      const cardId = event.data.id
+      const isClearing = newEpicName === '— None'
+      const epicCardId = isClearing
+        ? null
+        : (epicCardOptions.find((o) => o.name === newEpicName)?.id ?? null)
+      const epicCardName = isClearing ? null : newEpicName
+
+      dispatch(cardEpicUpdated({ cardId, epicCardId, epicCardName }))
+
+      const syncResult = await api.epics.setCardEpic(board.boardId, cardId, epicCardId)
+      if (!syncResult.success) {
+        dispatch(
+          cardEpicUpdated({
+            cardId,
+            epicCardId: event.data.epicCardId,
+            epicCardName: oldEpicName
+          })
+        )
+        dispatch(kanbanToastShown(syncResult.error ?? 'Failed to update epic. Please try again.'))
+      }
+    },
+    [board.boardId, epicCardOptions, dispatch]
+  )
+
+  const handleCellValueChanged = useCallback(
+    (event: CellValueChangedEvent<GridRow>) => {
+      if (event.colDef.field === 'columnName') {
+        handleColumnChange(event)
+      } else if (event.colDef.field === 'epicCardName') {
+        handleEpicChange(event)
+      }
+    },
+    [handleColumnChange, handleEpicChange]
+  )
+
   const colDefs: ColDef<GridRow>[] = [
     {
       field: 'name',
@@ -164,7 +223,12 @@ export default function GridPage(props: Props): JSX.Element {
             field: 'epicCardName' as keyof GridRow,
             headerName: 'Epic',
             flex: 1,
-            minWidth: 120
+            minWidth: 120,
+            editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: { values: epicNames },
+            valueFormatter: (p) => (p.value as string) ?? '— None',
+            cellStyle: { cursor: 'pointer' }
           } as ColDef<GridRow>
         ]
       : []),
@@ -207,7 +271,7 @@ export default function GridPage(props: Props): JSX.Element {
           columnDefs={colDefs}
           rowSelection={{ mode: 'multiRow', checkboxes: true, headerCheckbox: true }}
           onSelectionChanged={handleSelectionChanged}
-          onCellValueChanged={handleColumnChange}
+          onCellValueChanged={handleCellValueChanged}
           rowHeight={40}
           getRowId={(p) => p.data.id}
           suppressCellFocus={false}
