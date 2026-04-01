@@ -94,7 +94,8 @@
       "tar": ">=7.5.11",
       "esbuild": ">=0.25.0",
       "handlebars": ">=4.7.9",
-      "undici": "6.24.1"
+      "undici": "6.24.1",
+      "@xmldom/xmldom": ">=0.8.12"
     }
   },
   "build": {
