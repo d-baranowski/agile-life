@@ -61,7 +61,10 @@ import {
   getEpicCardsForBoard,
   getStoriesForEpic,
   getLastSelectedBoardId,
-  setLastSelectedBoardId
+  setLastSelectedBoardId,
+  createListLocally,
+  archiveListLocally,
+  updateListPos
 } from '../../database/db'
 import { TrelloClient } from '../../trello/client'
 import sqlColumnCounts from '../../database/sql/analytics/column-counts.sql?raw'
@@ -1092,6 +1095,91 @@ export function registerBoardHandlers(): void {
         return { success: true, data: updatedLabels }
       } catch (err) {
         log.error(`[boards] assignCardLabel failed cardId=${cardId}:`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Create a new list (column) ──────────────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_CREATE_LIST,
+    async (_e, boardId: string, name: string): Promise<IpcResult<KanbanColumn>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) {
+          log.warn(`[boards] createList: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
+
+        log.info(`[boards] createList boardId=${boardId} name="${name}"`)
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        const trelloList = await client.createList(boardId, name)
+
+        createListLocally(boardId, {
+          id: trelloList.id,
+          name: trelloList.name,
+          pos: trelloList.pos
+        })
+
+        return {
+          success: true,
+          data: { id: trelloList.id, name: trelloList.name, pos: trelloList.pos, cards: [] }
+        }
+      } catch (err) {
+        log.error(`[boards] createList failed boardId=${boardId} name="${name}":`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Archive (remove) a list (column) ───────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_ARCHIVE_LIST,
+    async (_e, boardId: string, listId: string): Promise<IpcResult<void>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) {
+          log.warn(`[boards] archiveList: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
+
+        log.info(`[boards] archiveList listId=${listId}`)
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        await client.archiveList(listId)
+
+        archiveListLocally(listId)
+
+        return { success: true }
+      } catch (err) {
+        log.error(`[boards] archiveList failed listId=${listId}:`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Reorder a list (column) ─────────────────────────────────────────────────
+
+  ipcMain.handle(
+    IPC_CHANNELS.TRELLO_REORDER_LIST,
+    async (_e, boardId: string, listId: string, pos: number): Promise<IpcResult<void>> => {
+      try {
+        const config = getBoardById(boardId)
+        if (!config) {
+          log.warn(`[boards] reorderList: board not found boardId=${boardId}`)
+          return { success: false, error: `Board not found: ${boardId}` }
+        }
+
+        log.info(`[boards] reorderList listId=${listId} pos=${pos}`)
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        await client.reorderList(listId, pos)
+
+        updateListPos(listId, pos)
+
+        return { success: true }
+      } catch (err) {
+        log.error(`[boards] reorderList failed listId=${listId}:`, err)
         return { success: false, error: String(err) }
       }
     }

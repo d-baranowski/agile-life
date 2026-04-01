@@ -402,6 +402,30 @@ export function getCardsForBoard(boardId: string): CardRow[] {
   return getDb().prepare(sqlKanbanGetCards).all(boardId) as CardRow[]
 }
 
+/** Insert a new list row (from a freshly created Trello list). */
+export function createListLocally(
+  boardId: string,
+  list: { id: string; name: string; pos: number }
+): void {
+  getDb()
+    .prepare(sqlListsUpsert)
+    .run({ id: list.id, boardId, name: list.name, pos: list.pos, closed: 0 })
+}
+
+/** Mark a list as closed (archived) in the local SQLite cache. */
+export function archiveListLocally(listId: string): void {
+  getDb()
+    .prepare("UPDATE trello_lists SET closed = 1, synced_at = datetime('now') WHERE id = ?")
+    .run(listId)
+}
+
+/** Update only the position of a list (used when reordering columns). */
+export function updateListPos(listId: string, pos: number): void {
+  getDb()
+    .prepare("UPDATE trello_lists SET pos = ?, synced_at = datetime('now') WHERE id = ?")
+    .run(pos, listId)
+}
+
 export function moveCardToList(cardId: string, toListId: string, pos: number): void {
   getDb().prepare(sqlKanbanMoveCard).run({ cardId, toListId, pos })
 }

@@ -138,7 +138,16 @@ export const api = {
       invoke<TrelloLabel[]>(IPC_CHANNELS.TRELLO_GET_BOARD_LABELS, boardId),
     /** Adds or removes a label on a card and returns the updated label list. */
     assignCardLabel: (boardId: string, cardId: string, label: TrelloLabel, assign: boolean) =>
-      invoke<TrelloLabel[]>(IPC_CHANNELS.TRELLO_ASSIGN_CARD_LABEL, boardId, cardId, label, assign)
+      invoke<TrelloLabel[]>(IPC_CHANNELS.TRELLO_ASSIGN_CARD_LABEL, boardId, cardId, label, assign),
+    /** Creates a new list (column) on the board and returns the new KanbanColumn. */
+    createList: (boardId: string, name: string) =>
+      invoke<KanbanColumn>(IPC_CHANNELS.TRELLO_CREATE_LIST, boardId, name),
+    /** Archives a list (column) on Trello and in the local cache. */
+    archiveList: (boardId: string, listId: string) =>
+      invoke<void>(IPC_CHANNELS.TRELLO_ARCHIVE_LIST, boardId, listId),
+    /** Updates the position of a list (column) on Trello and in the local cache. */
+    reorderList: (boardId: string, listId: string, pos: number) =>
+      invoke<void>(IPC_CHANNELS.TRELLO_REORDER_LIST, boardId, listId, pos)
   },
 
   analytics: {
