@@ -3,9 +3,15 @@ import { AgGridReact } from 'ag-grid-react'
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community'
 import type { ColDef, SelectionChangedEvent, CellValueChangedEvent } from 'ag-grid-community'
 import type { BoardConfig } from '../../lib/board.types'
+import type { TrelloLabel } from '../../trello/trello.types'
 import type { GridRow } from './grid.types'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
-import { cardToggleSelected, columnsUpdated, kanbanToastShown } from '../kanban/kanbanSlice'
+import {
+  cardToggleSelected,
+  cardLabelsUpdated,
+  columnsUpdated,
+  kanbanToastShown
+} from '../kanban/kanbanSlice'
 import { useBulkActions } from '../kanban/hooks/useBulkActions'
 import { useBulkLabelQueue } from '../kanban/hooks/useBulkLabelQueue'
 import { useGridRows } from './hooks/useGridRows'
@@ -15,6 +21,7 @@ import BulkMemberModal from '../kanban/components/BulkMemberModal'
 import BulkLabelModal from '../kanban/components/bulk-label/BulkLabelModal'
 import GridToolbar from './components/GridToolbar'
 import LabelsCellRenderer from './components/cell-renderers/LabelsCellRenderer'
+import LabelsCellEditor from './components/cell-editors/LabelsCellEditor'
 import MembersCellRenderer from './components/cell-renderers/MembersCellRenderer'
 import { PageWrapper, GridWrapper } from './styled/grid-page.styled'
 import { formatAge } from '../../lib/format-age'
@@ -79,6 +86,32 @@ export default function GridPage(props: Props): JSX.Element {
   const handleExport = useCallback(() => {
     exportToExcel(rows, board.boardName)
   }, [exportToExcel, rows, board.boardName])
+
+  const handleToggleLabel = useCallback(
+    async (cardId: string, label: TrelloLabel, assign: boolean) => {
+      const prevColumns = columns
+      const card = columns.flatMap((c) => c.cards).find((c) => c.id === cardId)
+      if (card) {
+        const updatedLabels = assign
+          ? card.labels.some((l) => l.id === label.id)
+            ? card.labels
+            : [...card.labels, label]
+          : card.labels.filter((l) => l.id !== label.id)
+        dispatch(cardLabelsUpdated({ cardId, labels: updatedLabels }))
+      }
+
+      const result = await api.trello.assignCardLabel(board.boardId, cardId, label, assign)
+      if (result.success && result.data) {
+        dispatch(cardLabelsUpdated({ cardId, labels: result.data }))
+      } else {
+        dispatch(columnsUpdated(prevColumns))
+        dispatch(
+          kanbanToastShown(result.error ?? 'Failed to update label assignment. Please try again.')
+        )
+      }
+    },
+    [board.boardId, columns, dispatch]
+  )
 
   const handleColumnChange = useCallback(
     async (event: CellValueChangedEvent<GridRow>) => {
@@ -156,6 +189,13 @@ export default function GridPage(props: Props): JSX.Element {
       flex: 2,
       minWidth: 140,
       cellRenderer: LabelsCellRenderer,
+      editable: true,
+      cellEditor: LabelsCellEditor,
+      cellEditorPopup: true,
+      cellEditorParams: {
+        boardLabels,
+        onToggleLabel: handleToggleLabel
+      },
       sortable: false
     },
     ...(isStoryBoard
