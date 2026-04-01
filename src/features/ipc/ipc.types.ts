@@ -69,6 +69,7 @@ export const IPC_CHANNELS = {
   TRELLO_ASSIGN_CARD_LABEL: 'trello:assignCardLabel',
   TRELLO_CREATE_LIST: 'trello:createList',
   TRELLO_ARCHIVE_LIST: 'trello:archiveList',
+  TRELLO_RENAME_CARD: 'trello:renameCard',
   TRELLO_REORDER_LIST: 'trello:reorderList',
 
   // Epic / Story board linking

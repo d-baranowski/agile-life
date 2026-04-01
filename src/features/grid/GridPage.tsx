@@ -5,7 +5,12 @@ import type { ColDef, SelectionChangedEvent, CellValueChangedEvent } from 'ag-gr
 import type { BoardConfig } from '../../lib/board.types'
 import type { GridRow } from './grid.types'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
-import { cardToggleSelected, columnsUpdated, kanbanToastShown } from '../kanban/kanbanSlice'
+import {
+  cardToggleSelected,
+  cardRenamed,
+  columnsUpdated,
+  kanbanToastShown
+} from '../kanban/kanbanSlice'
 import { useBulkActions } from '../kanban/hooks/useBulkActions'
 import { useBulkLabelQueue } from '../kanban/hooks/useBulkLabelQueue'
 import { useGridRows } from './hooks/useGridRows'
@@ -124,13 +129,47 @@ export default function GridPage(props: Props): JSX.Element {
     [board.boardId, columns, dispatch]
   )
 
+  const handleNameChange = useCallback(
+    async (event: CellValueChangedEvent<GridRow>) => {
+      const newName: string = event.newValue?.trim()
+      const oldName: string = event.oldValue
+      if (!newName || newName === oldName) {
+        // Revert the grid cell if the name is empty
+        if (!newName) event.api.applyTransaction({ update: [{ ...event.data, name: oldName }] })
+        return
+      }
+
+      const cardId = event.data.id
+      dispatch(cardRenamed({ cardId, newName }))
+
+      const syncResult = await api.trello.renameCard(board.boardId, cardId, newName)
+      if (!syncResult.success) {
+        dispatch(cardRenamed({ cardId, newName: oldName }))
+        dispatch(kanbanToastShown(syncResult.error ?? 'Failed to rename card. Please try again.'))
+      }
+    },
+    [board.boardId, dispatch]
+  )
+
+  const handleCellValueChanged = useCallback(
+    (event: CellValueChangedEvent<GridRow>) => {
+      if (event.colDef.field === 'columnName') {
+        handleColumnChange(event)
+      } else if (event.colDef.field === 'name') {
+        handleNameChange(event)
+      }
+    },
+    [handleColumnChange, handleNameChange]
+  )
+
   const colDefs: ColDef<GridRow>[] = [
     {
       field: 'name',
       headerName: 'Title',
       flex: 3,
       minWidth: 200,
-      cellStyle: { fontWeight: 500 }
+      editable: true,
+      cellStyle: { fontWeight: 500, cursor: 'pointer' }
     },
     {
       field: 'columnName',
@@ -207,7 +246,7 @@ export default function GridPage(props: Props): JSX.Element {
           columnDefs={colDefs}
           rowSelection={{ mode: 'multiRow', checkboxes: true, headerCheckbox: true }}
           onSelectionChanged={handleSelectionChanged}
-          onCellValueChanged={handleColumnChange}
+          onCellValueChanged={handleCellValueChanged}
           rowHeight={40}
           getRowId={(p) => p.data.id}
           suppressCellFocus={false}

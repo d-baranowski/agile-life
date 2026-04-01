@@ -139,6 +139,9 @@ export const api = {
     /** Adds or removes a label on a card and returns the updated label list. */
     assignCardLabel: (boardId: string, cardId: string, label: TrelloLabel, assign: boolean) =>
       invoke<TrelloLabel[]>(IPC_CHANNELS.TRELLO_ASSIGN_CARD_LABEL, boardId, cardId, label, assign),
+    /** Renames a card on Trello and in the local cache. */
+    renameCard: (boardId: string, cardId: string, newName: string) =>
+      invoke<void>(IPC_CHANNELS.TRELLO_RENAME_CARD, boardId, cardId, newName),
     /** Creates a new list (column) on the board and returns the new KanbanColumn. */
     createList: (boardId: string, name: string) =>
       invoke<KanbanColumn>(IPC_CHANNELS.TRELLO_CREATE_LIST, boardId, name),

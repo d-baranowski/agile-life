@@ -291,6 +291,15 @@ const kanbanSlice = createSlice({
         }
       }
     },
+    cardRenamed(state, action: PayloadAction<{ cardId: string; newName: string }>) {
+      for (const col of state.columns) {
+        const card = col.cards.find((c) => c.id === action.payload.cardId)
+        if (card) {
+          card.name = action.payload.newName
+          break
+        }
+      }
+    },
     bulkCardEpicUpdated(
       state,
       action: PayloadAction<{
@@ -637,6 +646,7 @@ export const {
   cardLabelsUpdated,
   cardEpicUpdated,
   bulkCardEpicUpdated,
+  cardRenamed,
   kanbanToastShown,
   kanbanToastDismissed,
   searchQueryChanged,
