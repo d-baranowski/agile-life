@@ -8,11 +8,11 @@ import { fetchGamificationStats } from '../kanbanSlice'
 
 const mockPlayCoinSound = playCoinSound as jest.Mock
 
-const makeMiddleware = (prevPoints: number) => {
+const makeMiddleware = (prevPoints: number | null) => {
   const fakeStore = {
     getState: () => ({
       kanban: {
-        gamificationStats: prevPoints > 0 ? { currentWeekPoints: prevPoints } : null
+        gamificationStats: prevPoints !== null ? { currentWeekPoints: prevPoints } : null
       }
     }),
     dispatch: jest.fn()
@@ -97,6 +97,24 @@ describe('gamificationSoundMiddleware', () => {
       )
     )
     expect(mockPlayCoinSound).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not play sound when stats are freshly loaded after tab/board switch', () => {
+    const { invoke } = makeMiddleware(null)
+    invoke(
+      fetchGamificationStats.fulfilled(
+        {
+          currentWeekPoints: 10,
+          prevWeekPoints: 3,
+          yearlyHighScore: 10,
+          currentWeek: 'w',
+          prevWeek: 'p'
+        },
+        'req',
+        { boardId: 'b', myMemberId: 'm', storyPointsConfig: [] }
+      )
+    )
+    expect(mockPlayCoinSound).not.toHaveBeenCalled()
   })
 
   it('does not play sound for unrelated actions', () => {
