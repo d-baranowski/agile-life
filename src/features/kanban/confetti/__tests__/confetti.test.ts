@@ -57,8 +57,8 @@ describe('triggerDoneEffect', () => {
     expect(call.origin).toEqual({ x: 0.5, y: 0.55 })
   })
 
-  it('calls playCoinSound after the confetti burst', () => {
+  it('does not call playCoinSound (sound is handled by gamificationSoundMiddleware)', () => {
     triggerDoneEffect(1)
-    expect(playCoinSound).toHaveBeenCalledTimes(1)
+    expect(playCoinSound).not.toHaveBeenCalled()
   })
 })

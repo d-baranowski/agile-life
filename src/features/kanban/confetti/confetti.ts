@@ -1,9 +1,13 @@
 import confetti from 'canvas-confetti'
-import { playCoinSound, playLevelUpSound } from './sound'
+import { playLevelUpSound } from './sound'
 
 /**
- * Fires a confetti burst and plays a coin sound to celebrate completing a task.
+ * Fires a confetti burst to celebrate completing a task.
  * The number of particles scales with the card's story-point value.
+ *
+ * The coin sound is handled separately by the gamificationSoundMiddleware,
+ * which detects score increases from fetchGamificationStats.fulfilled actions.
+ *
  * @param points  Story-point value of the completed card.
  * @param origin  Fractional viewport position {x, y} where the burst starts.
  *                Defaults to the centre of the screen when omitted.
@@ -27,7 +31,6 @@ export function triggerDoneEffect(points: number, origin?: { x: number; y: numbe
     drift: 0.5,
     flat: true
   })
-  playCoinSound()
 }
 
 /**

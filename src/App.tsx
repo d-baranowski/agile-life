@@ -25,6 +25,7 @@ import Toast from './features/toast/Toast'
 import Dashboard from './features/dashboard/Dashboard'
 import SettingsPage from './features/settings/SettingsPage'
 import KanbanPage from './features/kanban/KanbanPage'
+import GridPage from './features/grid/GridPage'
 import TemplatesPage from './features/templates/TemplatesPage'
 import { AppContainer, LoadingScreen, Main, EmptyState } from './features/app-layout.styled'
 import {
@@ -37,7 +38,7 @@ import {
   NavBtn
 } from './features/app-header/app-header.styled'
 
-type Tab = 'kanban' | 'dashboard' | 'templates' | 'settings'
+type Tab = 'kanban' | 'grid' | 'dashboard' | 'templates' | 'settings'
 
 export default function App(): JSX.Element {
   const dispatch = useAppDispatch()
@@ -98,9 +99,10 @@ export default function App(): JSX.Element {
           </SyncBtn>
         </HeaderLeft>
         <Nav>
-          {(['kanban', 'dashboard', 'templates', 'settings'] as Tab[]).map((tab) => (
+          {(['kanban', 'grid', 'dashboard', 'templates', 'settings'] as Tab[]).map((tab) => (
             <NavBtn key={tab} $active={activeTab === tab} onClick={() => dispatch(tabChanged(tab))}>
               {tab === 'kanban' && '📋 '}
+              {tab === 'grid' && '🗃️ '}
               {tab === 'dashboard' && '📊 '}
               {tab === 'templates' && '🗂️ '}
               {tab === 'settings' && '⚙️ '}
@@ -111,7 +113,7 @@ export default function App(): JSX.Element {
       </Header>
 
       {/* ── Main Content ── */}
-      <Main $kanban={activeTab === 'kanban'}>
+      <Main $kanban={activeTab === 'kanban' || activeTab === 'grid'}>
         {showRegistration ? (
           <BoardRegistration />
         ) : !selectedBoard ? (
@@ -127,6 +129,7 @@ export default function App(): JSX.Element {
             {activeTab === 'kanban' && (
               <KanbanPage board={selectedBoard} allBoards={boards} syncVersion={syncVersion} />
             )}
+            {activeTab === 'grid' && <GridPage board={selectedBoard} />}
             {activeTab === 'dashboard' && (
               <Dashboard board={selectedBoard} syncVersion={syncVersion} />
             )}

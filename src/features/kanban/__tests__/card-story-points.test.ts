@@ -1,7 +1,7 @@
 /**
  * Tests for cardStoryPoints — maps card labels to story-point values.
  */
-import { cardStoryPoints } from '../card-story-points'
+import { cardStoryPoints } from '../../../lib/card-story-points'
 
 const makeCard = (labelNames: string[]) => ({
   id: '1',

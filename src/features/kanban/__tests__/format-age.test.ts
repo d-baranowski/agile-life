@@ -1,7 +1,7 @@
 /**
  * Tests for formatAge — compact human-readable age string from ISO timestamp.
  */
-import { formatAge } from '../format-age'
+import { formatAge } from '../../../lib/format-age'
 
 describe('formatAge', () => {
   it('returns minutes for timestamps less than 1 hour ago', () => {
