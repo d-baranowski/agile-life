@@ -181,7 +181,17 @@ export default function GridPage(props: Props): JSX.Element {
       flex: 2,
       minWidth: 140,
       cellRenderer: MembersCellRenderer,
-      sortable: false
+      comparator: (_a, _b, nodeA, nodeB) => {
+        const aText = (nodeA.data?.members ?? [])
+          .map((m) => m.fullName)
+          .sort()
+          .join(', ')
+        const bText = (nodeB.data?.members ?? [])
+          .map((m) => m.fullName)
+          .sort()
+          .join(', ')
+        return aText.localeCompare(bText)
+      }
     },
     {
       field: 'labels',
@@ -196,7 +206,17 @@ export default function GridPage(props: Props): JSX.Element {
         boardLabels,
         onToggleLabel: handleToggleLabel
       },
-      sortable: false
+      comparator: (_a, _b, nodeA, nodeB) => {
+        const aText = (nodeA.data?.labels ?? [])
+          .map((l) => l.name || l.color)
+          .sort()
+          .join(', ')
+        const bText = (nodeB.data?.labels ?? [])
+          .map((l) => l.name || l.color)
+          .sort()
+          .join(', ')
+        return aText.localeCompare(bText)
+      }
     },
     ...(isStoryBoard
       ? [
