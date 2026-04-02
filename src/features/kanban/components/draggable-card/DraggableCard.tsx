@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Draggable } from 'react-beautiful-dnd'
 import type { KanbanCard } from '../../../../trello/trello.types'
 import type { EpicCardOption } from '../../../../lib/board.types'
@@ -10,6 +10,7 @@ import {
   Checkbox,
   CardHeader,
   CardName,
+  CardNameInput,
   Labels,
   Label,
   CardMeta,
@@ -45,26 +46,32 @@ interface CardProps {
   onSetCardEpic: (cardId: string, epicCardId: string | null) => void
   onToggleEpicDropdown: (cardId: string) => void
   onContextMenu: (e: React.MouseEvent) => void
+  onRenameCard: (cardId: string, name: string) => void
 }
 
-export default function DraggableCard({
-  card,
-  index,
-  isStoryBoard,
-  isEpicBoard,
-  epicCardOptions,
-  epicDropdownCardId,
-  isDuplicate,
-  isSelected,
-  onToggleSelect,
-  onOpenEpicStories,
-  onSetCardEpic,
-  onToggleEpicDropdown,
-  onContextMenu
-}: CardProps): JSX.Element {
+export default function DraggableCard(props: CardProps): JSX.Element {
+  const {
+    card,
+    index,
+    isStoryBoard,
+    isEpicBoard,
+    epicCardOptions,
+    epicDropdownCardId,
+    isDuplicate,
+    isSelected,
+    onToggleSelect,
+    onOpenEpicStories,
+    onSetCardEpic,
+    onToggleEpicDropdown,
+    onContextMenu,
+    onRenameCard
+  } = props
   const lastClickRef = useRef<number>(0)
   const epicSearchRef = useRef<HTMLInputElement>(null)
+  const nameInputRef = useRef<HTMLTextAreaElement>(null)
   const [epicSearchQuery, setEpicSearchQuery] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(card.name)
 
   const isDropdownOpen = epicDropdownCardId === card.id
 
@@ -76,6 +83,51 @@ export default function DraggableCard({
       requestAnimationFrame(() => epicSearchRef.current?.focus())
     }
   }, [isDropdownOpen])
+
+  // Auto-resize and focus the textarea when editing starts
+  useEffect(() => {
+    if (isEditing && nameInputRef.current) {
+      const el = nameInputRef.current
+      el.focus()
+      el.selectionStart = el.value.length
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    }
+  }, [isEditing])
+
+  const handleStartEditing = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setEditValue(card.name)
+      setIsEditing(true)
+    },
+    [card.name]
+  )
+
+  const handleSave = useCallback(() => {
+    setIsEditing(false)
+    const trimmed = editValue.trim()
+    if (trimmed && trimmed !== card.name) {
+      onRenameCard(card.id, trimmed)
+    }
+  }, [card.id, card.name, editValue, onRenameCard])
+
+  const handleCancel = useCallback(() => {
+    setIsEditing(false)
+    setEditValue(card.name)
+  }, [card.name])
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        handleSave()
+      } else if (e.key === 'Escape') {
+        handleCancel()
+      }
+    },
+    [handleSave, handleCancel]
+  )
 
   const handleClick = () => {
     if (!isEpicBoard) return
@@ -102,10 +154,26 @@ export default function DraggableCard({
           title={isEpicBoard ? 'Double-click to see stories in this epic' : undefined}
         >
           <CardHeader>
-            <CardName>
-              {isDuplicate && <DuplicateBadge title="Duplicate title">⊖</DuplicateBadge>}
-              {card.name}
-            </CardName>
+            {isEditing ? (
+              <CardNameInput
+                ref={nameInputRef}
+                value={editValue}
+                onChange={(e) => {
+                  setEditValue(e.target.value)
+                  e.target.style.height = 'auto'
+                  e.target.style.height = `${e.target.scrollHeight}px`
+                }}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
+                onClick={(e) => e.stopPropagation()}
+                rows={1}
+              />
+            ) : (
+              <CardName onClick={handleStartEditing} title="Click to edit title">
+                {isDuplicate && <DuplicateBadge title="Duplicate title">⊖</DuplicateBadge>}
+                {card.name}
+              </CardName>
+            )}
             <Checkbox
               $checked={isSelected}
               onClick={(e) => {

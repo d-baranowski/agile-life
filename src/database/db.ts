@@ -44,6 +44,7 @@ import sqlCardsGetDoneColumnDebug from './sql/cards/get-done-column-debug.sql?ra
 import sqlCardsSetEpic from './sql/cards/set-epic.sql?raw'
 import sqlCardsArchive from './sql/cards/archive.sql?raw'
 import sqlCardsUpdateMembers from './sql/cards/update-members.sql?raw'
+import sqlCardsUpdateName from './sql/cards/update-name.sql?raw'
 import sqlBoardsMemberUpsert from './sql/boards/upsert-member.sql?raw'
 import sqlBoardsGetMembers from './sql/boards/get-members.sql?raw'
 import sqlCardListEntriesUpsert from './sql/card-list-entries/upsert.sql?raw'
@@ -433,6 +434,11 @@ export function moveCardToList(cardId: string, toListId: string, pos: number): v
 /** Update only the position of a card (used when reordering within a column). */
 export function updateCardPos(cardId: string, pos: number): void {
   getDb().prepare(sqlCardsUpdatePos).run({ cardId, pos })
+}
+
+/** Update only the name of a card (used when renaming inline). */
+export function updateCardName(cardId: string, name: string): void {
+  getDb().prepare(sqlCardsUpdateName).run({ cardId, name })
 }
 
 /** Set the epic card reference on a story card (null clears it). */

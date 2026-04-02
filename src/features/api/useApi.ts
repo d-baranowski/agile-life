@@ -86,6 +86,9 @@ export const api = {
     /** Updates the position of a card on Trello and in the local cache. */
     updateCardPos: (boardId: string, cardId: string, pos: number) =>
       invoke<void>(IPC_CHANNELS.TRELLO_UPDATE_CARD_POS, boardId, cardId, pos),
+    /** Updates the name of a card on Trello and in the local cache. */
+    updateCardName: (boardId: string, cardId: string, name: string) =>
+      invoke<void>(IPC_CHANNELS.TRELLO_UPDATE_CARD_NAME, boardId, cardId, name),
     /** Dry-run: returns cards that would be archived without touching Trello. */
     previewArchiveDoneCards: (boardId: string, olderThanWeeks: number) =>
       invoke<DoneCardPreview[]>(
