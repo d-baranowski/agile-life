@@ -3,12 +3,13 @@ import { AgGridReact } from 'ag-grid-react'
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community'
 import type { ColDef, SelectionChangedEvent, CellValueChangedEvent } from 'ag-grid-community'
 import type { BoardConfig, EpicCardOption } from '../../lib/board.types'
-import type { TrelloLabel } from '../../trello/trello.types'
+import type { TrelloLabel, TrelloMember } from '../../trello/trello.types'
 import type { GridRow } from './grid.types'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import {
   cardToggleSelected,
   cardLabelsUpdated,
+  cardMembersUpdated,
   columnsUpdated,
   kanbanToastShown,
   fetchEpicCards,
@@ -26,6 +27,7 @@ import LabelsCellRenderer from './components/cell-renderers/LabelsCellRenderer'
 import LabelsCellEditor from './components/cell-editors/LabelsCellEditor'
 import EpicCellEditor from './components/cell-editors/EpicCellEditor'
 import MembersCellRenderer from './components/cell-renderers/MembersCellRenderer'
+import MembersCellEditor from './components/cell-editors/MembersCellEditor'
 import { PageWrapper, GridWrapper } from './styled/grid-page.styled'
 import { formatAge } from '../../lib/format-age'
 import { moveCard } from '../kanban/move-card'
@@ -197,13 +199,50 @@ export default function GridPage(props: Props): JSX.Element {
     [board.boardId, columns, dispatch]
   )
 
-  const handleCellValueChanged = useCallback(
-    (event: CellValueChangedEvent<GridRow>) => {
-      if (event.colDef.field === 'columnName') {
-        handleColumnChange(event)
+  const handleMemberChange = useCallback(
+    async (event: CellValueChangedEvent<GridRow>) => {
+      const newMembers: TrelloMember[] = event.newValue ?? []
+      const oldMembers: TrelloMember[] = event.oldValue ?? []
+
+      const cardId = event.data.id
+      const oldIds = new Set(oldMembers.map((m) => m.id))
+      const newIds = new Set(newMembers.map((m) => m.id))
+
+      const added = newMembers.filter((m) => !oldIds.has(m.id))
+      const removed = oldMembers.filter((m) => !newIds.has(m.id))
+      if (added.length === 0 && removed.length === 0) return
+
+      const prevColumns = columns
+      dispatch(cardMembersUpdated({ cardId, members: newMembers }))
+
+      const changes = [
+        ...added.map((m) => ({ memberId: m.id, assign: true })),
+        ...removed.map((m) => ({ memberId: m.id, assign: false }))
+      ]
+
+      for (const { memberId, assign } of changes) {
+        const result = await api.trello.assignCardMember(board.boardId, cardId, memberId, assign)
+        if (result.success && result.data) {
+          dispatch(cardMembersUpdated({ cardId, members: result.data }))
+        } else {
+          dispatch(columnsUpdated(prevColumns))
+          dispatch(kanbanToastShown(result.error ?? 'Failed to update member. Please try again.'))
+          return
+        }
       }
     },
-    [handleColumnChange]
+    [board.boardId, columns, dispatch]
+  )
+
+  const handleCellValueChanged = useCallback(
+    async (event: CellValueChangedEvent<GridRow>) => {
+      if (event.colDef.field === 'columnName') {
+        await handleColumnChange(event)
+      } else if (event.colDef.field === 'members') {
+        await handleMemberChange(event)
+      }
+    },
+    [handleColumnChange, handleMemberChange]
   )
 
   const colDefs: ColDef<GridRow>[] = [
@@ -230,6 +269,11 @@ export default function GridPage(props: Props): JSX.Element {
       flex: 2,
       minWidth: 140,
       cellRenderer: MembersCellRenderer,
+      editable: true,
+      cellEditor: MembersCellEditor,
+      cellEditorParams: { boardMembers },
+      cellEditorPopup: true,
+      cellStyle: { cursor: 'pointer' },
       sortable: false
     },
     {
