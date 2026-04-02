@@ -2,7 +2,7 @@ import { useCallback, useRef, useMemo, useEffect } from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community'
 import type { ColDef, SelectionChangedEvent, CellValueChangedEvent } from 'ag-grid-community'
-import type { BoardConfig } from '../../lib/board.types'
+import type { BoardConfig, EpicCardOption } from '../../lib/board.types'
 import type { TrelloLabel } from '../../trello/trello.types'
 import type { GridRow } from './grid.types'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
@@ -24,6 +24,7 @@ import BulkLabelModal from '../kanban/components/bulk-label/BulkLabelModal'
 import GridToolbar from './components/GridToolbar'
 import LabelsCellRenderer from './components/cell-renderers/LabelsCellRenderer'
 import LabelsCellEditor from './components/cell-editors/LabelsCellEditor'
+import EpicCellEditor from './components/cell-editors/EpicCellEditor'
 import MembersCellRenderer from './components/cell-renderers/MembersCellRenderer'
 import { PageWrapper, GridWrapper } from './styled/grid-page.styled'
 import { formatAge } from '../../lib/format-age'
@@ -68,11 +69,6 @@ export default function GridPage(props: Props): JSX.Element {
   const gridRef = useRef<AgGridReact<GridRow>>(null)
 
   const columnNames = useMemo(() => columns.map((c) => c.name), [columns])
-
-  const epicNames = useMemo(
-    () => ['— None', ...epicCardOptions.map((o) => o.name)],
-    [epicCardOptions]
-  )
 
   useEffect(() => {
     if (!isStoryBoard) return
@@ -171,18 +167,18 @@ export default function GridPage(props: Props): JSX.Element {
     [board.boardId, columns, dispatch]
   )
 
-  const handleEpicChange = useCallback(
-    async (event: CellValueChangedEvent<GridRow>) => {
-      const newEpicName: string = event.newValue
-      const oldEpicName: string | null = event.oldValue
-      if (newEpicName === oldEpicName) return
+  const handleEpicSelected = useCallback(
+    async (cardId: string, epicOption: EpicCardOption | null) => {
+      const card = columns.flatMap((c) => c.cards).find((c) => c.id === cardId)
+      if (!card) return
 
-      const cardId = event.data.id
-      const isClearing = newEpicName === '— None'
-      const epicCardId = isClearing
-        ? null
-        : (epicCardOptions.find((o) => o.name === newEpicName)?.id ?? null)
-      const epicCardName = isClearing ? null : newEpicName
+      const prevEpicCardId = card.epicCardId
+      const prevEpicCardName = card.epicCardName
+
+      const epicCardId = epicOption?.id ?? null
+      const epicCardName = epicOption?.name ?? null
+
+      if (epicCardId === prevEpicCardId) return
 
       dispatch(cardEpicUpdated({ cardId, epicCardId, epicCardName }))
 
@@ -191,25 +187,23 @@ export default function GridPage(props: Props): JSX.Element {
         dispatch(
           cardEpicUpdated({
             cardId,
-            epicCardId: event.data.epicCardId,
-            epicCardName: oldEpicName
+            epicCardId: prevEpicCardId,
+            epicCardName: prevEpicCardName
           })
         )
         dispatch(kanbanToastShown(syncResult.error ?? 'Failed to update epic. Please try again.'))
       }
     },
-    [board.boardId, epicCardOptions, dispatch]
+    [board.boardId, columns, dispatch]
   )
 
   const handleCellValueChanged = useCallback(
     (event: CellValueChangedEvent<GridRow>) => {
       if (event.colDef.field === 'columnName') {
         handleColumnChange(event)
-      } else if (event.colDef.field === 'epicCardName') {
-        handleEpicChange(event)
       }
     },
-    [handleColumnChange, handleEpicChange]
+    [handleColumnChange]
   )
 
   const colDefs: ColDef<GridRow>[] = [
@@ -261,8 +255,12 @@ export default function GridPage(props: Props): JSX.Element {
             flex: 1,
             minWidth: 120,
             editable: true,
-            cellEditor: 'agSelectCellEditor',
-            cellEditorParams: { values: epicNames },
+            cellEditor: EpicCellEditor,
+            cellEditorPopup: true,
+            cellEditorParams: {
+              epicOptions: epicCardOptions,
+              onEpicSelected: handleEpicSelected
+            },
             valueFormatter: (p) => (p.value as string) ?? '— None',
             cellStyle: { cursor: 'pointer' }
           } as ColDef<GridRow>
