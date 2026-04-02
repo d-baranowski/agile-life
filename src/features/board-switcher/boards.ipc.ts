@@ -34,6 +34,7 @@ import {
   getCardsForBoard,
   moveCardToList,
   updateCardPos,
+  updateCardName,
   archiveCardLocally,
   insertCard,
   updateCardMembers,
@@ -497,26 +498,27 @@ export function registerBoardHandlers(): void {
     }
   )
 
-  // ── Rename card (calls Trello API + persists to local DB) ──────────────────
+  // ── Update card name (calls Trello API + persists to local DB) ─────────────
 
   ipcMain.handle(
-    IPC_CHANNELS.TRELLO_RENAME_CARD,
-    async (_e, boardId: string, cardId: string, newName: string): Promise<IpcResult<void>> => {
+    IPC_CHANNELS.TRELLO_UPDATE_CARD_NAME,
+    async (_e, boardId: string, cardId: string, name: string): Promise<IpcResult<void>> => {
       try {
         const config = getBoardById(boardId)
         if (!config) {
-          log.warn(`[boards] renameCard: board not found boardId=${boardId}`)
+          log.warn(`[boards] updateCardName: board not found boardId=${boardId}`)
           return { success: false, error: `Board not found: ${boardId}` }
         }
 
-        const client = new TrelloClient(config.apiKey, config.apiToken)
-        await client.updateCardName(cardId, newName)
-        getDb().prepare('UPDATE trello_cards SET name = ? WHERE id = ?').run(newName, cardId)
+        log.debug(`[boards] updateCardName cardId=${cardId}`)
+        updateCardName(cardId, name)
 
-        log.info(`[boards] renameCard cardId=${cardId} newName="${newName}"`)
+        const client = new TrelloClient(config.apiKey, config.apiToken)
+        await client.updateCardName(cardId, name)
+
         return { success: true }
       } catch (err) {
-        log.error(`[boards] renameCard failed cardId=${cardId}:`, err)
+        log.error(`[boards] updateCardName failed cardId=${cardId}:`, err)
         return { success: false, error: String(err) }
       }
     }

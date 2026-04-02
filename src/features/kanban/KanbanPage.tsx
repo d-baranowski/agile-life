@@ -119,7 +119,8 @@ export default function KanbanPage(props: Props): JSX.Element {
     handleCloseContextMenu,
     handleArchiveCard,
     handleToggleMember,
-    handleToggleLabel
+    handleToggleLabel,
+    handleRenameCard
   } = useCardActions(board.boardId)
 
   const addCard = useAddCardQueue(board.boardId)
@@ -401,6 +402,7 @@ export default function KanbanPage(props: Props): JSX.Element {
                                 onOpenEpicStories={epicMgmt.handleOpenEpicStories}
                                 onSetCardEpic={epicMgmt.handleSetCardEpic}
                                 onToggleEpicDropdown={epicMgmt.handleToggleEpicDropdown}
+                                onRenameCard={handleRenameCard}
                                 onContextMenu={(e) => {
                                   e.preventDefault()
                                   dispatch(contextMenuOpened({ x: e.clientX, y: e.clientY, card }))

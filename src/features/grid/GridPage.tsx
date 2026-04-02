@@ -1,15 +1,19 @@
-import { useCallback, useRef, useMemo } from 'react'
+import { useCallback, useRef, useMemo, useEffect } from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community'
 import type { ColDef, SelectionChangedEvent, CellValueChangedEvent } from 'ag-grid-community'
-import type { BoardConfig } from '../../lib/board.types'
+import type { BoardConfig, EpicCardOption } from '../../lib/board.types'
+import type { TrelloLabel } from '../../trello/trello.types'
 import type { GridRow } from './grid.types'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import {
   cardToggleSelected,
-  cardRenamed,
+  cardLabelsUpdated,
+  cardNameUpdated,
   columnsUpdated,
-  kanbanToastShown
+  kanbanToastShown,
+  fetchEpicCards,
+  cardEpicUpdated
 } from '../kanban/kanbanSlice'
 import { useBulkActions } from '../kanban/hooks/useBulkActions'
 import { useBulkLabelQueue } from '../kanban/hooks/useBulkLabelQueue'
@@ -20,6 +24,8 @@ import BulkMemberModal from '../kanban/components/BulkMemberModal'
 import BulkLabelModal from '../kanban/components/bulk-label/BulkLabelModal'
 import GridToolbar from './components/GridToolbar'
 import LabelsCellRenderer from './components/cell-renderers/LabelsCellRenderer'
+import LabelsCellEditor from './components/cell-editors/LabelsCellEditor'
+import EpicCellEditor from './components/cell-editors/EpicCellEditor'
 import MembersCellRenderer from './components/cell-renderers/MembersCellRenderer'
 import { PageWrapper, GridWrapper } from './styled/grid-page.styled'
 import { formatAge } from '../../lib/format-age'
@@ -51,6 +57,8 @@ export default function GridPage(props: Props): JSX.Element {
   const boardMembers = useAppSelector((s) => s.kanban.boardMembers)
   const selectedCardIds = useAppSelector((s) => s.kanban.selectedCardIds)
 
+  const epicCardOptions = useAppSelector((s) => s.kanban.epicCardOptions)
+
   const storyPointsConfig = board.storyPointsConfig ?? []
   const isStoryBoard = !!board.epicBoardId
   const rows = useGridRows(storyPointsConfig)
@@ -62,6 +70,11 @@ export default function GridPage(props: Props): JSX.Element {
   const gridRef = useRef<AgGridReact<GridRow>>(null)
 
   const columnNames = useMemo(() => columns.map((c) => c.name), [columns])
+
+  useEffect(() => {
+    if (!isStoryBoard) return
+    dispatch(fetchEpicCards(board.boardId))
+  }, [board.boardId, isStoryBoard, dispatch])
 
   const handleSelectionChanged = useCallback(
     (event: SelectionChangedEvent<GridRow>) => {
@@ -84,6 +97,32 @@ export default function GridPage(props: Props): JSX.Element {
   const handleExport = useCallback(() => {
     exportToExcel(rows, board.boardName)
   }, [exportToExcel, rows, board.boardName])
+
+  const handleToggleLabel = useCallback(
+    async (cardId: string, label: TrelloLabel, assign: boolean) => {
+      const prevColumns = columns
+      const card = columns.flatMap((c) => c.cards).find((c) => c.id === cardId)
+      if (card) {
+        const updatedLabels = assign
+          ? card.labels.some((l) => l.id === label.id)
+            ? card.labels
+            : [...card.labels, label]
+          : card.labels.filter((l) => l.id !== label.id)
+        dispatch(cardLabelsUpdated({ cardId, labels: updatedLabels }))
+      }
+
+      const result = await api.trello.assignCardLabel(board.boardId, cardId, label, assign)
+      if (result.success && result.data) {
+        dispatch(cardLabelsUpdated({ cardId, labels: result.data }))
+      } else {
+        dispatch(columnsUpdated(prevColumns))
+        dispatch(
+          kanbanToastShown(result.error ?? 'Failed to update label assignment. Please try again.')
+        )
+      }
+    },
+    [board.boardId, columns, dispatch]
+  )
 
   const handleColumnChange = useCallback(
     async (event: CellValueChangedEvent<GridRow>) => {
@@ -129,6 +168,36 @@ export default function GridPage(props: Props): JSX.Element {
     [board.boardId, columns, dispatch]
   )
 
+  const handleEpicSelected = useCallback(
+    async (cardId: string, epicOption: EpicCardOption | null) => {
+      const card = columns.flatMap((c) => c.cards).find((c) => c.id === cardId)
+      if (!card) return
+
+      const prevEpicCardId = card.epicCardId
+      const prevEpicCardName = card.epicCardName
+
+      const epicCardId = epicOption?.id ?? null
+      const epicCardName = epicOption?.name ?? null
+
+      if (epicCardId === prevEpicCardId) return
+
+      dispatch(cardEpicUpdated({ cardId, epicCardId, epicCardName }))
+
+      const syncResult = await api.epics.setCardEpic(board.boardId, cardId, epicCardId)
+      if (!syncResult.success) {
+        dispatch(
+          cardEpicUpdated({
+            cardId,
+            epicCardId: prevEpicCardId,
+            epicCardName: prevEpicCardName
+          })
+        )
+        dispatch(kanbanToastShown(syncResult.error ?? 'Failed to update epic. Please try again.'))
+      }
+    },
+    [board.boardId, columns, dispatch]
+  )
+
   const handleNameChange = useCallback(
     async (event: CellValueChangedEvent<GridRow>) => {
       const newName: string = event.newValue?.trim()
@@ -140,11 +209,11 @@ export default function GridPage(props: Props): JSX.Element {
       }
 
       const cardId = event.data.id
-      dispatch(cardRenamed({ cardId, newName }))
+      dispatch(cardNameUpdated({ cardId, name: newName }))
 
-      const syncResult = await api.trello.renameCard(board.boardId, cardId, newName)
+      const syncResult = await api.trello.updateCardName(board.boardId, cardId, newName)
       if (!syncResult.success) {
-        dispatch(cardRenamed({ cardId, newName: oldName }))
+        dispatch(cardNameUpdated({ cardId, name: oldName }))
         dispatch(kanbanToastShown(syncResult.error ?? 'Failed to rename card. Please try again.'))
       }
     },
@@ -195,6 +264,13 @@ export default function GridPage(props: Props): JSX.Element {
       flex: 2,
       minWidth: 140,
       cellRenderer: LabelsCellRenderer,
+      editable: true,
+      cellEditor: LabelsCellEditor,
+      cellEditorPopup: true,
+      cellEditorParams: {
+        boardLabels,
+        onToggleLabel: handleToggleLabel
+      },
       sortable: false
     },
     ...(isStoryBoard
@@ -203,7 +279,16 @@ export default function GridPage(props: Props): JSX.Element {
             field: 'epicCardName' as keyof GridRow,
             headerName: 'Epic',
             flex: 1,
-            minWidth: 120
+            minWidth: 120,
+            editable: true,
+            cellEditor: EpicCellEditor,
+            cellEditorPopup: true,
+            cellEditorParams: {
+              epicOptions: epicCardOptions,
+              onEpicSelected: handleEpicSelected
+            },
+            valueFormatter: (p) => (p.value as string) ?? '— None',
+            cellStyle: { cursor: 'pointer' }
           } as ColDef<GridRow>
         ]
       : []),

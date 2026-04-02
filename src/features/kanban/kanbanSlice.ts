@@ -274,6 +274,15 @@ const kanbanSlice = createSlice({
         }
       }
     },
+    cardNameUpdated(state, action: PayloadAction<{ cardId: string; name: string }>) {
+      for (const col of state.columns) {
+        const card = col.cards.find((c) => c.id === action.payload.cardId)
+        if (card) {
+          card.name = action.payload.name
+          break
+        }
+      }
+    },
     cardEpicUpdated(
       state,
       action: PayloadAction<{
@@ -287,15 +296,6 @@ const kanbanSlice = createSlice({
         if (card) {
           card.epicCardId = action.payload.epicCardId
           card.epicCardName = action.payload.epicCardName
-          break
-        }
-      }
-    },
-    cardRenamed(state, action: PayloadAction<{ cardId: string; newName: string }>) {
-      for (const col of state.columns) {
-        const card = col.cards.find((c) => c.id === action.payload.cardId)
-        if (card) {
-          card.name = action.payload.newName
           break
         }
       }
@@ -644,9 +644,9 @@ export const {
   cardsAddedToColumn,
   cardMembersUpdated,
   cardLabelsUpdated,
+  cardNameUpdated,
   cardEpicUpdated,
   bulkCardEpicUpdated,
-  cardRenamed,
   kanbanToastShown,
   kanbanToastDismissed,
   searchQueryChanged,
