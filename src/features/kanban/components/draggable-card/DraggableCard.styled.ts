@@ -66,6 +66,24 @@ export const CardName = styled.span`
   line-height: 1.4;
   flex: 1;
   min-width: 0;
+  cursor: text;
+`
+
+export const CardNameInput = styled.textarea`
+  font-size: 0.82rem;
+  color: var(--color-text);
+  line-height: 1.4;
+  flex: 1;
+  min-width: 0;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  margin: -2px -4px;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  overflow: hidden;
 `
 
 /* ── Card selection checkbox ──────────────────────────────────────────────── */
