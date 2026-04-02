@@ -19,7 +19,7 @@ interface EpicEditorParams {
 type Props = CustomCellEditorProps<GridRow, string | null> & EpicEditorParams
 
 export default function EpicCellEditor(props: Props): JSX.Element {
-  const { data, value, epicOptions, onEpicSelected } = props
+  const { data, value, epicOptions, onEpicSelected, api: gridApi } = props
   const [search, setSearch] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -37,8 +37,9 @@ export default function EpicCellEditor(props: Props): JSX.Element {
     (option: EpicCardOption | null) => {
       if (!data) return
       onEpicSelected(data.id, option)
+      gridApi.stopEditing()
     },
-    [data, onEpicSelected]
+    [data, onEpicSelected, gridApi]
   )
 
   const currentValue = value ?? null
