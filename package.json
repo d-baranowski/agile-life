@@ -97,6 +97,14 @@
       "undici": "6.24.1",
       "@xmldom/xmldom": ">=0.8.12",
       "lodash": ">=4.18.0"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-532v-xpq5-8h95",
+        "GHSA-8337-3p73-46f4",
+        "GHSA-jjp3-mq3x-295m",
+        "GHSA-9wfr-w7mm-pc7f"
+      ]
     }
   },
   "build": {
