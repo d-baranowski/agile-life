@@ -9,6 +9,7 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import {
   cardToggleSelected,
   cardLabelsUpdated,
+  cardNameUpdated,
   cardMembersUpdated,
   columnsUpdated,
   kanbanToastShown,
@@ -199,12 +200,30 @@ export default function GridPage(props: Props): JSX.Element {
     [board.boardId, columns, dispatch]
   )
 
-  const handleMemberChange = useCallback(
+  const handleNameChange = useCallback(
     async (event: CellValueChangedEvent<GridRow>) => {
-      const newMembers: TrelloMember[] = event.newValue ?? []
-      const oldMembers: TrelloMember[] = event.oldValue ?? []
+      const newName: string = event.newValue?.trim()
+      const oldName: string = event.oldValue
+      if (!newName || newName === oldName) {
+        // Revert the grid cell if the name is empty
+        if (!newName) event.api.applyTransaction({ update: [{ ...event.data, name: oldName }] })
+        return
+      }
 
       const cardId = event.data.id
+      dispatch(cardNameUpdated({ cardId, name: newName }))
+
+      const syncResult = await api.trello.updateCardName(board.boardId, cardId, newName)
+      if (!syncResult.success) {
+        dispatch(cardNameUpdated({ cardId, name: oldName }))
+        dispatch(kanbanToastShown(syncResult.error ?? 'Failed to rename card. Please try again.'))
+      }
+    },
+    [board.boardId, dispatch]
+  )
+
+  const handleMembersConfirm = useCallback(
+    async (cardId: string, newMembers: TrelloMember[], oldMembers: TrelloMember[]) => {
       const oldIds = new Set(oldMembers.map((m) => m.id))
       const newIds = new Set(newMembers.map((m) => m.id))
 
@@ -238,11 +257,11 @@ export default function GridPage(props: Props): JSX.Element {
     async (event: CellValueChangedEvent<GridRow>) => {
       if (event.colDef.field === 'columnName') {
         await handleColumnChange(event)
-      } else if (event.colDef.field === 'members') {
-        await handleMemberChange(event)
+      } else if (event.colDef.field === 'name') {
+        await handleNameChange(event)
       }
     },
-    [handleColumnChange, handleMemberChange]
+    [handleColumnChange, handleNameChange]
   )
 
   const colDefs: ColDef<GridRow>[] = [
@@ -251,7 +270,8 @@ export default function GridPage(props: Props): JSX.Element {
       headerName: 'Title',
       flex: 3,
       minWidth: 200,
-      cellStyle: { fontWeight: 500 }
+      editable: true,
+      cellStyle: { fontWeight: 500, cursor: 'pointer' }
     },
     {
       field: 'columnName',
@@ -267,11 +287,14 @@ export default function GridPage(props: Props): JSX.Element {
       field: 'members',
       headerName: 'Members',
       flex: 2,
-      minWidth: 140,
+      minWidth: 160,
       cellRenderer: MembersCellRenderer,
       editable: true,
       cellEditor: MembersCellEditor,
-      cellEditorParams: { boardMembers },
+      cellEditorParams: {
+        boardMembers,
+        onMembersConfirm: handleMembersConfirm
+      },
       cellEditorPopup: true,
       cellStyle: { cursor: 'pointer' },
       sortable: false

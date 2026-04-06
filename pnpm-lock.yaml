@@ -18,10 +18,10 @@ importers:
     dependencies:
       '@electron-toolkit/preload':
         specifier: 3.0.2
-        version: 3.0.2(electron@29.4.6)
+        version: 3.0.2(electron@39.8.6)
       '@electron-toolkit/utils':
         specifier: 3.0.0
-        version: 3.0.0(electron@29.4.6)
+        version: 3.0.0(electron@39.8.6)
       '@reduxjs/toolkit':
         specifier: ^2.11.2
         version: 2.11.2(react-redux@9.2.0(@types/react@18.3.28)(react@18.3.1)(redux@5.0.1))(react@18.3.1)
@@ -114,8 +114,8 @@ importers:
         specifier: ^17.3.10
         version: 17.3.10
       electron:
-        specifier: ^29.4.6
-        version: 29.4.6
+        specifier: ^39.8.6
+        version: 39.8.6
       electron-builder:
         specifier: 24.13.3
         version: 24.13.3(electron-builder-squirrel-windows@24.13.3)
@@ -1280,6 +1280,9 @@ packages:
   '@types/node@20.19.37':
     resolution: {integrity: sha512-8kzdPJ3FsNsVIurqBs7oodNnCEVbni9yUEkaHbgptDACOPW04jimGagZ51E6+lXUwJjgnBw+hyko/lkFWCldqw==}
 
+  '@types/node@22.19.17':
+    resolution: {integrity: sha512-wGdMcf+vPYM6jikpS/qhg6WiqSV/OhG+jeeHT/KlVqxYfD40iYJf9/AE1uQxVWFvU7MipKRkRv8NSHiCGgPr8Q==}
+
   '@types/plist@3.0.5':
     resolution: {integrity: sha512-E6OCaRmAe4WDmWNsL/9RMqdkkzDCY1etutkflWk4c+AcjDU07Pcz1fQwTX0TQz+Pxqn9i4L1TU3UFpjnrcDgxA==}
 
@@ -2069,8 +2072,8 @@ packages:
       '@swc/core':
         optional: true
 
-  electron@29.4.6:
-    resolution: {integrity: sha512-fz8ndj8cmmf441t4Yh2FDP3Rn0JhLkVGvtUf2YVMbJ5SdJPlc0JWll9jYkhh60jDKVVCr/tBAmfxqRnXMWJpzg==}
+  electron@39.8.6:
+    resolution: {integrity: sha512-uWX6Jh5LmwL13VwOSKBjebI+ck+03GOwc8V2Sgbmr9pJVJ/cHfli/PkjXuRDr+hq+SLHQuT9mGHSIfScebApRA==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -4536,17 +4539,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron-toolkit/preload@3.0.2(electron@29.4.6)':
+  '@electron-toolkit/preload@3.0.2(electron@39.8.6)':
     dependencies:
-      electron: 29.4.6
+      electron: 39.8.6
 
   '@electron-toolkit/tsconfig@1.0.1(@types/node@20.19.37)':
     dependencies:
       '@types/node': 20.19.37
 
-  '@electron-toolkit/utils@3.0.0(electron@29.4.6)':
+  '@electron-toolkit/utils@3.0.0(electron@39.8.6)':
     dependencies:
-      electron: 29.4.6
+      electron: 39.8.6
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -5385,6 +5388,10 @@ snapshots:
   '@types/node@14.18.63': {}
 
   '@types/node@20.19.37':
+    dependencies:
+      undici-types: 6.21.0
+
+  '@types/node@22.19.17':
     dependencies:
       undici-types: 6.21.0
 
@@ -6393,10 +6400,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@29.4.6:
+  electron@39.8.6:
     dependencies:
       '@electron/get': 2.0.3
-      '@types/node': 20.19.37
+      '@types/node': 22.19.17
       extract-zip: 2.0.1
     transitivePeerDependencies:
       - supports-color
