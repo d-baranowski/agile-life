@@ -20,6 +20,8 @@ import { EpicFilterSelect } from './components/EpicFilterSelect'
 import { useAddCardQueue } from './hooks/useAddCardQueue'
 import { useBulkLabelQueue } from './hooks/useBulkLabelQueue'
 import { useCardActions } from './hooks/useCardActions'
+import { useTimerActions } from './hooks/useTimerActions'
+import TimerEntriesModal from './components/timer-modal/TimerEntriesModal'
 import { useEpicManagement } from './hooks/useEpicManagement'
 import { useGenerateTemplate } from './hooks/useGenerateTemplate'
 import { useBulkActions } from './hooks/useBulkActions'
@@ -124,6 +126,12 @@ export default function KanbanPage(props: Props): JSX.Element {
   } = useCardActions(board.boardId)
 
   const addCard = useAddCardQueue(board.boardId)
+
+  const timerActions = useTimerActions(board.boardId)
+  const activeTimers = useAppSelector((s) => s.kanban.activeTimers)
+  const timerModalCardId = useAppSelector((s) => s.kanban.timerModalCardId)
+  const timerModalEntries = useAppSelector((s) => s.kanban.timerModalEntries)
+  const timerModalLoading = useAppSelector((s) => s.kanban.timerModalLoading)
 
   const bulk = useBulkActions(board.boardId)
 
@@ -398,11 +406,14 @@ export default function KanbanPage(props: Props): JSX.Element {
                                 epicDropdownCardId={epicMgmt.epicDropdownCardId}
                                 isDuplicate={duplicateNames.has(card.name.trim().toLowerCase())}
                                 isSelected={bulk.selectedCardIds.has(card.id)}
+                                activeTimer={activeTimers[card.id] ?? null}
                                 onToggleSelect={bulk.handleToggleSelectCard}
                                 onOpenEpicStories={epicMgmt.handleOpenEpicStories}
                                 onSetCardEpic={epicMgmt.handleSetCardEpic}
                                 onToggleEpicDropdown={epicMgmt.handleToggleEpicDropdown}
                                 onRenameCard={handleRenameCard}
+                                onToggleTimer={timerActions.handleToggleTimer}
+                                onOpenTimerEntries={timerActions.handleOpenTimerModal}
                                 onContextMenu={(e) => {
                                   e.preventDefault()
                                   dispatch(contextMenuOpened({ x: e.clientX, y: e.clientY, card }))
@@ -471,6 +482,23 @@ export default function KanbanPage(props: Props): JSX.Element {
       />
 
       {ticketsModal}
+
+      {timerModalCardId &&
+        (() => {
+          const card = columns.flatMap((c) => c.cards).find((c) => c.id === timerModalCardId)
+          return (
+            <TimerEntriesModal
+              cardId={timerModalCardId}
+              cardName={card?.name ?? 'Card'}
+              entries={timerModalEntries}
+              loading={timerModalLoading}
+              onClose={timerActions.handleCloseTimerModal}
+              onUpdateEntry={timerActions.handleUpdateEntry}
+              onDeleteEntry={timerActions.handleDeleteEntry}
+              onCreateManual={timerActions.handleCreateManualEntry}
+            />
+          )
+        })()}
 
       {epicMgmt.epicStoriesCard && (
         <EpicStoriesModal

@@ -145,3 +145,24 @@ CREATE TABLE IF NOT EXISTS ticket_templates (
 CREATE INDEX IF NOT EXISTS idx_template_groups_board    ON template_groups(board_id);
 CREATE INDEX IF NOT EXISTS idx_ticket_templates_board   ON ticket_templates(board_id);
 CREATE INDEX IF NOT EXISTS idx_ticket_templates_group   ON ticket_templates(group_id);
+
+-- One row per card-timer entry.  Each entry is the user's record of
+-- "I worked on card X from start to stop for N seconds".
+-- trello_comment_id links the entry to a specific commentCard action on
+-- Trello so edits here can be mirrored back to the same comment.
+CREATE TABLE IF NOT EXISTS card_timer_entries (
+  id                TEXT PRIMARY KEY,
+  board_id          TEXT NOT NULL,
+  card_id           TEXT NOT NULL,
+  started_at        TEXT NOT NULL,
+  stopped_at        TEXT,
+  duration_seconds  INTEGER NOT NULL DEFAULT 0,
+  note              TEXT NOT NULL DEFAULT '',
+  trello_comment_id TEXT,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (card_id) REFERENCES trello_cards(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_timer_entries_card  ON card_timer_entries(card_id);
+CREATE INDEX IF NOT EXISTS idx_timer_entries_board ON card_timer_entries(board_id);

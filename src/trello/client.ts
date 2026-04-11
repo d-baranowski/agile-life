@@ -259,6 +259,43 @@ export class TrelloClient {
     return data
   }
 
+  // ─── Card Comments ───────────────────────────────────────────────────────────
+
+  /**
+   * Posts a comment on a Trello card. The returned action has a stable `id`
+   * that can be stored locally to later edit or delete the same comment.
+   */
+  async createCardComment(
+    cardId: string,
+    text: string
+  ): Promise<{ id: string; text: string; date: string }> {
+    const { data } = await this.http.post<{
+      id: string
+      data: { text: string }
+      date: string
+    }>(`/cards/${cardId}/actions/comments`, null, { params: { text } })
+    return { id: data.id, text: data.data.text, date: data.date }
+  }
+
+  async updateCardComment(cardId: string, actionId: string, text: string): Promise<void> {
+    await this.http.put(`/cards/${cardId}/actions/${actionId}/comments`, null, {
+      params: { text }
+    })
+  }
+
+  async deleteCardComment(cardId: string, actionId: string): Promise<void> {
+    await this.http.delete(`/cards/${cardId}/actions/${actionId}/comments`)
+  }
+
+  async getCardComments(
+    cardId: string
+  ): Promise<Array<{ id: string; text: string; date: string }>> {
+    const { data } = await this.http.get<
+      Array<{ id: string; date: string; data: { text: string } }>
+    >(`/cards/${cardId}/actions`, { params: { filter: 'commentCard', limit: 1000 } })
+    return data.map((a) => ({ id: a.id, text: a.data.text, date: a.date }))
+  }
+
   // ─── Credentials Validation ──────────────────────────────────────────────────
 
   async validateCredentials(): Promise<{ valid: boolean; memberName?: string }> {

@@ -45,6 +45,7 @@ import type {
   GenerateCardsResult
 } from '../templates/template.types'
 import type { DbPathInfo, LogPathInfo } from '../settings/settings.types'
+import type { CardTimerEntry } from '../timers/timer.types'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> {
   return window.api.invoke(channel as Parameters<typeof window.api.invoke>[0], ...args) as Promise<
@@ -270,6 +271,43 @@ export const api = {
      */
     setPath: (resetToDefault = false) =>
       invoke<LogPathInfo>(IPC_CHANNELS.LOGS_SET_PATH, resetToDefault)
+  },
+
+  timers: {
+    /** Starts a timer on the card — creates an entry and posts a Trello comment. */
+    start: (boardId: string, cardId: string, note?: string) =>
+      invoke<CardTimerEntry>(IPC_CHANNELS.TIMERS_START, boardId, cardId, note ?? ''),
+    /** Stops a running timer entry — updates duration and the linked Trello comment. */
+    stop: (entryId: string) => invoke<CardTimerEntry>(IPC_CHANNELS.TIMERS_STOP, entryId),
+    /** Returns all timer entries for a given card, newest first. */
+    listForCard: (cardId: string) =>
+      invoke<CardTimerEntry[]>(IPC_CHANNELS.TIMERS_LIST_FOR_CARD, cardId),
+    /** Returns every currently-running timer entry on the board. */
+    listActive: (boardId: string) =>
+      invoke<CardTimerEntry[]>(IPC_CHANNELS.TIMERS_LIST_ACTIVE, boardId),
+    /** Updates a timer entry (manual edits) and syncs the linked Trello comment. */
+    update: (
+      entryId: string,
+      fields: {
+        startedAt: string
+        stoppedAt: string | null
+        durationSeconds: number
+        note: string
+      }
+    ) => invoke<CardTimerEntry>(IPC_CHANNELS.TIMERS_UPDATE, entryId, fields),
+    /** Deletes a timer entry and its Trello comment if one exists. */
+    delete: (entryId: string) => invoke<void>(IPC_CHANNELS.TIMERS_DELETE, entryId),
+    /** Creates a completed entry manually (for "I forgot to start the timer"). */
+    createManual: (
+      boardId: string,
+      cardId: string,
+      fields: {
+        startedAt: string
+        stoppedAt: string
+        durationSeconds: number
+        note: string
+      }
+    ) => invoke<CardTimerEntry>(IPC_CHANNELS.TIMERS_CREATE_MANUAL, boardId, cardId, fields)
   },
 
   epics: {

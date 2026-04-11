@@ -15,22 +15,28 @@ import type {
   TicketTemplate,
   GenerateCardsResult
 } from '../templates/template.types'
+import type { CardTimerEntry } from '../timers/timer.types'
 import { api } from '../api/useApi'
 
 // ── Async thunks ──────────────────────────────────────────────────────────────
 
 export const fetchBoardData = createAsyncThunk('kanban/fetchBoardData', async (boardId: string) => {
-  const [dataResult, membersResult, labelsResult] = await Promise.all([
+  const [dataResult, membersResult, labelsResult, activeTimersResult] = await Promise.all([
     api.trello.getBoardData(boardId),
     api.trello.getBoardMembers(boardId),
-    api.trello.getBoardLabels(boardId)
+    api.trello.getBoardLabels(boardId),
+    api.timers.listActive(boardId)
   ])
   return {
     columns: dataResult.success && dataResult.data ? dataResult.data : ([] as KanbanColumn[]),
     error: !dataResult.success ? (dataResult.error ?? 'Failed to load board data.') : null,
     members:
       membersResult.success && membersResult.data ? membersResult.data : ([] as TrelloMember[]),
-    labels: labelsResult.success && labelsResult.data ? labelsResult.data : ([] as TrelloLabel[])
+    labels: labelsResult.success && labelsResult.data ? labelsResult.data : ([] as TrelloLabel[]),
+    activeTimers:
+      activeTimersResult.success && activeTimersResult.data
+        ? activeTimersResult.data
+        : ([] as CardTimerEntry[])
   }
 })
 
@@ -163,6 +169,12 @@ interface KanbanState {
   // Bulk member dropdown
   bulkMemberDropdownOpen: boolean
 
+  // Card timers
+  activeTimers: Record<string, CardTimerEntry>
+  timerModalCardId: string | null
+  timerModalEntries: CardTimerEntry[]
+  timerModalLoading: boolean
+
   // Generate template modal
   showGenModal: boolean
   genGroups: TemplateGroup[]
@@ -214,6 +226,11 @@ const initialState: KanbanState = {
   bulkEpicDropdownOpen: false,
   bulkEpicSearch: '',
   bulkMemberDropdownOpen: false,
+
+  activeTimers: {},
+  timerModalCardId: null,
+  timerModalEntries: [],
+  timerModalLoading: false,
 
   showGenModal: false,
   genGroups: [],
@@ -528,6 +545,8 @@ const kanbanSlice = createSlice({
 
     // ── Escape key handler ──
     escapePressed(state) {
+      state.timerModalCardId = null
+      state.timerModalEntries = []
       state.showTicketsModal = false
       state.epicStoriesCard = null
       state.epicStories = null
@@ -547,6 +566,42 @@ const kanbanSlice = createSlice({
       if (state.bulkMemberModal && !state.bulkMemberModal.running) {
         state.bulkMemberModal = null
       }
+    },
+
+    // ── Card timers ──
+    activeTimerSet(state, action: PayloadAction<CardTimerEntry>) {
+      state.activeTimers[action.payload.cardId] = action.payload
+    },
+    activeTimerCleared(state, action: PayloadAction<string>) {
+      delete state.activeTimers[action.payload]
+    },
+    activeTimersReplaced(state, action: PayloadAction<CardTimerEntry[]>) {
+      state.activeTimers = {}
+      for (const entry of action.payload) {
+        state.activeTimers[entry.cardId] = entry
+      }
+    },
+    timerModalOpened(state, action: PayloadAction<string>) {
+      state.timerModalCardId = action.payload
+      state.timerModalEntries = []
+      state.timerModalLoading = true
+    },
+    timerModalClosed(state) {
+      state.timerModalCardId = null
+      state.timerModalEntries = []
+      state.timerModalLoading = false
+    },
+    timerModalEntriesLoaded(state, action: PayloadAction<CardTimerEntry[]>) {
+      state.timerModalEntries = action.payload
+      state.timerModalLoading = false
+    },
+    timerModalEntryUpserted(state, action: PayloadAction<CardTimerEntry>) {
+      const idx = state.timerModalEntries.findIndex((e) => e.id === action.payload.id)
+      if (idx >= 0) state.timerModalEntries[idx] = action.payload
+      else state.timerModalEntries.unshift(action.payload)
+    },
+    timerModalEntryRemoved(state, action: PayloadAction<string>) {
+      state.timerModalEntries = state.timerModalEntries.filter((e) => e.id !== action.payload)
     },
 
     // ── Gamification level-up ──
@@ -573,6 +628,10 @@ const kanbanSlice = createSlice({
         state.boardLabels = action.payload.labels
         state.error = action.payload.error
         state.loading = false
+        state.activeTimers = {}
+        for (const entry of action.payload.activeTimers) {
+          state.activeTimers[entry.cardId] = entry
+        }
       })
       .addCase(fetchBoardData.rejected, (state, action) => {
         state.error = action.error.message ?? 'Failed to load board data.'
@@ -690,6 +749,14 @@ export const {
   bulkMemberDropdownClosed,
   genModalOpened,
   genModalClosed,
+  activeTimerSet,
+  activeTimerCleared,
+  activeTimersReplaced,
+  timerModalOpened,
+  timerModalClosed,
+  timerModalEntriesLoaded,
+  timerModalEntryUpserted,
+  timerModalEntryRemoved,
   escapePressed,
   levelUpAchieved,
   levelUpConsumed

@@ -83,7 +83,16 @@ export const IPC_CHANNELS = {
 
   // Gamification
   BOARDS_SET_MY_MEMBER: 'boards:setMyMember',
-  ANALYTICS_GAMIFICATION_STATS: 'analytics:gamificationStats'
+  ANALYTICS_GAMIFICATION_STATS: 'analytics:gamificationStats',
+
+  // Card timers
+  TIMERS_START: 'timers:start',
+  TIMERS_STOP: 'timers:stop',
+  TIMERS_LIST_FOR_CARD: 'timers:listForCard',
+  TIMERS_LIST_ACTIVE: 'timers:listActive',
+  TIMERS_UPDATE: 'timers:update',
+  TIMERS_DELETE: 'timers:delete',
+  TIMERS_CREATE_MANUAL: 'timers:createManual'
 } as const
 
 export interface IpcResult<T> {

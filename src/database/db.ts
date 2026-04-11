@@ -61,6 +61,12 @@ import sqlTemplatesInsert from './sql/templates/insert-template.sql?raw'
 import sqlTemplatesUpdate from './sql/templates/update-template.sql?raw'
 import sqlTemplatesDelete from './sql/templates/delete-template.sql?raw'
 import sqlBoardsSetMyMember from './sql/boards/set-my-member.sql?raw'
+import sqlTimerEntriesInsert from './sql/timer-entries/insert.sql?raw'
+import sqlTimerEntriesUpdate from './sql/timer-entries/update.sql?raw'
+import sqlTimerEntriesDelete from './sql/timer-entries/delete.sql?raw'
+import sqlTimerEntriesGetByCard from './sql/timer-entries/get-by-card.sql?raw'
+import sqlTimerEntriesGetActiveByBoard from './sql/timer-entries/get-active-by-board.sql?raw'
+import sqlTimerEntriesGetById from './sql/timer-entries/get-by-id.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -141,6 +147,25 @@ export function getDb(): Database.Database {
   } catch {
     // Column already exists — nothing to do.
   }
+
+  // Ensure card_timer_entries table exists on databases that pre-date it.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS card_timer_entries (
+      id                TEXT PRIMARY KEY,
+      board_id          TEXT NOT NULL,
+      card_id           TEXT NOT NULL,
+      started_at        TEXT NOT NULL,
+      stopped_at        TEXT,
+      duration_seconds  INTEGER NOT NULL DEFAULT 0,
+      note              TEXT NOT NULL DEFAULT '',
+      trello_comment_id TEXT,
+      created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (card_id) REFERENCES trello_cards(id) ON DELETE CASCADE
+    )
+  `)
+  _db.exec('CREATE INDEX IF NOT EXISTS idx_timer_entries_card  ON card_timer_entries(card_id)')
+  _db.exec('CREATE INDEX IF NOT EXISTS idx_timer_entries_board ON card_timer_entries(board_id)')
 
   // Ensure board_members table exists for existing databases that pre-date the
   // schema addition.  CREATE TABLE IF NOT EXISTS is idempotent and safe.
@@ -906,4 +931,84 @@ export function getBoardLabels(boardId: string): TrelloLabel[] {
     }
   }
   return [...labelsMap.values()]
+}
+
+// ─── Card Timer Entries ────────────────────────────────────────────────────────
+
+import type { CardTimerEntry } from '../features/timers/timer.types'
+export type { CardTimerEntry }
+
+interface TimerEntryRow {
+  id: string
+  board_id: string
+  card_id: string
+  started_at: string
+  stopped_at: string | null
+  duration_seconds: number
+  note: string
+  trello_comment_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+function rowToTimerEntry(r: TimerEntryRow): CardTimerEntry {
+  return {
+    id: r.id,
+    boardId: r.board_id,
+    cardId: r.card_id,
+    startedAt: r.started_at,
+    stoppedAt: r.stopped_at,
+    durationSeconds: r.duration_seconds,
+    note: r.note,
+    trelloCommentId: r.trello_comment_id,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at
+  }
+}
+
+export function insertTimerEntry(entry: CardTimerEntry): void {
+  getDb().prepare(sqlTimerEntriesInsert).run({
+    id: entry.id,
+    boardId: entry.boardId,
+    cardId: entry.cardId,
+    startedAt: entry.startedAt,
+    stoppedAt: entry.stoppedAt,
+    durationSeconds: entry.durationSeconds,
+    note: entry.note,
+    trelloCommentId: entry.trelloCommentId
+  })
+}
+
+export function updateTimerEntryRow(
+  id: string,
+  fields: {
+    startedAt: string
+    stoppedAt: string | null
+    durationSeconds: number
+    note: string
+    trelloCommentId: string | null
+  }
+): void {
+  getDb()
+    .prepare(sqlTimerEntriesUpdate)
+    .run({ id, ...fields })
+}
+
+export function deleteTimerEntryRow(id: string): void {
+  getDb().prepare(sqlTimerEntriesDelete).run({ id })
+}
+
+export function getTimerEntriesByCard(cardId: string): CardTimerEntry[] {
+  const rows = getDb().prepare(sqlTimerEntriesGetByCard).all(cardId) as TimerEntryRow[]
+  return rows.map(rowToTimerEntry)
+}
+
+export function getActiveTimerEntriesByBoard(boardId: string): CardTimerEntry[] {
+  const rows = getDb().prepare(sqlTimerEntriesGetActiveByBoard).all(boardId) as TimerEntryRow[]
+  return rows.map(rowToTimerEntry)
+}
+
+export function getTimerEntryById(id: string): CardTimerEntry | undefined {
+  const row = getDb().prepare(sqlTimerEntriesGetById).get(id) as TimerEntryRow | undefined
+  return row ? rowToTimerEntry(row) : undefined
 }

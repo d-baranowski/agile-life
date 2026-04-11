@@ -29,8 +29,11 @@ import {
   CardActions,
   ColumnAge,
   TrelloLink,
+  TimerButton,
+  TimerEntriesButton,
   DuplicateBadge
 } from './DraggableCard.styled'
+import type { CardTimerEntry } from '../../../timers/timer.types'
 
 interface CardProps {
   card: KanbanCard
@@ -41,12 +44,26 @@ interface CardProps {
   epicDropdownCardId: string | null
   isDuplicate: boolean
   isSelected: boolean
+  activeTimer: CardTimerEntry | null
   onToggleSelect: (cardId: string) => void
   onOpenEpicStories: (cardId: string, cardName: string) => void
   onSetCardEpic: (cardId: string, epicCardId: string | null) => void
   onToggleEpicDropdown: (cardId: string) => void
   onContextMenu: (e: React.MouseEvent) => void
   onRenameCard: (cardId: string, name: string) => void
+  onToggleTimer: (cardId: string) => void
+  onOpenTimerEntries: (cardId: string) => void
+}
+
+function formatElapsed(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const rem = s % 60
+  const mm = String(m).padStart(2, '0')
+  const ss = String(rem).padStart(2, '0')
+  if (h > 0) return `${h}:${mm}:${ss}`
+  return `${mm}:${ss}`
 }
 
 export default function DraggableCard(props: CardProps): JSX.Element {
@@ -59,12 +76,15 @@ export default function DraggableCard(props: CardProps): JSX.Element {
     epicDropdownCardId,
     isDuplicate,
     isSelected,
+    activeTimer,
     onToggleSelect,
     onOpenEpicStories,
     onSetCardEpic,
     onToggleEpicDropdown,
     onContextMenu,
-    onRenameCard
+    onRenameCard,
+    onToggleTimer,
+    onOpenTimerEntries
   } = props
   const lastClickRef = useRef<number>(0)
   const epicSearchRef = useRef<HTMLInputElement>(null)
@@ -72,6 +92,18 @@ export default function DraggableCard(props: CardProps): JSX.Element {
   const [epicSearchQuery, setEpicSearchQuery] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(card.name)
+  const [timerNow, setTimerNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!activeTimer) return
+    setTimerNow(Date.now())
+    const id = window.setInterval(() => setTimerNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [activeTimer])
+
+  const timerElapsedSeconds = activeTimer
+    ? Math.max(0, Math.floor((timerNow - new Date(activeTimer.startedAt).getTime()) / 1000))
+    : 0
 
   const isDropdownOpen = epicDropdownCardId === card.id
 
@@ -270,6 +302,25 @@ export default function DraggableCard(props: CardProps): JSX.Element {
               )}
 
               <CardMeta>
+                <TimerButton
+                  $running={!!activeTimer}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onToggleTimer(card.id)
+                  }}
+                  title={activeTimer ? 'Stop timer' : 'Start timer'}
+                >
+                  {activeTimer ? `⏸ ${formatElapsed(timerElapsedSeconds)}` : '▶ Timer'}
+                </TimerButton>
+                <TimerEntriesButton
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onOpenTimerEntries(card.id)
+                  }}
+                  title="View and edit time entries"
+                >
+                  ⏱
+                </TimerEntriesButton>
                 {card.enteredAt && (
                   <ColumnAge
                     title={`In this column since ${new Date(card.enteredAt).toLocaleString()}`}

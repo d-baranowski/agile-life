@@ -8,6 +8,7 @@ import { registerTicketHandlers } from '../features/tickets/tickets'
 import { registerSettingsHandlers } from '../features/settings/settings'
 import { registerTemplateHandlers } from '../features/templates/templates'
 import { registerLogHandlers } from '../features/logs/logs.ipc'
+import { registerTimerHandlers } from '../features/timers/timers.ipc'
 import icon from '../../resources/icon.png?asset'
 
 // Ensure the Dock / taskbar always shows "Agile Life", not the Electron binary name
@@ -63,6 +64,7 @@ app.whenReady().then(() => {
   registerSettingsHandlers()
   registerTemplateHandlers()
   registerLogHandlers()
+  registerTimerHandlers()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

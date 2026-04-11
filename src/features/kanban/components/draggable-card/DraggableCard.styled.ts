@@ -179,6 +179,66 @@ export const TrelloLink = styled.a`
   }
 `
 
+/* ── Timer button ─────────────────────────────────────────────────────────── */
+
+export const TimerButton = styled.button<{ $running?: boolean }>`
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  font-family: inherit;
+  color: ${(p) => (p.$running ? 'var(--color-accent)' : 'var(--color-text-muted)')};
+  background: ${(p) => (p.$running ? 'rgba(233, 69, 96, 0.12)' : 'transparent')};
+  border: 1px solid ${(p) => (p.$running ? 'var(--color-accent)' : 'var(--color-border)')};
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: ${(p) => (p.$running ? 1 : 0)};
+  transition:
+    opacity var(--transition),
+    color var(--transition),
+    border-color var(--transition);
+
+  ${CardWrapper}:hover & {
+    opacity: 1;
+  }
+
+  &:hover {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+`
+
+export const TimerEntriesButton = styled.button`
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-family: inherit;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px 5px;
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0;
+  transition:
+    opacity var(--transition),
+    color var(--transition),
+    border-color var(--transition);
+
+  ${CardWrapper}:hover & {
+    opacity: 1;
+  }
+
+  &:hover {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+`
+
 /* ── Labels ───────────────────────────────────────────────────────────────── */
 
 export const Labels = styled.div`
