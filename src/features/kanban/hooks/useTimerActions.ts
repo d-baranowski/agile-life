@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from '../../../store/hooks'
 import {
   activeTimerSet,
   activeTimerCleared,
+  cardTimerTotalsReplaced,
   timerModalOpened,
   timerModalClosed,
   timerModalEntriesLoaded,
@@ -27,6 +28,13 @@ export function useTimerActions(boardId: string) {
   const dispatch = useAppDispatch()
   const activeTimers = useAppSelector((s) => s.kanban.activeTimers)
 
+  const refreshTotals = useCallback(async () => {
+    const result = await api.timers.getTotals(boardId)
+    if (result.success && result.data) {
+      dispatch(cardTimerTotalsReplaced(result.data))
+    }
+  }, [boardId, dispatch])
+
   const handleStartTimer = useCallback(
     async (cardId: string) => {
       const result = await api.timers.start(boardId, cardId, '')
@@ -40,6 +48,8 @@ export function useTimerActions(boardId: string) {
     [boardId, dispatch]
   )
 
+  // Note: start alone doesn't change totals (stopped-entry sum); stop/update/delete/createManual do.
+
   const handleStopTimer = useCallback(
     async (cardId: string) => {
       const active = activeTimers[cardId]
@@ -50,11 +60,12 @@ export function useTimerActions(boardId: string) {
         dispatch(
           kanbanToastShown(`⏱ Timer stopped — ${formatDuration(result.data.durationSeconds)}`)
         )
+        void refreshTotals()
       } else {
         dispatch(kanbanToastShown(result.error ?? 'Failed to stop timer.'))
       }
     },
-    [activeTimers, dispatch]
+    [activeTimers, dispatch, refreshTotals]
   )
 
   const handleToggleTimer = useCallback(
@@ -93,11 +104,12 @@ export function useTimerActions(boardId: string) {
         } else {
           dispatch(activeTimerCleared(result.data.cardId))
         }
+        void refreshTotals()
       } else {
         dispatch(kanbanToastShown(result.error ?? 'Failed to update timer entry.'))
       }
     },
-    [dispatch]
+    [dispatch, refreshTotals]
   )
 
   const handleDeleteEntry = useCallback(
@@ -108,11 +120,12 @@ export function useTimerActions(boardId: string) {
         if (activeTimers[cardId]?.id === entryId) {
           dispatch(activeTimerCleared(cardId))
         }
+        void refreshTotals()
       } else {
         dispatch(kanbanToastShown(result.error ?? 'Failed to delete timer entry.'))
       }
     },
-    [activeTimers, dispatch]
+    [activeTimers, dispatch, refreshTotals]
   )
 
   const handleCreateManualEntry = useCallback(
@@ -123,11 +136,12 @@ export function useTimerActions(boardId: string) {
       const result = await api.timers.createManual(boardId, cardId, fields)
       if (result.success && result.data) {
         dispatch(timerModalEntryUpserted(result.data))
+        void refreshTotals()
       } else {
         dispatch(kanbanToastShown(result.error ?? 'Failed to create timer entry.'))
       }
     },
-    [boardId, dispatch]
+    [boardId, dispatch, refreshTotals]
   )
 
   return {
@@ -141,5 +155,3 @@ export function useTimerActions(boardId: string) {
     handleCreateManualEntry
   }
 }
-
-export { formatDuration }

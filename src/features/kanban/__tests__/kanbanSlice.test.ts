@@ -6,7 +6,8 @@ jest.mock('../../api/useApi', () => ({
       getBoardLabels: jest.fn()
     },
     timers: {
-      listActive: jest.fn().mockResolvedValue({ success: true, data: [] })
+      listActive: jest.fn().mockResolvedValue({ success: true, data: [] }),
+      getTotals: jest.fn().mockResolvedValue({ success: true, data: {} })
     },
     epics: {
       getCards: jest.fn(),

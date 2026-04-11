@@ -212,7 +212,7 @@ export const TimerButton = styled.button<{ $running?: boolean }>`
   }
 `
 
-export const TimerEntriesButton = styled.button`
+export const TimerEntriesButton = styled.button<{ $hasTotal?: boolean }>`
   flex-shrink: 0;
   font-size: 0.7rem;
   font-family: inherit;
@@ -223,7 +223,7 @@ export const TimerEntriesButton = styled.button`
   padding: 2px 5px;
   cursor: pointer;
   line-height: 1;
-  opacity: 0;
+  opacity: ${(p) => (p.$hasTotal ? 1 : 0)};
   transition:
     opacity var(--transition),
     color var(--transition),

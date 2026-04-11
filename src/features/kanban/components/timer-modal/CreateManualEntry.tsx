@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   AddEntrySection,
   EntryFields,
@@ -8,7 +8,12 @@ import {
   EntryActions,
   SmallButton
 } from './TimerEntriesModal.styled'
-import { isoToLocalInput, localInputToIso } from './timer-modal.utils'
+import {
+  isoToLocalInput,
+  localInputToIso,
+  parseDurationString,
+  addSecondsToIso
+} from './timer-modal.utils'
 
 interface Props {
   cardId: string
@@ -22,20 +27,23 @@ export default function CreateManualEntry(props: Props): JSX.Element {
   const { cardId, onCreate } = props
   const nowLocal = isoToLocalInput(new Date().toISOString())
   const [startedAt, setStartedAt] = useState(nowLocal)
-  const [stoppedAt, setStoppedAt] = useState(nowLocal)
-  const [durationMinutes, setDurationMinutes] = useState('15')
+  const [duration, setDuration] = useState('15m')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const parsed = useMemo(() => parseDurationString(duration), [duration])
+  const invalid = parsed === null || parsed <= 0
+
   const handleCreate = async (): Promise<void> => {
-    if (!startedAt || !stoppedAt) return
-    const mins = Number(durationMinutes) || 0
+    if (!startedAt || invalid) return
+    const startedIso = localInputToIso(startedAt)
+    const seconds = parsed ?? 0
     setSaving(true)
     try {
       await onCreate(cardId, {
-        startedAt: localInputToIso(startedAt),
-        stoppedAt: localInputToIso(stoppedAt),
-        durationSeconds: mins * 60,
+        startedAt: startedIso,
+        stoppedAt: addSecondsToIso(startedIso, seconds),
+        durationSeconds: seconds,
         note
       })
       setNote('')
@@ -59,36 +67,27 @@ export default function CreateManualEntry(props: Props): JSX.Element {
           />
         </FieldLabel>
         <FieldLabel>
-          Stopped
+          Duration
           <FieldInput
-            type="datetime-local"
-            value={stoppedAt}
-            onChange={(e) => setStoppedAt(e.target.value)}
-          />
-        </FieldLabel>
-      </EntryFields>
-      <EntryFields style={{ gridTemplateColumns: '1fr 2fr' }}>
-        <FieldLabel>
-          Duration (min)
-          <FieldInput
-            type="number"
-            min={0}
-            value={durationMinutes}
-            onChange={(e) => setDurationMinutes(e.target.value)}
-          />
-        </FieldLabel>
-        <FieldLabel>
-          Note
-          <NoteInput
             type="text"
-            value={note}
-            placeholder="Optional note…"
-            onChange={(e) => setNote(e.target.value)}
+            value={duration}
+            placeholder="e.g. 1h 30m"
+            onChange={(e) => setDuration(e.target.value)}
+            style={invalid ? { borderColor: '#e85c5c' } : undefined}
           />
         </FieldLabel>
       </EntryFields>
+      <FieldLabel>
+        Note
+        <NoteInput
+          type="text"
+          value={note}
+          placeholder="Optional note…"
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </FieldLabel>
       <EntryActions>
-        <SmallButton onClick={handleCreate} disabled={saving}>
+        <SmallButton onClick={handleCreate} disabled={saving || invalid}>
           {saving ? 'Creating…' : '+ Add entry'}
         </SmallButton>
       </EntryActions>

@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import {
   fetchBoards,
@@ -31,12 +31,25 @@ import { AppContainer, LoadingScreen, Main, EmptyState } from './features/app-la
 import {
   Header,
   HeaderLeft,
-  Logo,
   SyncBtn,
   SyncingLabel,
   Nav,
-  NavBtn
+  NavBtn,
+  NavDropdownWrapper,
+  NavDropdownButton,
+  NavDropdownMenu,
+  NavDropdownItem
 } from './features/app-header/app-header.styled'
+
+const TABS: Tab[] = ['kanban', 'grid', 'dashboard', 'templates', 'settings']
+const TAB_ICON: Record<Tab, string> = {
+  kanban: '📋',
+  grid: '🗃️',
+  dashboard: '📊',
+  templates: '🗂️',
+  settings: '⚙️'
+}
+const COMPACT_HEADER_BREAKPOINT = 960
 
 type Tab = 'kanban' | 'grid' | 'dashboard' | 'templates' | 'settings'
 
@@ -56,6 +69,28 @@ export default function App(): JSX.Element {
   useEffect(() => {
     dispatch(fetchBoards())
   }, [dispatch])
+
+  const [compactHeader, setCompactHeader] = useState(
+    () => window.innerWidth < COMPACT_HEADER_BREAKPOINT
+  )
+  useEffect(() => {
+    const onResize = (): void => setCompactHeader(window.innerWidth < COMPACT_HEADER_BREAKPOINT)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const [navMenuOpen, setNavMenuOpen] = useState(false)
+  const navMenuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!navMenuOpen) return
+    const onClick = (e: MouseEvent): void => {
+      if (navMenuRef.current && !navMenuRef.current.contains(e.target as Node)) {
+        setNavMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [navMenuOpen])
 
   const handleSync = () => {
     if (!selectedBoardId) return
@@ -80,36 +115,65 @@ export default function App(): JSX.Element {
       {/* ── Top Bar ── */}
       <Header>
         <HeaderLeft>
-          <Logo>🚀 Agile Life</Logo>
           <BoardSwitcher />
           <SyncBtn
             className="btn-primary"
+            $iconOnly={compactHeader}
             onClick={handleSync}
             disabled={!selectedBoard || syncing}
-            title="Fetch latest data from Trello"
+            title={syncing ? 'Syncing…' : 'Fetch latest data from Trello'}
           >
             {syncing ? (
               <SyncingLabel>
                 <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />
-                Syncing…
+                {!compactHeader && 'Syncing…'}
               </SyncingLabel>
+            ) : compactHeader ? (
+              '↻'
             ) : (
               '↻ Fetch from Trello'
             )}
           </SyncBtn>
         </HeaderLeft>
-        <Nav>
-          {(['kanban', 'grid', 'dashboard', 'templates', 'settings'] as Tab[]).map((tab) => (
-            <NavBtn key={tab} $active={activeTab === tab} onClick={() => dispatch(tabChanged(tab))}>
-              {tab === 'kanban' && '📋 '}
-              {tab === 'grid' && '🗃️ '}
-              {tab === 'dashboard' && '📊 '}
-              {tab === 'templates' && '🗂️ '}
-              {tab === 'settings' && '⚙️ '}
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </NavBtn>
-          ))}
-        </Nav>
+        {compactHeader ? (
+          <NavDropdownWrapper ref={navMenuRef}>
+            <NavDropdownButton
+              onClick={() => setNavMenuOpen((o) => !o)}
+              title={`View: ${activeTab}`}
+              aria-label="Switch view"
+            >
+              {TAB_ICON[activeTab]} ▾
+            </NavDropdownButton>
+            {navMenuOpen && (
+              <NavDropdownMenu>
+                {TABS.map((tab) => (
+                  <NavDropdownItem
+                    key={tab}
+                    $active={activeTab === tab}
+                    onClick={() => {
+                      dispatch(tabChanged(tab))
+                      setNavMenuOpen(false)
+                    }}
+                  >
+                    {TAB_ICON[tab]} {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </NavDropdownItem>
+                ))}
+              </NavDropdownMenu>
+            )}
+          </NavDropdownWrapper>
+        ) : (
+          <Nav>
+            {TABS.map((tab) => (
+              <NavBtn
+                key={tab}
+                $active={activeTab === tab}
+                onClick={() => dispatch(tabChanged(tab))}
+              >
+                {TAB_ICON[tab]} {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </NavBtn>
+            ))}
+          </Nav>
+        )}
       </Header>
 
       {/* ── Main Content ── */}

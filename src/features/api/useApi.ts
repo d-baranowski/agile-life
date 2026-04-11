@@ -307,7 +307,10 @@ export const api = {
         durationSeconds: number
         note: string
       }
-    ) => invoke<CardTimerEntry>(IPC_CHANNELS.TIMERS_CREATE_MANUAL, boardId, cardId, fields)
+    ) => invoke<CardTimerEntry>(IPC_CHANNELS.TIMERS_CREATE_MANUAL, boardId, cardId, fields),
+    /** Returns a map of cardId → total accumulated seconds across stopped entries. */
+    getTotals: (boardId: string) =>
+      invoke<Record<string, number>>(IPC_CHANNELS.TIMERS_GET_TOTALS, boardId)
   },
 
   epics: {

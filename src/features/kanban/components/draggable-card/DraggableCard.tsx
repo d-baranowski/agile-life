@@ -45,6 +45,7 @@ interface CardProps {
   isDuplicate: boolean
   isSelected: boolean
   activeTimer: CardTimerEntry | null
+  totalTimerSeconds: number
   onToggleSelect: (cardId: string) => void
   onOpenEpicStories: (cardId: string, cardName: string) => void
   onSetCardEpic: (cardId: string, epicCardId: string | null) => void
@@ -66,6 +67,15 @@ function formatElapsed(seconds: number): string {
   return `${mm}:${ss}`
 }
 
+function formatTotal(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds))
+  if (s === 0) return '0m'
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`
+  return `${m}m`
+}
+
 export default function DraggableCard(props: CardProps): JSX.Element {
   const {
     card,
@@ -77,6 +87,7 @@ export default function DraggableCard(props: CardProps): JSX.Element {
     isDuplicate,
     isSelected,
     activeTimer,
+    totalTimerSeconds,
     onToggleSelect,
     onOpenEpicStories,
     onSetCardEpic,
@@ -104,6 +115,10 @@ export default function DraggableCard(props: CardProps): JSX.Element {
   const timerElapsedSeconds = activeTimer
     ? Math.max(0, Math.floor((timerNow - new Date(activeTimer.startedAt).getTime()) / 1000))
     : 0
+
+  const combinedTotalSeconds = totalTimerSeconds + (activeTimer ? timerElapsedSeconds : 0)
+  const totalLabel = formatTotal(combinedTotalSeconds)
+  const hasAnyTime = combinedTotalSeconds > 0
 
   const isDropdownOpen = epicDropdownCardId === card.id
 
@@ -183,7 +198,13 @@ export default function DraggableCard(props: CardProps): JSX.Element {
           $selected={isSelected}
           onClick={handleClick}
           onContextMenu={onContextMenu}
-          title={isEpicBoard ? 'Double-click to see stories in this epic' : undefined}
+          title={
+            isEpicBoard
+              ? 'Double-click to see stories in this epic'
+              : hasAnyTime
+                ? `Total time tracked: ${totalLabel}`
+                : undefined
+          }
         >
           <CardHeader>
             {isEditing ? (
@@ -313,13 +334,18 @@ export default function DraggableCard(props: CardProps): JSX.Element {
                   {activeTimer ? `⏸ ${formatElapsed(timerElapsedSeconds)}` : '▶ Timer'}
                 </TimerButton>
                 <TimerEntriesButton
+                  $hasTotal={hasAnyTime}
                   onClick={(e) => {
                     e.stopPropagation()
                     onOpenTimerEntries(card.id)
                   }}
-                  title="View and edit time entries"
+                  title={
+                    hasAnyTime
+                      ? `Total tracked: ${totalLabel} — click to view entries`
+                      : 'View and edit time entries'
+                  }
                 >
-                  ⏱
+                  {hasAnyTime ? `⏱ ${totalLabel}` : '⏱'}
                 </TimerEntriesButton>
                 {card.enteredAt && (
                   <ColumnAge

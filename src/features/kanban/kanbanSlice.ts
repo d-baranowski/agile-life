@@ -21,12 +21,14 @@ import { api } from '../api/useApi'
 // ── Async thunks ──────────────────────────────────────────────────────────────
 
 export const fetchBoardData = createAsyncThunk('kanban/fetchBoardData', async (boardId: string) => {
-  const [dataResult, membersResult, labelsResult, activeTimersResult] = await Promise.all([
-    api.trello.getBoardData(boardId),
-    api.trello.getBoardMembers(boardId),
-    api.trello.getBoardLabels(boardId),
-    api.timers.listActive(boardId)
-  ])
+  const [dataResult, membersResult, labelsResult, activeTimersResult, totalsResult] =
+    await Promise.all([
+      api.trello.getBoardData(boardId),
+      api.trello.getBoardMembers(boardId),
+      api.trello.getBoardLabels(boardId),
+      api.timers.listActive(boardId),
+      api.timers.getTotals(boardId)
+    ])
   return {
     columns: dataResult.success && dataResult.data ? dataResult.data : ([] as KanbanColumn[]),
     error: !dataResult.success ? (dataResult.error ?? 'Failed to load board data.') : null,
@@ -36,7 +38,9 @@ export const fetchBoardData = createAsyncThunk('kanban/fetchBoardData', async (b
     activeTimers:
       activeTimersResult.success && activeTimersResult.data
         ? activeTimersResult.data
-        : ([] as CardTimerEntry[])
+        : ([] as CardTimerEntry[]),
+    cardTimerTotals:
+      totalsResult.success && totalsResult.data ? totalsResult.data : ({} as Record<string, number>)
   }
 })
 
@@ -171,6 +175,7 @@ interface KanbanState {
 
   // Card timers
   activeTimers: Record<string, CardTimerEntry>
+  cardTimerTotals: Record<string, number>
   timerModalCardId: string | null
   timerModalEntries: CardTimerEntry[]
   timerModalLoading: boolean
@@ -228,6 +233,7 @@ const initialState: KanbanState = {
   bulkMemberDropdownOpen: false,
 
   activeTimers: {},
+  cardTimerTotals: {},
   timerModalCardId: null,
   timerModalEntries: [],
   timerModalLoading: false,
@@ -575,11 +581,8 @@ const kanbanSlice = createSlice({
     activeTimerCleared(state, action: PayloadAction<string>) {
       delete state.activeTimers[action.payload]
     },
-    activeTimersReplaced(state, action: PayloadAction<CardTimerEntry[]>) {
-      state.activeTimers = {}
-      for (const entry of action.payload) {
-        state.activeTimers[entry.cardId] = entry
-      }
+    cardTimerTotalsReplaced(state, action: PayloadAction<Record<string, number>>) {
+      state.cardTimerTotals = action.payload
     },
     timerModalOpened(state, action: PayloadAction<string>) {
       state.timerModalCardId = action.payload
@@ -629,9 +632,10 @@ const kanbanSlice = createSlice({
         state.error = action.payload.error
         state.loading = false
         state.activeTimers = {}
-        for (const entry of action.payload.activeTimers) {
+        for (const entry of action.payload.activeTimers ?? []) {
           state.activeTimers[entry.cardId] = entry
         }
+        state.cardTimerTotals = action.payload.cardTimerTotals ?? {}
       })
       .addCase(fetchBoardData.rejected, (state, action) => {
         state.error = action.error.message ?? 'Failed to load board data.'
@@ -751,7 +755,7 @@ export const {
   genModalClosed,
   activeTimerSet,
   activeTimerCleared,
-  activeTimersReplaced,
+  cardTimerTotalsReplaced,
   timerModalOpened,
   timerModalClosed,
   timerModalEntriesLoaded,

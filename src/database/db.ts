@@ -67,6 +67,7 @@ import sqlTimerEntriesDelete from './sql/timer-entries/delete.sql?raw'
 import sqlTimerEntriesGetByCard from './sql/timer-entries/get-by-card.sql?raw'
 import sqlTimerEntriesGetActiveByBoard from './sql/timer-entries/get-active-by-board.sql?raw'
 import sqlTimerEntriesGetById from './sql/timer-entries/get-by-id.sql?raw'
+import sqlTimerEntriesGetTotalsByBoard from './sql/timer-entries/get-totals-by-board.sql?raw'
 
 let _db: Database.Database | null = null
 
@@ -936,7 +937,6 @@ export function getBoardLabels(boardId: string): TrelloLabel[] {
 // ─── Card Timer Entries ────────────────────────────────────────────────────────
 
 import type { CardTimerEntry } from '../features/timers/timer.types'
-export type { CardTimerEntry }
 
 interface TimerEntryRow {
   id: string
@@ -1011,4 +1011,18 @@ export function getActiveTimerEntriesByBoard(boardId: string): CardTimerEntry[] 
 export function getTimerEntryById(id: string): CardTimerEntry | undefined {
   const row = getDb().prepare(sqlTimerEntriesGetById).get(id) as TimerEntryRow | undefined
   return row ? rowToTimerEntry(row) : undefined
+}
+
+/**
+ * Returns total accumulated seconds per card for the given board, summed
+ * across every timer entry (running entries count their stored duration).
+ */
+export function getTimerTotalsByBoard(boardId: string): Record<string, number> {
+  const rows = getDb().prepare(sqlTimerEntriesGetTotalsByBoard).all(boardId) as Array<{
+    card_id: string
+    total_seconds: number | null
+  }>
+  const totals: Record<string, number> = {}
+  for (const r of rows) totals[r.card_id] = r.total_seconds ?? 0
+  return totals
 }

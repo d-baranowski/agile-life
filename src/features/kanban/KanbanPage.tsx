@@ -129,6 +129,7 @@ export default function KanbanPage(props: Props): JSX.Element {
 
   const timerActions = useTimerActions(board.boardId)
   const activeTimers = useAppSelector((s) => s.kanban.activeTimers)
+  const cardTimerTotals = useAppSelector((s) => s.kanban.cardTimerTotals)
   const timerModalCardId = useAppSelector((s) => s.kanban.timerModalCardId)
   const timerModalEntries = useAppSelector((s) => s.kanban.timerModalEntries)
   const timerModalLoading = useAppSelector((s) => s.kanban.timerModalLoading)
@@ -407,6 +408,7 @@ export default function KanbanPage(props: Props): JSX.Element {
                                 isDuplicate={duplicateNames.has(card.name.trim().toLowerCase())}
                                 isSelected={bulk.selectedCardIds.has(card.id)}
                                 activeTimer={activeTimers[card.id] ?? null}
+                                totalTimerSeconds={cardTimerTotals[card.id] ?? 0}
                                 onToggleSelect={bulk.handleToggleSelectCard}
                                 onOpenEpicStories={epicMgmt.handleOpenEpicStories}
                                 onSetCardEpic={epicMgmt.handleSetCardEpic}

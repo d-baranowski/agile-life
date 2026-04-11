@@ -9,7 +9,8 @@ import {
   deleteTimerEntryRow,
   getTimerEntriesByCard,
   getActiveTimerEntriesByBoard,
-  getTimerEntryById
+  getTimerEntryById,
+  getTimerTotalsByBoard
 } from '../../database/db'
 import type { CardTimerEntry } from './timer.types'
 import { TrelloClient } from '../../trello/client'
@@ -267,6 +268,19 @@ export function registerTimerHandlers(): void {
         return { success: true }
       } catch (err) {
         log.error(`[timers] delete failed entry=${entryId}:`, err)
+        return { success: false, error: String(err) }
+      }
+    }
+  )
+
+  // ── Totals per card for a board ────────────────────────────────────────────
+  ipcMain.handle(
+    IPC_CHANNELS.TIMERS_GET_TOTALS,
+    async (_e, boardId: string): Promise<IpcResult<Record<string, number>>> => {
+      try {
+        return { success: true, data: getTimerTotalsByBoard(boardId) }
+      } catch (err) {
+        log.error(`[timers] getTotals failed board=${boardId}:`, err)
         return { success: false, error: String(err) }
       }
     }

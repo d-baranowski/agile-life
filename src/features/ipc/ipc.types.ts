@@ -92,7 +92,8 @@ export const IPC_CHANNELS = {
   TIMERS_LIST_ACTIVE: 'timers:listActive',
   TIMERS_UPDATE: 'timers:update',
   TIMERS_DELETE: 'timers:delete',
-  TIMERS_CREATE_MANUAL: 'timers:createManual'
+  TIMERS_CREATE_MANUAL: 'timers:createManual',
+  TIMERS_GET_TOTALS: 'timers:getTotals'
 } as const
 
 export interface IpcResult<T> {
